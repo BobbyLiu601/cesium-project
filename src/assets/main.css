@@ -1,0 +1,19 @@
+:root {
+  color-scheme: light;
+  font-family: 'Segoe UI', 'Noto Sans SC', sans-serif;
+  color: #1f2937;
+  background-color: #f8fafc;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}

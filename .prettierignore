@@ -1,0 +1,10 @@
+.multica
+.agent_context
+AGENTS.md
+node_modules
+.cache
+dist
+dist-ssr
+coverage
+pnpm-lock.yaml
+public

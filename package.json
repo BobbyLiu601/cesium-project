@@ -1,0 +1,58 @@
+{
+  "name": "cesium-project",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.14.0",
+  "scripts": {
+    "dev": "vite --configLoader native",
+    "build": "run-p type-check \"build-only {@}\" --",
+    "preview": "vite preview --configLoader native",
+    "test": "vitest run --configLoader native",
+    "test:unit": "vitest run --configLoader native",
+    "build-only": "vite build --configLoader native",
+    "type-check": "vue-tsc --build",
+    "lint": "run-s lint:oxlint lint:eslint",
+    "lint:oxlint": "oxlint . --fix",
+    "lint:eslint": "eslint . --fix --cache --cache-location .cache/eslintcache",
+    "lint:check": "run-s lint:check:oxlint lint:check:eslint",
+    "lint:check:oxlint": "oxlint .",
+    "lint:check:eslint": "eslint . --cache --cache-location .cache/eslintcache",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "verify": "run-s lint:check format:check type-check test build-only"
+  },
+  "dependencies": {
+    "pinia": "^4.0.3",
+    "vue": "^3.5.42",
+    "vue-router": "^5.3.1"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.5",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^24.13.4",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vitest/eslint-plugin": "^1.6.27",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "@vue/test-utils": "^2.5.0",
+    "@vue/tsconfig": "^0.9.1",
+    "eslint": "^10.10.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-oxlint": "~1.82.0",
+    "eslint-plugin-vue": "~10.11.0",
+    "jiti": "^2.7.0",
+    "jsdom": "^30.0.1",
+    "npm-run-all2": "^9.0.3",
+    "oxlint": "~1.82.0",
+    "prettier": "3.9.6",
+    "typescript": "~6.0.0",
+    "vite": "^8.2.2",
+    "vite-plugin-vue-devtools": "^8.2.1",
+    "vitest": "^4.1.11",
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.3.11"
+  },
+  "engines": {
+    "node": "24.22.0"
+  }
+}
