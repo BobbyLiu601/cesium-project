@@ -16,10 +16,19 @@ export default defineConfigWithVueTs(
     files: ['**/*.{vue,ts,mts,tsx}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', '**/.cache/**']),
 
   ...pluginVue.configs['flat/essential'],
   vueTsConfigs.recommended,
+
+  {
+    name: 'app/vue-conventions',
+    files: ['**/*.vue'],
+    rules: {
+      'vue/component-api-style': ['error', ['script-setup']],
+      'vue/block-lang': ['error', { script: { lang: 'ts' } }],
+    },
+  },
 
   {
     ...pluginVitest.configs.recommended,

@@ -28,17 +28,18 @@ pnpm install
 
 ## 常用命令
 
-| 命令                | 说明                                |
-| ------------------- | ----------------------------------- |
-| `pnpm dev`          | 启动开发服务器                      |
-| `pnpm build`        | 类型检查并构建生产版本              |
-| `pnpm preview`      | 本地预览生产构建                    |
-| `pnpm lint`         | 运行 oxlint 与 ESLint               |
-| `pnpm format`       | 使用 Prettier 格式化代码            |
-| `pnpm format:check` | 检查格式是否符合 Prettier 规则      |
-| `pnpm type-check`   | 使用 vue-tsc 做类型检查             |
-| `pnpm test`         | 运行单元测试                        |
-| `pnpm test:unit`    | 运行单元测试（与 `pnpm test` 等价） |
+| 命令                | 说明                                                            |
+| ------------------- | --------------------------------------------------------------- |
+| `pnpm dev`          | 启动开发服务器                                                  |
+| `pnpm build`        | 类型检查并构建生产版本                                          |
+| `pnpm preview`      | 本地预览生产构建                                                |
+| `pnpm lint`         | 运行 oxlint 与 ESLint                                           |
+| `pnpm format`       | 使用 Prettier 格式化代码                                        |
+| `pnpm format:check` | 检查格式是否符合 Prettier 规则                                  |
+| `pnpm type-check`   | 使用 vue-tsc 做类型检查                                         |
+| `pnpm test`         | 运行单元测试                                                    |
+| `pnpm test:unit`    | 运行单元测试（与 `pnpm test` 等价）                             |
+| `pnpm verify`       | 依次运行 lint:check、format:check、type-check、test、build-only |
 
 ## 目录结构
 
@@ -63,6 +64,7 @@ pnpm install
 - Pinia store 统一使用 setup store 写法。
 - 新增页面时在 `src/views/` 中创建视图，并在 `src/router/index.ts` 注册路由。
 - 测试优先覆盖用户可观察行为，应用装配与路由使用应用级 seam 验证。
+- 完整编码、验证与提交约定见 `docs/CODING_STANDARDS.md`。
 
 ## 部署说明
 

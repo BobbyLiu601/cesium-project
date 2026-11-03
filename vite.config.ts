@@ -6,6 +6,7 @@ import vueDevTools from 'vite-plugin-vue-devtools'
 
 // https://vite.dev/config/
 export default defineConfig({
+  cacheDir: fileURLToPath(new URL('./.cache/vite', import.meta.url)),
   plugins: [vue(), vueDevTools()],
   resolve: {
     alias: {
