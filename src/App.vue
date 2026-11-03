@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { RouterView } from 'vue-router'
+import AdminLayout from './layouts/AdminLayout.vue'
 </script>
 
 <template>
-  <RouterView />
+  <AdminLayout />
 </template>

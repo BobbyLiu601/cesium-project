@@ -8,8 +8,10 @@
 - TypeScript
 - Vue Router（HTML5 History 模式）
 - Pinia（setup store 约定）
+- Element Plus
 - Vite
 - Vitest + Vue Test Utils（jsdom）
+- Playwright（Chromium）
 - ESLint + Prettier
 
 ## 环境要求
@@ -26,20 +28,27 @@ pnpm install
 
 如果 Corepack 未启用，也可以先执行 `corepack prepare pnpm@12.14.0 --activate` 再安装依赖。
 
+首次运行浏览器测试前安装 Chromium：
+
+```bash
+pnpm exec playwright install chromium
+```
+
 ## 常用命令
 
-| 命令                | 说明                                                            |
-| ------------------- | --------------------------------------------------------------- |
-| `pnpm dev`          | 启动开发服务器                                                  |
-| `pnpm build`        | 类型检查并构建生产版本                                          |
-| `pnpm preview`      | 本地预览生产构建                                                |
-| `pnpm lint`         | 运行 oxlint 与 ESLint                                           |
-| `pnpm format`       | 使用 Prettier 格式化代码                                        |
-| `pnpm format:check` | 检查格式是否符合 Prettier 规则                                  |
-| `pnpm type-check`   | 使用 vue-tsc 做类型检查                                         |
-| `pnpm test`         | 运行单元测试                                                    |
-| `pnpm test:unit`    | 运行单元测试（与 `pnpm test` 等价）                             |
-| `pnpm verify`       | 依次运行 lint:check、format:check、type-check、test、build-only |
+| 命令                | 说明                                                 |
+| ------------------- | ---------------------------------------------------- |
+| `pnpm dev`          | 启动开发服务器                                       |
+| `pnpm build`        | 类型检查并构建生产版本                               |
+| `pnpm preview`      | 本地预览生产构建                                     |
+| `pnpm lint`         | 运行 oxlint 与 ESLint                                |
+| `pnpm format`       | 使用 Prettier 格式化代码                             |
+| `pnpm format:check` | 检查格式是否符合 Prettier 规则                       |
+| `pnpm type-check`   | 使用 vue-tsc 做类型检查                              |
+| `pnpm test`         | 运行单元测试                                         |
+| `pnpm test:unit`    | 运行单元测试（与 `pnpm test` 等价）                  |
+| `pnpm test:e2e`     | 运行 Playwright 浏览器测试                           |
+| `pnpm verify`       | 运行 lint、格式、类型、Vitest、Playwright 与生产构建 |
 
 ## 目录结构
 
@@ -49,11 +58,15 @@ pnpm install
 ├── public/              # 静态资源
 ├── src/
 │   ├── __tests__/       # 应用级测试
-│   ├── assets/          # 全局样式
+│   ├── assets/          # 全局样式与本地图片
+│   ├── components/      # 后台组件
+│   ├── data/            # 静态展示数据
+│   ├── layouts/         # 后台管理壳
 │   ├── router/          # 路由配置
 │   ├── views/           # 页面视图
 │   ├── App.vue          # 应用外壳
 │   └── main.ts          # 应用入口
+├── e2e/                 # Playwright 浏览器测试
 ├── index.html
 └── vite.config.ts
 ```
