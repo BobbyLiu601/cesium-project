@@ -1,8 +1,21 @@
 :root {
   color-scheme: light;
-  font-family: 'Segoe UI', 'Noto Sans SC', sans-serif;
-  color: #1f2937;
-  background-color: #f8fafc;
+  --color-background: #edf2f8;
+  --color-surface: #ffffff;
+  --color-surface-muted: #f6f9fd;
+  --color-text: #172033;
+  --color-text-secondary: #667085;
+  --color-border: #dde6f2;
+  --color-primary: #2563eb;
+  --color-primary-strong: #1d4ed8;
+  --color-primary-soft: #eaf2ff;
+  --shadow-card: 0 14px 34px rgb(31 56 92 / 8%);
+  --shadow-header: 0 1px 0 rgb(29 53 87 / 8%), 0 8px 24px rgb(31 56 92 / 5%);
+  font-family: 'Avenir Next', 'HarmonyOS Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
+  color: var(--color-text);
+  background-color: var(--color-background);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 *,
@@ -16,4 +29,25 @@ body,
 #app {
   height: 100%;
   margin: 0;
+}
+
+body {
+  min-width: 320px;
+  overflow: hidden;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+a {
+  color: inherit;
+}
+
+img {
+  display: block;
+  max-width: 100%;
 }

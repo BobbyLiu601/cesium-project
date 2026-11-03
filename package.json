@@ -10,6 +10,7 @@
     "preview": "vite preview --configLoader native",
     "test": "vitest run --configLoader native",
     "test:unit": "vitest run --configLoader native",
+    "test:e2e": "node scripts/run-e2e.mjs",
     "build-only": "vite build --configLoader native",
     "type-check": "vue-tsc --build",
     "lint": "run-s lint:oxlint lint:eslint",
@@ -20,14 +21,16 @@
     "lint:check:eslint": "eslint . --cache --cache-location .cache/eslintcache",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "verify": "run-s lint:check format:check type-check test build-only"
+    "verify": "run-s lint:check format:check type-check test test:e2e build-only"
   },
   "dependencies": {
+    "element-plus": "^2.14.7",
     "pinia": "^4.0.3",
     "vue": "^3.5.42",
     "vue-router": "^5.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tsconfig/node24": "^24.0.5",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.13.4",
