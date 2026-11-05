@@ -33,3 +33,14 @@ jobs:
 
       - name: Verify
         run: pnpm verify
+
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run actionlint (pinned)
+        run: docker run --rm -v "${PWD}:/repo" -w /repo rhysd/actionlint:1.7.7

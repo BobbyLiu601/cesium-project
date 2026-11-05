@@ -1,0 +1,54 @@
+name: Release Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    if: github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require Tianditu token
+        env:
+          TIANDITU_TOKEN: ${{ secrets.TIANDITU_TOKEN }}
+        run: |
+          if [ -z "$TIANDITU_TOKEN" ]; then
+            echo "::error::The production environment must define the TIANDITU_TOKEN secret."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Enable Corepack
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Verify and build
+        env:
+          VITE_TIANDITU_TOKEN: ${{ secrets.TIANDITU_TOKEN }}
+        run: pnpm verify
+
+      - name: Upload production build
+        uses: actions/upload-artifact@v4
+        with:
+          name: cesium-project-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14

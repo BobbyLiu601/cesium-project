@@ -1,19 +1,36 @@
 <script setup lang="ts">
+import { nextTick, ref } from 'vue'
+
 import FeatureCard from '@/components/FeatureCard.vue'
+import ThreeDimensionalEarthDialog from '@/components/ThreeDimensionalEarthDialog.vue'
 import { featureItems } from '@/data/features'
+
+const earthDialogVisible = ref(false)
+
+function openFeature(featureId: string) {
+  if (featureId === 'three-dimensional-earth') {
+    earthDialogVisible.value = true
+  }
+}
+
+async function restoreFeatureFocus() {
+  await nextTick()
+  document.querySelector<HTMLButtonElement>('[data-feature-id="three-dimensional-earth"]')?.focus()
+}
 </script>
 
 <template>
   <section class="basic-config">
-    <header class="basic-config__heading">
-      <p class="basic-config__eyebrow">展示能力</p>
-      <h1>基础配置</h1>
-      <p>从统一入口浏览当前已准备的展示能力。</p>
-    </header>
-
     <div class="feature-grid" data-testid="feature-grid">
-      <FeatureCard v-for="feature in featureItems" :key="feature.id" :feature="feature" />
+      <FeatureCard
+        v-for="feature in featureItems"
+        :key="feature.id"
+        :feature="feature"
+        @activate="openFeature(feature.id)"
+      />
     </div>
+
+    <ThreeDimensionalEarthDialog v-model="earthDialogVisible" @closed="restoreFeatureFocus" />
   </section>
 </template>
 
@@ -24,33 +41,6 @@ import { featureItems } from '@/data/features'
   min-height: 100%;
   padding: 32px;
   margin: 0 auto;
-}
-
-.basic-config__heading {
-  max-width: 660px;
-  margin-bottom: 26px;
-}
-
-.basic-config__eyebrow {
-  margin: 0 0 8px;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
-  color: var(--color-primary);
-  text-transform: uppercase;
-}
-
-.basic-config__heading h1 {
-  margin: 0;
-  font-size: clamp(25px, 2.5vw, 32px);
-  line-height: 1.2;
-  color: #14213a;
-}
-
-.basic-config__heading p:last-child {
-  margin: 10px 0 0;
-  line-height: 1.7;
-  color: var(--color-text-secondary);
 }
 
 .feature-grid {
@@ -74,10 +64,6 @@ import { featureItems } from '@/data/features'
 @media (max-width: 767px) {
   .basic-config {
     padding: 22px 16px 28px;
-  }
-
-  .basic-config__heading {
-    margin-bottom: 20px;
   }
 }
 </style>

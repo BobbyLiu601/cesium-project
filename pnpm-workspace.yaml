@@ -1,0 +1,4 @@
+packages: []
+
+allowBuilds:
+  simple-git-hooks: true

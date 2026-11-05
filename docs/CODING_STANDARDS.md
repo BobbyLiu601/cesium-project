@@ -30,6 +30,45 @@
 
 提交前必须运行 `pnpm verify`。CI 使用同一命令，不维护第二套检查逻辑。
 
+## 工程护栏
+
+`pnpm verify` 依次执行 lint、格式、类型、Vitest、Playwright、密钥扫描、生产构建和包体门禁。以下命令也可以单独运行：
+
+- `pnpm check:secrets`：扫描工作区中 Git 跟踪和未忽略的文件。
+- `pnpm check:secrets:staged`：只扫描本次暂存内容，由 pre-commit 调用。
+- `pnpm check:template`：校验 Vue 模板的按钮内容模型。
+- `pnpm check:bundle`：检查最近一次 `pnpm build-only` 生成的 `dist`。
+
+### 密钥扫描
+
+- 使用固定版本 `secretlint@13.1.0`（由 `pnpm-lock.yaml` 锁定）扫描常见凭据，并额外检查非空、非占位的 `VITE_TIANDITU_TOKEN` 配置和 URL 中的 `tk=` 参数。
+- 失败时只输出文件、行号、规则和修复建议，不回显凭据原文；测试会断言遮罩行为。
+- 空白值、`your-token`、`<token>`、`change-me` 等明确占位符直接放行。
+- 专用测试假值必须逐项加入 `scripts/secret-allowlist.json`，不要用忽略整个测试目录的方式绕过扫描。
+- `pnpm install` 会通过 `simple-git-hooks` 安装 pre-commit；它只扫描暂存区。CI 中的 `pnpm verify` 执行完整工作区扫描，绕过本地 hook 的提交仍会被拦截。
+
+### 包体门禁
+
+- Vite 生产构建生成 `dist/.vite/manifest.json`，`pnpm check:bundle` 基于该 manifest 检查入口和动态 chunk。
+- 入口 JavaScript gzip 预算为 400 kB。超出时命令失败并报告实际值与预算值；提高预算必须通过单独、可审查的配置变更。
+- Cesium 必须存在于独立的动态 chunk，且入口不能静态导入它、入口 HTML 不能预加载它、入口 chunk 不能包含 Cesium 代码标记。
+- 失败信息使用 `entry-budget`、`cesium-in-entry`、`cesium-preloaded`、`cesium-static-import`、`cesium-not-dynamic` 等代码区分原因。
+
+### 模板内容模型
+
+- 使用 `@vue/compiler-sfc` 解析 Vue 单文件组件，检查原生 `button` 和 `ElButton` 的默认插槽内容。
+- `button` 内出现块级元素或嵌套交互元素时失败，并报告来源文件和行号。
+- 该检查接入 `pnpm lint:check`，因此同时由本地 `pnpm verify` 和 CI 执行。
+
+### actionlint
+
+- Verify workflow 使用固定镜像 `rhysd/actionlint:1.7.7` 的独立 job 校验 GitHub Actions 的表达式、权限和 secret 引用。
+- 该检查只要求 CI 环境；Windows 本地不要求安装 Go 工具。需要本地复核时可以使用 Docker：
+
+```bash
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
+```
+
 ## 测试与交付
 
 - 每次执行完成后，执行者必须自行运行与改动相关的测试，不能把执行测试或验收留给用户。
