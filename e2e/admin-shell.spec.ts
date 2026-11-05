@@ -1,4 +1,12 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Locator } from '@playwright/test'
+
+const CESIUM_READY_TIMEOUT = 15_000
+
+async function expectCesiumReady(globe: Locator) {
+  await expect(globe).toHaveAttribute('data-cesium-state', 'ready', {
+    timeout: CESIUM_READY_TIMEOUT,
+  })
+}
 
 const responsiveViewports = [
   { width: 375, height: 812, name: '手机' },
@@ -59,7 +67,9 @@ test('通过卡片图片或文字打开三维地球，并可全屏、退出全�
   const closeButton = dialog.getByRole('button', { name: '关闭此对话框' })
   await expect(dialog).toBeVisible()
   await expect(dialogPanel).not.toHaveClass(/is-fullscreen/)
-  await expect(dialog.getByTestId('cesium-globe')).toBeVisible()
+  const globe = dialog.getByTestId('cesium-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toBeVisible()
   await expect(dialog.getByTestId('cesium-credit-container')).toBeHidden()
   await expect(dialog.locator('.cesium-viewer-bottom')).toBeHidden()
   await expect(closeButton).toHaveCount(1)
@@ -100,7 +110,7 @@ test('通过卡片图片或文字打开三维地球，并可全屏、退出全�
 
   await card.getByText('三维地球', { exact: true }).click()
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByTestId('cesium-globe')).toBeVisible()
+  await expectCesiumReady(dialog.getByTestId('cesium-globe'))
   expect(await dialog.evaluate((element) => element.isConnected)).toBe(true)
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
 })
@@ -141,6 +151,7 @@ test('通过 Enter 或空格打开三维地球弹窗', async ({ page }) => {
   await card.focus()
   await card.press('Enter')
   await expect(dialog).toBeVisible()
+  await expectCesiumReady(dialog.getByTestId('cesium-globe'))
   await page.keyboard.press('Escape')
   await expect(dialog).toBeHidden()
   await expect(card).toBeFocused()
@@ -148,6 +159,7 @@ test('通过 Enter 或空格打开三维地球弹窗', async ({ page }) => {
   await card.focus()
   await card.press('Space')
   await expect(dialog).toBeVisible()
+  await expectCesiumReady(dialog.getByTestId('cesium-globe'))
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
 })
 
@@ -159,6 +171,7 @@ test('窄屏下三维地球弹窗保持在视口内并可切换全屏', async ({
   const dialog = page.getByRole('dialog', { name: '三维地球' })
   const dialogPanel = page.locator('.three-earth-dialog')
   await expect(dialog).toBeVisible()
+  await expectCesiumReady(dialog.getByTestId('cesium-globe'))
 
   const box = await dialogPanel.boundingBox()
   expect(box).not.toBeNull()
@@ -285,7 +298,9 @@ test('从高程卡片打开独立场景，加载失败时仍可操作、全屏�
   const dialog = page.getByRole('dialog', { name: '高程' })
   const dialogPanel = page.locator('.elevation-dialog')
   await expect(dialog).toBeVisible()
-  await expect(dialog.getByTestId('elevation-globe')).toBeVisible()
+  const globe = dialog.getByTestId('elevation-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toBeVisible()
   await expect(dialog.getByTestId('elevation-credit-container')).toBeHidden()
   await expect(dialog.locator('.cesium-viewer-bottom')).toBeHidden()
   await expect(dialog.getByRole('alert')).toHaveCount(0)

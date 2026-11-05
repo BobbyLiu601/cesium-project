@@ -14,6 +14,7 @@ import {
   elevationTerrainProviderInstances,
   EllipsoidTerrainProvider,
   resetCesiumMock,
+  tileLoadProgressListeners,
   tileProviderInstances,
   viewerInstances,
   WebMercatorTilingScheme,
@@ -135,7 +136,8 @@ describe('App', () => {
     const dialog = wrapper.get('[role="dialog"]')
     expect(dialog.text()).toContain('三维地球')
     expect(dialog.classes()).not.toContain('is-fullscreen')
-    expect(wrapper.find('[data-testid="cesium-globe"]').exists()).toBe(true)
+    const globe = wrapper.get('[data-testid="cesium-globe"]')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
     expect(viewerInstances).toHaveLength(1)
     expect(viewerInstances[0]?.options).toMatchObject({
       baseLayer: false,
@@ -191,9 +193,16 @@ describe('App', () => {
     expect(dialog.text()).toContain('高程')
     expect(dialog.classes()).not.toContain('is-fullscreen')
     expect(wrapper.find('[data-testid="elevation-globe"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="elevation-globe"]').attributes('data-cesium-state')).toBe(
+      'ready',
+    )
     expect(viewerInstances).toHaveLength(1)
+    expect(viewerInstances[0]?.options).toMatchObject({
+      requestRenderMode: true,
+    })
     expect(viewerInstances[0]?.terrainProvider).toBeInstanceOf(EllipsoidTerrainProvider)
     expect(viewerInstances[0]?.camera.setView).not.toHaveBeenCalled()
+    expect(viewerInstances[0]?.scene.requestRender).toHaveBeenCalled()
     expect(elevationProviderRequests).toEqual([
       {
         url: 'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
@@ -209,6 +218,8 @@ describe('App', () => {
     const provider = new ArcGISTiledElevationTerrainProvider(
       'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
     )
+    const requestRender = viewerInstances[0]?.scene.requestRender
+    requestRender?.mockClear()
     resolveProvider(provider)
     await flushPromises()
 
@@ -227,11 +238,16 @@ describe('App', () => {
         roll: 0,
       },
     })
+    expect(requestRender).toHaveBeenCalled()
+    requestRender?.mockClear()
+    tileLoadProgressListeners.forEach((listener) => listener())
+    expect(requestRender).toHaveBeenCalled()
     expect(elevationTerrainProviderInstances).toEqual([provider])
 
     await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(tileLoadProgressListeners).toHaveLength(0)
 
     wrapper.unmount()
   })
@@ -336,6 +352,26 @@ describe('App', () => {
 
     expect(viewerInstances).toHaveLength(1)
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(getActiveSession()).toBeUndefined()
+    expect(consoleError).toHaveBeenCalled()
+
+    await wrapper.get('.three-earth-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    wrapper.unmount()
+  })
+
+  it('marks the globe as failed when viewer initialization fails', async () => {
+    cesiumMockState.failNextViewer = true
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wrapper = await mountAt('/basic-config')
+
+    await wrapper.get('[data-feature-id="three-dimensional-earth"]').trigger('click')
+    await flushPromises()
+
+    const globe = wrapper.get('[data-testid="cesium-globe"]')
+    expect(globe.attributes('data-cesium-state')).toBe('error')
+    expect(globe.attributes('data-cesium-state')).not.toBe('ready')
     expect(getActiveSession()).toBeUndefined()
     expect(consoleError).toHaveBeenCalled()
 

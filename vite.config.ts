@@ -19,6 +19,9 @@ const cesiumStaticTargets = ['Assets', 'ThirdParty', 'Widgets', 'Workers'].map((
 // https://vite.dev/config/
 export default defineConfig({
   cacheDir: fileURLToPath(new URL('./.cache/vite', import.meta.url)),
+  optimizeDeps: {
+    include: ['cesium'],
+  },
   build: {
     manifest: true,
   },

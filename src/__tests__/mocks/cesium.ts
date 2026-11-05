@@ -14,6 +14,9 @@ export interface MockViewer {
     requestRender: ReturnType<typeof vi.fn<() => void>>
     globe: {
       enableLighting: boolean
+      tileLoadProgressEvent: {
+        addEventListener: ReturnType<typeof vi.fn<(callback: () => void) => () => void>>
+      }
     }
     verticalExaggeration: number
   }
@@ -37,7 +40,9 @@ export const elevationProviderRequests: Array<{
   options?: Record<string, unknown>
 }> = []
 export const elevationTerrainProviderInstances: MockElevationTerrainProvider[] = []
+export const tileLoadProgressListeners: Array<() => void> = []
 export const cesiumMockState = {
+  failNextViewer: false,
   failNextImageryLayer: false,
   elevationProviderOutcome: 'success' as 'success' | 'failure',
   elevationProviderPromise: undefined as Promise<MockElevationTerrainProvider> | undefined,
@@ -63,6 +68,18 @@ export class Viewer implements MockViewer {
     requestRender: vi.fn<() => void>(),
     globe: {
       enableLighting: false,
+      tileLoadProgressEvent: {
+        addEventListener: vi.fn<(callback: () => void) => () => void>((callback) => {
+          tileLoadProgressListeners.push(callback)
+
+          return () => {
+            const index = tileLoadProgressListeners.indexOf(callback)
+            if (index >= 0) {
+              tileLoadProgressListeners.splice(index, 1)
+            }
+          }
+        }),
+      },
     },
     verticalExaggeration: 1,
   }
@@ -74,6 +91,11 @@ export class Viewer implements MockViewer {
     public container: HTMLElement,
     public options: Record<string, unknown>,
   ) {
+    if (cesiumMockState.failNextViewer) {
+      cesiumMockState.failNextViewer = false
+      throw new Error('mock viewer failure')
+    }
+
     this.terrainProvider = options.terrainProvider
     viewerInstances.push(this)
   }
@@ -135,6 +157,8 @@ export function resetCesiumMock() {
   tileProviderInstances.length = 0
   elevationProviderRequests.length = 0
   elevationTerrainProviderInstances.length = 0
+  tileLoadProgressListeners.length = 0
+  cesiumMockState.failNextViewer = false
   cesiumMockState.failNextImageryLayer = false
   cesiumMockState.elevationProviderOutcome = 'success'
   cesiumMockState.elevationProviderPromise = undefined

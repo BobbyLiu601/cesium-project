@@ -12,6 +12,7 @@ import {
 } from '@/components/cesiumGlobeSession'
 
 const container = ref<HTMLDivElement | null>(null)
+const cesiumState = ref<'loading' | 'ready' | 'error'>('loading')
 
 function resize() {
   const activeSession = getActiveSession()
@@ -19,8 +20,21 @@ function resize() {
   activeSession?.viewer.scene.requestRender()
 }
 
+function attachSession(session: GlobeSession) {
+  if (!container.value) {
+    cesiumState.value = 'error'
+    return
+  }
+
+  container.value.replaceChildren(session.host)
+  session.viewer.resize()
+  session.viewer.scene.requestRender()
+  cesiumState.value = 'ready'
+}
+
 function createSession() {
   if (!container.value) {
+    cesiumState.value = 'error'
     return
   }
 
@@ -101,26 +115,28 @@ function createSession() {
 
     host?.remove()
     console.error('Cesium 三维地球初始化失败', error)
+    cesiumState.value = 'error'
   }
 }
 
 onMounted(() => {
   if (!container.value) {
+    cesiumState.value = 'error'
     return
   }
 
   const activeSession = getActiveSession()
   if (activeSession) {
-    container.value.replaceChildren(activeSession.host)
-    resize()
+    attachSession(activeSession)
     return
   }
 
   createSession()
   const session = getActiveSession()
   if (session) {
-    container.value.replaceChildren(session.host)
-    resize()
+    attachSession(session)
+  } else {
+    cesiumState.value = 'error'
   }
 })
 
@@ -128,7 +144,12 @@ defineExpose({ resize })
 </script>
 
 <template>
-  <div ref="container" class="cesium-globe" data-testid="cesium-globe"></div>
+  <div
+    ref="container"
+    class="cesium-globe"
+    data-testid="cesium-globe"
+    :data-cesium-state="cesiumState"
+  ></div>
 </template>
 
 <style scoped>

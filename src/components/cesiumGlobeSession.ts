@@ -4,6 +4,7 @@ export interface GlobeSession {
   host: HTMLDivElement
   viewer: Viewer
   resizeObserver?: ResizeObserver
+  cleanup?: () => void
 }
 
 let activeSession: GlobeSession | undefined
@@ -24,6 +25,7 @@ export function clearActiveSession(session: GlobeSession) {
 
 export function disposeGlobeSession(session: GlobeSession) {
   session.resizeObserver?.disconnect()
+  session.cleanup?.()
 
   try {
     session.viewer.destroy()

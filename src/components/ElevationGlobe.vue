@@ -21,6 +21,7 @@ const ELEVATION_POSITION = {
 }
 
 const container = ref<HTMLDivElement | null>(null)
+const cesiumState = ref<'loading' | 'ready' | 'error'>('loading')
 let session: GlobeSession | undefined
 let cancelled = false
 
@@ -39,8 +40,10 @@ async function enableElevation(currentSession: GlobeSession) {
     }
 
     currentSession.viewer.terrainProvider = terrainProvider
+    currentSession.viewer.scene.requestRender()
     currentSession.viewer.scene.globe.enableLighting = true
     currentSession.viewer.scene.verticalExaggeration = 1.5
+    currentSession.viewer.scene.requestRender()
     currentSession.viewer.camera.setView({
       destination: Cesium.Cartesian3.fromDegrees(
         ELEVATION_POSITION.longitude,
@@ -63,6 +66,7 @@ async function enableElevation(currentSession: GlobeSession) {
 
 function createSession() {
   if (!container.value) {
+    cesiumState.value = 'error'
     return
   }
 
@@ -91,14 +95,20 @@ function createSession() {
       homeButton: false,
       infoBox: false,
       navigationHelpButton: false,
-      requestRenderMode: false,
+      requestRenderMode: true,
       sceneModePicker: false,
       selectionIndicator: false,
       timeline: false,
       terrainProvider: new Cesium.EllipsoidTerrainProvider(),
     })
 
+    const removeTileLoadProgressListener =
+      viewer.scene.globe.tileLoadProgressEvent.addEventListener(() => {
+        viewer.scene.requestRender()
+      })
+
     session = {
+      cleanup: removeTileLoadProgressListener,
       host,
       viewer,
     }
@@ -134,6 +144,7 @@ function createSession() {
 
     container.value.replaceChildren(host)
     viewer.scene.requestRender()
+    cesiumState.value = 'ready'
     void enableElevation(session)
   } catch (error) {
     if (session) {
@@ -143,6 +154,7 @@ function createSession() {
 
     host?.remove()
     console.error('Cesium 高程场景初始化失败', error)
+    cesiumState.value = 'error'
   }
 }
 
@@ -163,7 +175,12 @@ defineExpose({ resize })
 </script>
 
 <template>
-  <div ref="container" class="elevation-globe" data-testid="elevation-globe"></div>
+  <div
+    ref="container"
+    class="elevation-globe"
+    data-testid="elevation-globe"
+    :data-cesium-state="cesiumState"
+  ></div>
 </template>
 
 <style scoped>
