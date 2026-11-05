@@ -1,21 +1,37 @@
 <script setup lang="ts">
 import { nextTick, ref } from 'vue'
 
+import { disposeActiveSession } from '@/components/cesiumGlobeSession'
+import ElevationDialog from '@/components/ElevationDialog.vue'
 import FeatureCard from '@/components/FeatureCard.vue'
 import ThreeDimensionalEarthDialog from '@/components/ThreeDimensionalEarthDialog.vue'
 import { featureItems } from '@/data/features'
 
 const earthDialogVisible = ref(false)
+const elevationDialogVisible = ref(false)
 
 function openFeature(featureId: string) {
   if (featureId === 'three-dimensional-earth') {
+    elevationDialogVisible.value = false
+    disposeActiveSession()
     earthDialogVisible.value = true
+    return
+  }
+
+  if (featureId === 'elevation') {
+    earthDialogVisible.value = false
+    disposeActiveSession()
+    elevationDialogVisible.value = true
   }
 }
 
-async function restoreFeatureFocus() {
+async function restoreFeatureFocus(featureId: string) {
   await nextTick()
-  document.querySelector<HTMLButtonElement>('[data-feature-id="three-dimensional-earth"]')?.focus()
+  if (earthDialogVisible.value || elevationDialogVisible.value) {
+    return
+  }
+
+  document.querySelector<HTMLButtonElement>(`[data-feature-id="${featureId}"]`)?.focus()
 }
 </script>
 
@@ -30,7 +46,11 @@ async function restoreFeatureFocus() {
       />
     </div>
 
-    <ThreeDimensionalEarthDialog v-model="earthDialogVisible" @closed="restoreFeatureFocus" />
+    <ThreeDimensionalEarthDialog
+      v-model="earthDialogVisible"
+      @closed="restoreFeatureFocus('three-dimensional-earth')"
+    />
+    <ElevationDialog v-model="elevationDialogVisible" @closed="restoreFeatureFocus('elevation')" />
   </section>
 </template>
 

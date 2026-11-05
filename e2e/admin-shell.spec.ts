@@ -12,6 +12,7 @@ const responsiveViewports = [
 
 test.beforeEach(async ({ page }) => {
   await page.route(/https:\/\/t\d\.tianditu\.gov\.cn\//, (route) => route.abort())
+  await page.route(/https:\/\/elevation3d\.arcgis\.com\//, (route) => route.abort())
 })
 
 test('根路径进入基础配置并显示后台管理壳', async ({ page }) => {
@@ -31,6 +32,13 @@ test('根路径进入基础配置并显示后台管理壳', async ({ page }) => 
     'page',
   )
   await expect(page.getByRole('button', { name: '打开三维地球' })).toContainText('三维地球')
+  await expect(page.getByRole('button', { name: '打开高程' })).toContainText('高程')
+  await expect(page.getByTestId('feature-card')).toHaveCount(2)
+  expect(
+    await page
+      .getByTestId('feature-card')
+      .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-feature-id'))),
+  ).toEqual(['three-dimensional-earth', 'elevation'])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
     0,
@@ -266,4 +274,29 @@ test('未知地址保留原 URL，并在后台管理壳内返回基础配置', a
 
   await expect(page).toHaveURL(/\/basic-config$/)
   await expect(page.getByRole('button', { name: '打开三维地球' })).toBeVisible()
+})
+
+test('从高程卡片打开独立场景，加载失败时仍可操作、全屏和关闭', async ({ page }) => {
+  await page.goto('/basic-config')
+
+  const card = page.getByRole('button', { name: '打开高程' })
+  await card.locator('img').click()
+
+  const dialog = page.getByRole('dialog', { name: '高程' })
+  const dialogPanel = page.locator('.elevation-dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByTestId('elevation-globe')).toBeVisible()
+  await expect(dialog.getByTestId('elevation-credit-container')).toBeHidden()
+  await expect(dialog.locator('.cesium-viewer-bottom')).toBeHidden()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+  await expect(dialog).not.toContainText('加载失败')
+
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(dialogPanel).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
+  await expect(dialogPanel).not.toHaveClass(/is-fullscreen/)
+
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(card).toBeFocused()
 })

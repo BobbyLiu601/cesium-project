@@ -3,6 +3,7 @@ import { vi } from 'vitest'
 export interface MockViewer {
   container: HTMLElement
   options: Record<string, unknown>
+  terrainProvider: unknown
   imageryLayers: {
     addImageryProvider: ReturnType<typeof vi.fn<(provider: unknown) => void>>
   }
@@ -11,6 +12,10 @@ export interface MockViewer {
   }
   scene: {
     requestRender: ReturnType<typeof vi.fn<() => void>>
+    globe: {
+      enableLighting: boolean
+    }
+    verticalExaggeration: number
   }
   resize: ReturnType<typeof vi.fn<() => void>>
   destroy: ReturnType<typeof vi.fn<() => void>>
@@ -20,13 +25,27 @@ export interface MockTileProvider {
   options: Record<string, unknown>
 }
 
+export interface MockElevationTerrainProvider {
+  url: string
+  options?: Record<string, unknown>
+}
+
 export const viewerInstances: MockViewer[] = []
 export const tileProviderInstances: MockTileProvider[] = []
+export const elevationProviderRequests: Array<{
+  url: string
+  options?: Record<string, unknown>
+}> = []
+export const elevationTerrainProviderInstances: MockElevationTerrainProvider[] = []
 export const cesiumMockState = {
   failNextImageryLayer: false,
+  elevationProviderOutcome: 'success' as 'success' | 'failure',
+  elevationProviderPromise: undefined as Promise<MockElevationTerrainProvider> | undefined,
 }
 
 export class Viewer implements MockViewer {
+  terrainProvider: unknown
+
   imageryLayers = {
     addImageryProvider: vi.fn<(provider: unknown) => void>(() => {
       if (cesiumMockState.failNextImageryLayer) {
@@ -42,6 +61,10 @@ export class Viewer implements MockViewer {
 
   scene = {
     requestRender: vi.fn<() => void>(),
+    globe: {
+      enableLighting: false,
+    },
+    verticalExaggeration: 1,
   }
 
   resize = vi.fn<() => void>()
@@ -51,6 +74,7 @@ export class Viewer implements MockViewer {
     public container: HTMLElement,
     public options: Record<string, unknown>,
   ) {
+    this.terrainProvider = options.terrainProvider
     viewerInstances.push(this)
   }
 }
@@ -65,6 +89,29 @@ export class WebMercatorTilingScheme {}
 
 export class EllipsoidTerrainProvider {}
 
+export class ArcGISTiledElevationTerrainProvider implements MockElevationTerrainProvider {
+  constructor(
+    public url: string,
+    public options?: Record<string, unknown>,
+  ) {
+    elevationTerrainProviderInstances.push(this)
+  }
+
+  static fromUrl(url: string, options?: Record<string, unknown>) {
+    elevationProviderRequests.push({ url, options })
+
+    if (cesiumMockState.elevationProviderPromise) {
+      return cesiumMockState.elevationProviderPromise
+    }
+
+    if (cesiumMockState.elevationProviderOutcome === 'failure') {
+      return Promise.reject(new Error('mock elevation provider failure'))
+    }
+
+    return Promise.resolve(new ArcGISTiledElevationTerrainProvider(url, options))
+  }
+}
+
 export class Cartesian3 {
   static fromDegrees(longitude: number, latitude: number, height: number) {
     return { longitude, latitude, height }
@@ -77,8 +124,18 @@ export class Rectangle {
   }
 }
 
+export const Math = {
+  toRadians(degrees: number) {
+    return (degrees * globalThis.Math.PI) / 180
+  },
+}
+
 export function resetCesiumMock() {
   viewerInstances.length = 0
   tileProviderInstances.length = 0
+  elevationProviderRequests.length = 0
+  elevationTerrainProviderInstances.length = 0
   cesiumMockState.failNextImageryLayer = false
+  cesiumMockState.elevationProviderOutcome = 'success'
+  cesiumMockState.elevationProviderPromise = undefined
 }

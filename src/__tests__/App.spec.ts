@@ -8,7 +8,11 @@ import App from '../App.vue'
 import { disposeActiveSession, getActiveSession } from '../components/cesiumGlobeSession'
 import router from '../router'
 import {
+  ArcGISTiledElevationTerrainProvider,
   cesiumMockState,
+  elevationProviderRequests,
+  elevationTerrainProviderInstances,
+  EllipsoidTerrainProvider,
   resetCesiumMock,
   tileProviderInstances,
   viewerInstances,
@@ -41,7 +45,16 @@ async function mountAt(path: string) {
 }
 
 async function openGlobe(wrapper: Awaited<ReturnType<typeof mountAt>>) {
-  await wrapper.get('[data-testid="feature-card"]').trigger('click')
+  await wrapper.get('[data-feature-id="three-dimensional-earth"]').trigger('click')
+  await flushPromises()
+  await vi.waitFor(() => {
+    expect(viewerInstances).toHaveLength(1)
+  })
+  await flushPromises()
+}
+
+async function openElevation(wrapper: Awaited<ReturnType<typeof mountAt>>) {
+  await wrapper.get('[data-feature-id="elevation"]').trigger('click')
   await flushPromises()
   await vi.waitFor(() => {
     expect(viewerInstances).toHaveLength(1)
@@ -83,19 +96,30 @@ describe('App', () => {
     wrapper.unmount()
   })
 
-  it('shows the feature card as one accessible button without the legacy heading', async () => {
+  it('shows both feature cards as accessible buttons in the requested order', async () => {
     const wrapper = await mountAt('/basic-config')
-    const card = wrapper.get('[data-testid="feature-card"]')
-    const image = card.get('img')
+    const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(card.element.tagName).toBe('BUTTON')
-    expect(card.attributes('type')).toBe('button')
-    expect(card.findAll('div')).toHaveLength(0)
-    expect(card.findAll('span')).toHaveLength(3)
-    expect(card.attributes('aria-label')).toBe('打开三维地球')
-    expect(card.text()).toContain('三维地球')
-    expect(image.attributes('alt')).toBe('蓝色三维地球与环绕轨道示意图')
-    expect(image.attributes('src')).not.toMatch(/^https?:\/\//)
+    expect(cards).toHaveLength(2)
+    expect(cards.map((card) => card.attributes('data-feature-id'))).toEqual([
+      'three-dimensional-earth',
+      'elevation',
+    ])
+
+    for (const card of cards) {
+      expect(card.element.tagName).toBe('BUTTON')
+      expect(card.attributes('type')).toBe('button')
+      expect(card.findAll('div')).toHaveLength(0)
+      expect(card.findAll('span')).toHaveLength(3)
+      expect(card.get('img').attributes('src')).not.toMatch(/^https?:\/\//)
+    }
+
+    expect(cards[0]?.attributes('aria-label')).toBe('打开三维地球')
+    expect(cards[0]?.text()).toContain('三维地球')
+    expect(cards[0]?.get('img').attributes('alt')).toBe('蓝色三维地球与环绕轨道示意图')
+    expect(cards[1]?.attributes('aria-label')).toBe('打开高程')
+    expect(cards[1]?.text()).toContain('高程')
+    expect(cards[1]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
     expect(wrapper.find('h1').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
@@ -151,6 +175,136 @@ describe('App', () => {
 
     await wrapper.get('.three-earth-dialog button[aria-label="关闭此对话框"]').trigger('click')
     await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('loads the elevation scene independently and applies terrain after the provider resolves', async () => {
+    let resolveProvider!: (provider: ArcGISTiledElevationTerrainProvider) => void
+    cesiumMockState.elevationProviderPromise = new Promise((resolve) => {
+      resolveProvider = resolve
+    })
+
+    const wrapper = await mountAt('/basic-config')
+    await openElevation(wrapper)
+
+    const dialog = wrapper.get('.elevation-dialog')
+    expect(dialog.text()).toContain('高程')
+    expect(dialog.classes()).not.toContain('is-fullscreen')
+    expect(wrapper.find('[data-testid="elevation-globe"]').exists()).toBe(true)
+    expect(viewerInstances).toHaveLength(1)
+    expect(viewerInstances[0]?.terrainProvider).toBeInstanceOf(EllipsoidTerrainProvider)
+    expect(viewerInstances[0]?.camera.setView).not.toHaveBeenCalled()
+    expect(elevationProviderRequests).toEqual([
+      {
+        url: 'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
+        options: undefined,
+      },
+    ])
+    expect(tileProviderInstances).toHaveLength(2)
+
+    const creditContainer = viewerInstances[0]?.options.creditContainer as HTMLElement
+    expect(creditContainer.hidden).toBe(true)
+    expect(creditContainer.style.display).toBe('none')
+
+    const provider = new ArcGISTiledElevationTerrainProvider(
+      'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
+    )
+    resolveProvider(provider)
+    await flushPromises()
+
+    expect(viewerInstances[0]?.terrainProvider).toBe(provider)
+    expect(viewerInstances[0]?.scene.globe.enableLighting).toBe(true)
+    expect(viewerInstances[0]?.scene.verticalExaggeration).toBe(1.5)
+    expect(viewerInstances[0]?.camera.setView).toHaveBeenCalledExactlyOnceWith({
+      destination: {
+        longitude: 113.72,
+        latitude: 23.61,
+        height: 15_000,
+      },
+      orientation: {
+        heading: 0,
+        pitch: (-35 * Math.PI) / 180,
+        roll: 0,
+      },
+    })
+    expect(elevationTerrainProviderInstances).toEqual([provider])
+
+    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+  })
+
+  it('keeps the normal globe and current camera when elevation loading fails', async () => {
+    cesiumMockState.elevationProviderOutcome = 'failure'
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wrapper = await mountAt('/basic-config')
+
+    await openElevation(wrapper)
+
+    expect(viewerInstances).toHaveLength(1)
+    expect(viewerInstances[0]?.terrainProvider).toBeInstanceOf(EllipsoidTerrainProvider)
+    expect(viewerInstances[0]?.camera.setView).not.toHaveBeenCalled()
+    expect(viewerInstances[0]?.scene.globe.enableLighting).toBe(false)
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.get('.elevation-dialog').text()).not.toContain('加载失败')
+    expect(consoleError).toHaveBeenCalled()
+
+    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+  })
+
+  it('ignores elevation provider completion after the dialog closes', async () => {
+    let resolveProvider!: (provider: ArcGISTiledElevationTerrainProvider) => void
+    cesiumMockState.elevationProviderPromise = new Promise((resolve) => {
+      resolveProvider = resolve
+    })
+
+    const wrapper = await mountAt('/basic-config')
+    await openElevation(wrapper)
+
+    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+
+    resolveProvider(
+      new ArcGISTiledElevationTerrainProvider(
+        'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer',
+      ),
+    )
+    await flushPromises()
+
+    expect(viewerInstances).toHaveLength(1)
+    expect(viewerInstances[0]?.camera.setView).not.toHaveBeenCalled()
+    expect(getActiveSession()).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('keeps at most one active viewer when another feature is opened', async () => {
+    const wrapper = await mountAt('/basic-config')
+    await openGlobe(wrapper)
+    expect(getActiveSession()?.viewer).toBe(viewerInstances[0])
+
+    await wrapper.get('[data-feature-id="elevation"]').trigger('click')
+    await flushPromises()
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(2)
+    })
+
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(getActiveSession()?.viewer).toBe(viewerInstances[1])
+    expect(wrapper.get('.elevation-dialog').text()).toContain('高程')
+
+    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(viewerInstances[1]?.destroy).toHaveBeenCalledOnce()
+    expect(getActiveSession()).toBeUndefined()
+
     wrapper.unmount()
   })
 
