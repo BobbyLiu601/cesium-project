@@ -74,7 +74,7 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 - 一个 Issue 使用一个任务分支；同一 Issue 的多轮执行复用该分支。只读调查、问答和评审不创建分支。
 - 开始修改前确认工作区干净，执行 `git fetch origin`，从最新的 `origin/main` 创建任务分支。`main` 有未提交改动时停止并询问，不自动 stash、提交或迁移这些改动。
 - 分支名使用 `<type>/<issue-key>-<slug>`，`type` 取 `feat`、`fix`、`docs`、`chore`、`refactor` 或 `test`，其余部分使用小写 ASCII 和连字符。例如：`fix/alcy-35-git-branch-policy`。
-- 完成修改后，在任务分支执行 `git rebase origin/main`；由执行任务的 agent 解决冲突，禁止使用强推或 `git reset --hard` 绕过冲突。
+- 提交代码时，在任务分支执行 `git rebase origin/main`；由执行任务的 agent 解决冲突，禁止使用强推或 `git reset --hard` 绕过冲突。
 - rebase 完成后必须重新运行 `pnpm verify`。验证通过后，切换到干净的 `main`，执行 `git pull --ff-only`、`git merge --ff-only <任务分支>`，再执行 `git push origin main`。
 - 合入后保留本地任务分支。若 `main` 的远端保护规则拒绝直接推送，停止并报告，不绕过保护。
 
