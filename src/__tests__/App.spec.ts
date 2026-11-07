@@ -13,7 +13,13 @@ import {
   elevationProviderRequests,
   elevationTerrainProviderInstances,
   EllipsoidTerrainProvider,
+  groundPrimitiveInstances,
+  imageryLayerInstances,
+  materialInstances,
+  primitiveInstances,
   resetCesiumMock,
+  scenePrimitiveAdds,
+  scenePrimitiveRemoves,
   tileLoadProgressListeners,
   tileProviderInstances,
   viewerInstances,
@@ -63,21 +69,50 @@ async function openElevation(wrapper: Awaited<ReturnType<typeof mountAt>>) {
   await flushPromises()
 }
 
+async function openRadar(wrapper: Awaited<ReturnType<typeof mountAt>>) {
+  await wrapper.get('[data-feature-id="radar"]').trigger('click')
+  await flushPromises()
+  await vi.waitFor(() => {
+    expect(viewerInstances).toHaveLength(1)
+  })
+  await vi.waitFor(() => {
+    expect(primitiveInstances.length).toBeGreaterThan(0)
+  })
+  await flushPromises()
+}
+
+const frameCallbacks: FrameRequestCallback[] = []
+
 describe('App', () => {
   beforeAll(() => {
     Object.defineProperty(globalThis, 'ResizeObserver', {
       configurable: true,
       value: ResizeObserverMock,
     })
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: vi.fn<(callback: FrameRequestCallback) => number>((callback) => {
+        frameCallbacks.push(callback)
+        return frameCallbacks.length
+      }),
+    })
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: vi.fn<(handle: number) => void>(),
+    })
   })
 
   afterAll(() => {
     Reflect.deleteProperty(globalThis, 'ResizeObserver')
+    Reflect.deleteProperty(globalThis, 'requestAnimationFrame')
+    Reflect.deleteProperty(globalThis, 'cancelAnimationFrame')
   })
 
   beforeEach(() => {
     disposeActiveSession()
     resetCesiumMock()
+    frameCallbacks.length = 0
+    vi.mocked(cancelAnimationFrame).mockClear()
     vi.stubEnv('VITE_TIANDITU_TOKEN', 'test-tianditu-token')
   })
 
@@ -442,6 +477,84 @@ describe('App', () => {
       .find((item) => item.text() === '基础配置')
 
     expect(menuItemAfterNavigation?.attributes('aria-current')).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('shows the visual effects menu and radar card on the effects page', async () => {
+    const wrapper = await mountAt('/effects')
+    const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '视觉效果')
+
+    expect(menuItem?.attributes('aria-current')).toBe('page')
+    expect(wrapper.find('[data-testid="effects-view"]').exists()).toBe(true)
+
+    const cards = wrapper.findAll('[data-testid="feature-card"]')
+    expect(cards).toHaveLength(1)
+    expect(cards[0]?.attributes('data-feature-id')).toBe('radar')
+    expect(cards[0]?.attributes('aria-label')).toBe('打开雷达图')
+    expect(cards[0]?.text()).toContain('雷达图')
+    expect(cards[0]?.get('img').attributes('src')).not.toMatch(/^https?:\/\//)
+    expect(cards[0]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
+
+    wrapper.unmount()
+  })
+
+  it('opens a live radar scene with a ground sweep and 3d dome', async () => {
+    const wrapper = await mountAt('/effects')
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1_000)
+
+    await openRadar(wrapper)
+
+    const dialog = wrapper.get('.radar-dialog')
+    expect(dialog.text()).toContain('雷达图')
+    expect(dialog.classes()).not.toContain('is-fullscreen')
+    expect(wrapper.get('[data-testid="radar-globe"]').attributes('data-cesium-state')).toBe('ready')
+    expect(viewerInstances).toHaveLength(1)
+    expect(viewerInstances[0]?.camera.lookAt).toHaveBeenCalledOnce()
+    expect(viewerInstances[0]?.camera.lookAtTransform).toHaveBeenCalledOnce()
+    expect(imageryLayerInstances).toHaveLength(2)
+    expect(imageryLayerInstances[1]?.alpha).toBe(0.5)
+
+    expect(groundPrimitiveInstances).toHaveLength(1)
+    expect(primitiveInstances).toHaveLength(1)
+    expect(scenePrimitiveAdds).toHaveLength(2)
+    expect(materialInstances.map((material) => material.options.fabric.type)).toEqual([
+      'RadarGroundSweep',
+      'RadarDomeSweep',
+    ])
+    expect(frameCallbacks).toHaveLength(1)
+
+    now.mockReturnValue(5_000)
+    frameCallbacks[0]?.(0)
+    expect(materialInstances[0]?.uniforms.time).toBeCloseTo(0.5)
+    expect(materialInstances[1]?.uniforms.time).toBeCloseTo(0.5)
+    expect(viewerInstances[0]?.scene.requestRender).toHaveBeenCalled()
+
+    await wrapper.get('.radar-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(scenePrimitiveRemoves).toHaveLength(2)
+    expect(cancelAnimationFrame).toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('silently falls back to a fixed-height radar disc when ground materials are unsupported', async () => {
+    cesiumMockState.groundMaterialsSupported = false
+    const wrapper = await mountAt('/effects')
+
+    await openRadar(wrapper)
+
+    expect(groundPrimitiveInstances).toHaveLength(0)
+    expect(primitiveInstances).toHaveLength(2)
+    expect(wrapper.get('[data-testid="radar-globe"]').attributes('data-cesium-state')).toBe('ready')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.get('.radar-dialog').text()).not.toContain('不支持')
+
+    await wrapper.get('.radar-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
 
     wrapper.unmount()
   })

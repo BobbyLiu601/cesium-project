@@ -8,19 +8,26 @@ defineProps<{
 const emit = defineEmits<{
   select: [path: string]
 }>()
+
+const menuItems = [
+  { path: '/basic-config', label: '基础配置' },
+  { path: '/effects', label: '视觉效果' },
+] as const
 </script>
 
 <template>
   <ElMenu class="sidebar-menu" :default-active="activePath" aria-label="后台菜单">
     <ElMenuItem
-      index="/basic-config"
-      :aria-current="activePath === '/basic-config' ? 'page' : undefined"
-      @click="emit('select', '/basic-config')"
-      @keydown.enter.prevent="emit('select', '/basic-config')"
-      @keydown.space.prevent="emit('select', '/basic-config')"
+      v-for="item in menuItems"
+      :key="item.path"
+      :index="item.path"
+      :aria-current="activePath === item.path ? 'page' : undefined"
+      @click="emit('select', item.path)"
+      @keydown.enter.prevent="emit('select', item.path)"
+      @keydown.space.prevent="emit('select', item.path)"
     >
       <span class="sidebar-menu__marker" aria-hidden="true"></span>
-      <span>基础配置</span>
+      <span>{{ item.label }}</span>
     </ElMenuItem>
   </ElMenu>
 </template>

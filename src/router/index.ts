@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import BasicConfigView from '../views/BasicConfigView.vue'
+import EffectsView from '../views/EffectsView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 
 const router = createRouter({
@@ -13,6 +14,11 @@ const router = createRouter({
       path: '/basic-config',
       name: 'basic-config',
       component: BasicConfigView,
+    },
+    {
+      path: '/effects',
+      name: 'effects',
+      component: EffectsView,
     },
     {
       path: '/:pathMatch(.*)*',

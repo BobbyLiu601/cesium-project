@@ -315,3 +315,66 @@ test('从高程卡片打开独立场景，加载失败时仍可操作、全屏�
   await expect(dialog).toBeHidden()
   await expect(card).toBeFocused()
 })
+
+test('从视觉效果菜单打开雷达图真实场景，并可全屏、退出全屏和关闭', async ({ page }) => {
+  await page.goto('/basic-config')
+
+  const effectsMenuItem = page.getByRole('menuitem', { name: '视觉效果' })
+  await effectsMenuItem.click()
+
+  await expect(page).toHaveURL(/\/effects$/)
+  await expect(effectsMenuItem).toHaveAttribute('aria-current', 'page')
+  const card = page.getByRole('button', { name: '打开雷达图' })
+  await expect(card).toContainText('雷达图')
+  await expect(card.locator('img')).toHaveAttribute('alt', '广州海珠区三维雷达扫描效果截图')
+
+  await card.click()
+
+  const dialog = page.getByRole('dialog', { name: '雷达图' })
+  const dialogPanel = page.locator('.radar-dialog')
+  const globe = dialog.getByTestId('radar-globe')
+  await expect(dialog).toBeVisible()
+  await expect(dialogPanel).not.toHaveClass(/is-fullscreen/)
+  await expectCesiumReady(globe)
+  await expect(globe).toBeVisible()
+  await expect(globe.locator('canvas')).toBeVisible()
+  await expect(dialog.getByTestId('radar-credit-container')).toBeHidden()
+  await expect(dialog.locator('.cesium-viewer-bottom')).toBeHidden()
+  await expect(dialog.getByRole('alert')).toHaveCount(0)
+
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(dialogPanel).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
+  await expect(dialogPanel).not.toHaveClass(/is-fullscreen/)
+
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(card).toBeFocused()
+})
+
+test('雷达模块异步加载失败时弹窗仍可关闭且不显示用户可见错误', async ({ page }) => {
+  const consoleErrors: string[] = []
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      consoleErrors.push(message.text())
+    }
+  })
+  await page.route('**/RadarGlobe.vue*', (route) => route.abort())
+
+  await page.goto('/effects')
+  await page.getByRole('button', { name: '打开雷达图' }).click()
+
+  const dialog = page.getByRole('dialog', { name: '雷达图' })
+  const mapRegion = dialog.locator('.el-dialog__body')
+  await expect(dialog).toBeVisible()
+  await expect(mapRegion).toBeVisible()
+  expect(await mapRegion.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+    'rgb(4, 16, 29)',
+  )
+  await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(dialog).not.toContainText('加载失败')
+
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(dialog).toBeHidden()
+  expect(consoleErrors.length).toBeGreaterThan(0)
+})

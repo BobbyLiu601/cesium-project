@@ -1,4 +1,5 @@
 import elevationImage from '@/assets/elevation-cover.jpg'
+import radarEffectCover from '@/assets/radar-effect-cover.jpg'
 import threeDimensionalEarthImage from '@/assets/three-dimensional-earth.svg'
 
 export interface FeatureItem {
@@ -20,5 +21,14 @@ export const featureItems: FeatureItem[] = [
     name: '高程',
     imageSrc: elevationImage,
     imageAlt: '从化山地三维地形效果',
+  },
+]
+
+export const effectItems: FeatureItem[] = [
+  {
+    id: 'radar',
+    name: '雷达图',
+    imageSrc: radarEffectCover,
+    imageAlt: '广州海珠区三维雷达扫描效果截图',
   },
 ]
