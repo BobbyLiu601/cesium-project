@@ -74,9 +74,37 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 - 一个 Issue 使用一个任务分支；同一 Issue 的多轮执行复用该分支。只读调查、问答和评审不创建分支。
 - 开始修改前确认工作区干净，执行 `git fetch origin`，从最新的 `origin/main` 创建任务分支。`main` 有未提交改动时停止并询问，不自动 stash、提交或迁移这些改动。
 - 分支名使用 `<type>/<issue-key>-<slug>`，`type` 取 `feat`、`fix`、`docs`、`chore`、`refactor` 或 `test`，其余部分使用小写 ASCII 和连字符。例如：`fix/alcy-35-git-branch-policy`。
-- 提交代码时，在任务分支执行 `git rebase origin/main`；由执行任务的 agent 解决冲突，禁止使用强推或 `git reset --hard` 绕过冲突。
-- rebase 完成后必须重新运行 `pnpm verify`。验证通过后，切换到干净的 `main`，执行 `git pull --ff-only`、`git merge --ff-only <任务分支>`，再执行 `git push origin main`。
-- 合入后保留本地任务分支。若 `main` 的远端保护规则拒绝直接推送，停止并报告，不绕过保护。
+- 每次有文件改动的执行必须在交付前提交到任务分支，覆盖代码、文档和配置。提交应围绕一个完整目的；任务过程中可以保留临时状态，但交付时不得遗留应提交的未提交改动。
+- 任务完成后默认推送任务分支并设置其 upstream，交付分支名和提交哈希。`main` 保持不变，不自动创建 PR，也不自动合并。
+- 已推送的任务分支不因每次交付自动 rebase。只有用户要求同步或明确授权合并时，才 rebase 到最新 `origin/main`，解决冲突后重新运行 `pnpm verify`；需要更新已推送的任务分支时只用 `git push --force-with-lease origin <任务分支>`，不得强制推送 `main`，不得使用 `git reset --hard`。
+
+### 本地 Git 守卫
+
+- `simple-git-hooks` 的 `pre-commit` 调用 `scripts/check-git-branch.mjs pre-commit`，阻止在 `main` 或 detached HEAD 上创建提交；随后仍执行暂存区密钥扫描。
+- `pre-push` 调用 `scripts/check-git-branch.mjs pre-push`，阻止任何更新远端 `main` 的推送，包括删除 `main`。
+- 用户明确授权合并后，执行合并操作时可临时设置 `ALLOW_MAIN_GIT_UPDATE=1` 和非空 `MAIN_GIT_UPDATE_REASON`。守卫会打印授权原因；操作结束后立即清除变量。
+- 不得通过 `git commit --no-verify` 或 `git push --no-verify` 绕过守卫，因为这会同时绕过安全检查。需要绕过时只使用上述带原因的环境变量，并在交付说明中写明授权来源。
+
+PowerShell 示例：
+
+```powershell
+$env:ALLOW_MAIN_GIT_UPDATE = '1'
+$env:MAIN_GIT_UPDATE_REASON = '用户已在 ALCY-39 评论中明确授权合并'
+git push origin main
+Remove-Item Env:ALLOW_MAIN_GIT_UPDATE
+Remove-Item Env:MAIN_GIT_UPDATE_REASON
+```
+
+### 显式合并授权
+
+- 只有用户在具体 Issue 或评论中明确要求合并时，才可更新 `main`；任务完成、测试通过或 Issue 进入评审都不构成合并授权。
+- 合并前在任务分支 rebase 最新 `origin/main` 并重新运行 `pnpm verify`。随后切换到干净的 `main`，执行 `git pull --ff-only`、`git merge --ff-only <任务分支>`，再按本地 Git 守卫的显式放行流程推送 `main`。
+- 合并后保留本地任务分支。若远端保护规则拒绝推送，停止并报告，不绕过保护。
+
+### 远端 main 保护（人工配置项）
+
+- 正常变更通过任务分支与 PR 汇入；禁止强推和删除 `main`；直接 fast-forward 推送 `main` 只用于取得明确授权后的合并。
+- 当前仓库约定不要求 agent 修改 GitHub 分支保护设置。仓库管理员需在 GitHub 中人工确认上述保护已启用，并把实际状态作为交付风险记录。
 
 ## 测试与交付
 

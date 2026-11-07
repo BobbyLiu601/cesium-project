@@ -30,7 +30,8 @@
     "verify": "run-s lint:check format:check type-check test test:e2e check:secrets build-only check:bundle"
   },
   "simple-git-hooks": {
-    "pre-commit": "node scripts/check-secrets.mjs --staged"
+    "pre-commit": "node scripts/check-git-branch.mjs pre-commit && node scripts/check-secrets.mjs --staged",
+    "pre-push": "node scripts/check-git-branch.mjs pre-push"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
