@@ -65,6 +65,7 @@ export const cesiumMockState = {
   failNextViewer: false,
   failNextImageryLayer: false,
   groundMaterialsSupported: true,
+  groundTerrainHeightsOutcome: 'success' as 'success' | 'failure',
   elevationProviderOutcome: 'success' as 'success' | 'failure',
   elevationProviderPromise: undefined as Promise<MockElevationTerrainProvider> | undefined,
 }
@@ -214,7 +215,13 @@ export class GroundPrimitive implements MockPrimitive {
     return cesiumMockState.groundMaterialsSupported
   })
 
-  static initializeTerrainHeights = vi.fn<() => Promise<void>>(() => Promise.resolve())
+  static initializeTerrainHeights = vi.fn<() => Promise<void>>(() => {
+    if (cesiumMockState.groundTerrainHeightsOutcome === 'failure') {
+      return Promise.reject(new Error('mock terrain heights failure'))
+    }
+
+    return Promise.resolve()
+  })
 
   constructor(public options: Record<string, unknown>) {
     groundPrimitiveInstances.push(this)
@@ -314,6 +321,7 @@ export function resetCesiumMock() {
   cesiumMockState.failNextViewer = false
   cesiumMockState.failNextImageryLayer = false
   cesiumMockState.groundMaterialsSupported = true
+  cesiumMockState.groundTerrainHeightsOutcome = 'success'
   cesiumMockState.elevationProviderOutcome = 'success'
   cesiumMockState.elevationProviderPromise = undefined
   GroundPrimitive.supportsMaterials.mockClear()

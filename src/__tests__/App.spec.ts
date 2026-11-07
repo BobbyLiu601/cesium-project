@@ -559,6 +559,27 @@ describe('App', () => {
     wrapper.unmount()
   })
 
+  it('silently falls back to a fixed-height radar disc when terrain heights fail to initialize', async () => {
+    cesiumMockState.groundTerrainHeightsOutcome = 'failure'
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wrapper = await mountAt('/effects')
+
+    await openRadar(wrapper)
+
+    expect(groundPrimitiveInstances).toHaveLength(0)
+    expect(primitiveInstances).toHaveLength(2)
+    expect(wrapper.get('[data-testid="radar-globe"]').attributes('data-cesium-state')).toBe('ready')
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+    expect(wrapper.get('.radar-dialog').text()).not.toContain('加载失败')
+    expect(consoleError).toHaveBeenCalled()
+
+    await wrapper.get('.radar-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+  })
+
   it('preserves an unknown URL and renders the 404 page inside the admin shell', async () => {
     const wrapper = await mountAt('/unknown/page?source=test')
 
