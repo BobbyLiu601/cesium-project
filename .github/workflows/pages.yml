@@ -25,13 +25,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Require Tianditu token
+      - name: Check Tianditu token
         env:
           TIANDITU_TOKEN: ${{ secrets.TIANDITU_TOKEN }}
         run: |
           if [ -z "$TIANDITU_TOKEN" ]; then
-            echo "::error::The production environment must define the TIANDITU_TOKEN secret."
-            exit 1
+            echo "::warning::TIANDITU_TOKEN is not configured; deploying without Tianditu layers."
           fi
 
       - name: Setup Node.js
@@ -60,6 +59,8 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
