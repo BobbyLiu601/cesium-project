@@ -53,7 +53,7 @@ VITE_TIANDITU_TOKEN=your-token
 
 正式构建通过 GitHub Actions 的 **Release Build** 手动触发。该 workflow 只允许默认分支运行，要求 `production` Environment 中存在 `TIANDITU_TOKEN` Secret，并将其映射为构建时的 `VITE_TIANDITU_TOKEN`。验证和构建成功后，会以 `cesium-project-dist` 名称上传根基路径的 `dist` 产物，作为通用静态托管产物。
 
-GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.github.io/cesium-project/`。方案要求 `main` 推送后先执行完整 `pnpm verify`，再发布使用 `/cesium-project/` 基路径的构建产物；保留手动重跑，不提供 PR 预览。启用前需要在仓库 Settings > Pages 中将 Source 设置为 GitHub Actions，并确认 `production` Environment 的密钥和天地图域名白名单。具体边界见 ADR 0006；当前 workflow 尚未落地。
+GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.github.io/cesium-project/`。`main` 推送后先执行完整 `pnpm verify`，再发布使用 `/cesium-project/` 基路径的构建产物；保留手动重跑，不提供 PR 预览。启用前需要在仓库 Settings > Pages 中将 Source 设置为 GitHub Actions，并确认 `production` Environment 的密钥和天地图域名白名单。具体边界见 ADR 0006。
 
 ## 常用命令
 
@@ -61,6 +61,7 @@ GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.git
 | --------------------- | --------------------------------------------------------- |
 | `pnpm dev`            | 启动开发服务器                                            |
 | `pnpm build`          | 类型检查、构建生产版本并执行包体门禁                      |
+| `pnpm build:pages`    | 使用 Pages 基路径构建并生成 `404.html`                    |
 | `pnpm preview`        | 本地预览生产构建                                          |
 | `pnpm lint`           | 运行 oxlint 与 ESLint                                     |
 | `pnpm format`         | 使用 Prettier 格式化代码                                  |
@@ -72,7 +73,9 @@ GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.git
 | `pnpm check:secrets`  | 扫描工作区中的疑似凭据                                    |
 | `pnpm check:template` | 校验 Vue 模板的按钮内容模型                               |
 | `pnpm check:bundle`   | 检查生产构建的 Cesium 边界与入口包体                      |
+| `pnpm check:pages`    | 检查 Pages 产物基路径、子路由回退和 Cesium 静态资源       |
 | `pnpm verify`         | 运行 lint、格式、类型、测试、密钥扫描、生产构建与包体门禁 |
+| `pnpm verify:pages`   | 构建 Pages 产物并执行 Pages 专用检查                      |
 
 ## 目录结构
 
@@ -110,6 +113,8 @@ GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.git
 ### GitHub Pages
 
 GitHub Pages 使用项目页地址 `https://bobbyliu601.github.io/cesium-project/`，构建基路径固定为 `/cesium-project/`。路由继续使用 HTML5 History，部署产物需要包含由 `index.html` 复制的 `404.html`；直接访问或刷新子路由时 HTTP 状态仍为 404，但应用会按原始地址恢复渲染。
+
+`.github/workflows/pages.yml` 在默认分支更新后执行完整验证、Pages 专用构建和浏览器检查，再通过 GitHub 官方 Pages Actions 发布。`pnpm verify:pages` 可复现构建与检查；本地没有天地图 token 时，站点仍会降级渲染，但 CI 构建要求 `production` Environment 中存在 `TIANDITU_TOKEN`。
 
 ### 其他静态托管
 

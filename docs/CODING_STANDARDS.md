@@ -38,6 +38,9 @@
 - `pnpm check:secrets:staged`：只扫描本次暂存内容，由 pre-commit 调用。
 - `pnpm check:template`：校验 Vue 模板的按钮内容模型。
 - `pnpm check:bundle`：检查最近一次 `pnpm build-only` 生成的 `dist`。
+- `pnpm build:pages`：使用 `/cesium-project/` 基路径构建 Pages 产物，并由 `index.html` 生成 `404.html`。
+- `pnpm check:pages`：通过本地静态服务器和 Playwright 检查 Pages 入口、子路由回退及 Cesium 静态资源路径。
+- `pnpm verify:pages`：依次执行 `build:pages` 与 `check:pages`，由 Pages 部署 workflow 调用。
 
 ### 密钥扫描
 

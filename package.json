@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --configLoader native",
     "build": "run-s type-check build-only check:bundle",
+    "build:pages": "node scripts/build-pages.mjs",
     "preview": "vite preview --configLoader native",
     "test": "vitest run --configLoader native",
     "test:unit": "vitest run --configLoader native",
@@ -23,11 +24,13 @@
     "check:secrets": "node scripts/check-secrets.mjs",
     "check:secrets:staged": "node scripts/check-secrets.mjs --staged",
     "check:bundle": "node scripts/check-bundle.mjs",
+    "check:pages": "node scripts/check-pages-build.mjs",
     "check:template": "node scripts/check-template-content.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prepare": "simple-git-hooks",
-    "verify": "run-s lint:check format:check type-check test test:e2e check:secrets build-only check:bundle"
+    "verify": "run-s lint:check format:check type-check test test:e2e check:secrets build-only check:bundle",
+    "verify:pages": "run-s build:pages check:pages"
   },
   "simple-git-hooks": {
     "pre-commit": "node scripts/check-git-branch.mjs pre-commit && node scripts/check-secrets.mjs --staged",
