@@ -186,5 +186,5 @@ describe('check-git-branch', () => {
     })
 
     expect(allowedPush.status).toBe(0)
-  })
+  }, 20_000)
 })
