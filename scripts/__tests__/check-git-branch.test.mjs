@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -47,10 +47,13 @@ function createRepositoryWithRemote() {
 
   const hooksDirectory = join(workDirectory, 'hooks')
   mkdirSync(hooksDirectory)
+  const prePushHook = join(hooksDirectory, 'pre-push')
   writeFileSync(
-    join(hooksDirectory, 'pre-push'),
+    prePushHook,
     `#!/bin/sh\nexec node "${scriptPath.replaceAll('\\', '/')}" pre-push\n`,
   )
+  // Git only executes hooks with the executable bit set on Unix runners.
+  chmodSync(prePushHook, 0o755)
   execFileSync('git', ['config', 'core.hooksPath', 'hooks'], { cwd: workDirectory })
 
   return workDirectory
