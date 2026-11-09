@@ -51,7 +51,9 @@ VITE_TIANDITU_TOKEN=your-token
 
 `VITE_` 变量最终会出现在浏览器产物和网络请求中，不能作为服务端秘密。正式使用前需要在天地图控制台配置允许域名，并定期轮换密钥。
 
-正式构建通过 GitHub Actions 的 **Release Build** 手动触发。该 workflow 只允许默认分支运行，要求 `production` Environment 中存在 `TIANDITU_TOKEN` Secret，并将其映射为构建时的 `VITE_TIANDITU_TOKEN`。验证和构建成功后，会以 `cesium-project-dist` 名称上传 `dist` 产物；本轮不自动部署到具体托管平台。
+正式构建通过 GitHub Actions 的 **Release Build** 手动触发。该 workflow 只允许默认分支运行，要求 `production` Environment 中存在 `TIANDITU_TOKEN` Secret，并将其映射为构建时的 `VITE_TIANDITU_TOKEN`。验证和构建成功后，会以 `cesium-project-dist` 名称上传根基路径的 `dist` 产物，作为通用静态托管产物。
+
+GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.github.io/cesium-project/`。方案要求 `main` 推送后先执行完整 `pnpm verify`，再发布使用 `/cesium-project/` 基路径的构建产物；保留手动重跑，不提供 PR 预览。启用前需要在仓库 Settings > Pages 中将 Source 设置为 GitHub Actions，并确认 `production` Environment 的密钥和天地图域名白名单。具体边界见 ADR 0006；当前 workflow 尚未落地。
 
 ## 常用命令
 
@@ -104,6 +106,12 @@ VITE_TIANDITU_TOKEN=your-token
 - 完整编码、验证与提交约定见 `docs/CODING_STANDARDS.md`。
 
 ## 部署说明
+
+### GitHub Pages
+
+GitHub Pages 使用项目页地址 `https://bobbyliu601.github.io/cesium-project/`，构建基路径固定为 `/cesium-project/`。路由继续使用 HTML5 History，部署产物需要包含由 `index.html` 复制的 `404.html`；直接访问或刷新子路由时 HTTP 状态仍为 404，但应用会按原始地址恢复渲染。
+
+### 其他静态托管
 
 路由使用 `createWebHistory`，生产环境的静态服务器必须把所有前端路由回退到 `index.html`，否则直接访问或刷新子路由会返回 404。
 

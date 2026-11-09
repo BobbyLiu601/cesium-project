@@ -39,3 +39,15 @@ _Avoid_: 三维场景、地球页面
 **Vben 风格**：
 借鉴 Vben 的后台布局、留白和视觉层次，但不复制其实现，也不依赖 Vben。
 _Avoid_: Vben 复刻、Vben 集成
+
+**GitHub Pages 站点**：
+项目通过 GitHub Pages 发布的公开静态站点，项目页地址为 `https://bobbyliu601.github.io/cesium-project/`。
+_Avoid_: 预览站点、生产服务器
+
+**Pages 部署**：
+将通过 `pnpm verify` 的 Pages 专用构建产物更新到 GitHub Pages 站点的动作。
+_Avoid_: 发布构建、上传产物
+
+**Release Build（发布构建）**：
+手动触发、面向通用静态托管的验证与 `dist` 产物上传流程；它不等于 Pages 部署。
+_Avoid_: Pages 部署、自动发布
