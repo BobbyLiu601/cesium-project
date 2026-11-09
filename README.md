@@ -61,7 +61,7 @@ GitHub Actions 不会自动把 Secret 暴露成 Vite 的 `VITE_` 变量。仓库
 
 正式构建通过 GitHub Actions 的 **Release Build** 手动触发。该 workflow 只允许默认分支运行，要求 `production` Environment 中存在 `TIANDITU_TOKEN` Secret，并将其映射为构建时的 `VITE_TIANDITU_TOKEN`。验证和构建成功后，会以 `cesium-project-dist` 名称上传根基路径的 `dist` 产物，作为通用静态托管产物。
 
-GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.github.io/cesium-project/`。`main` 推送后先执行完整 `pnpm verify`，再发布使用 `/cesium-project/` 基路径的构建产物；保留手动重跑，不提供 PR 预览。workflow 会启用或使用 GitHub Actions 的 Pages Source；`production` Environment 中的 `TIANDITU_TOKEN` 是显示天地图图层的可选增强项，缺失时仍会部署降级版本。正式启用天地图图层前，还需要配置该 Secret 和天地图允许域名。具体边界见 ADR 0006。
+GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.github.io/cesium-project/`。`main` 推送后先执行完整 `pnpm verify`，再发布使用 `/cesium-project/` 基路径的构建产物；保留手动重跑，不提供 PR 预览。workflow 会启用或使用 GitHub Actions 的 Pages Source，并在构建前检查映射后的 `VITE_TIANDITU_TOKEN` 去空白后是否非空。`production` Environment 中的 `TIANDITU_TOKEN` 是显示天地图图层的可选增强项，缺失或为空白时记录 warning 并继续部署降级版本。正式启用天地图图层前，还需要配置该 Secret 和天地图允许域名。具体边界见 ADR 0006。
 
 ## 常用命令
 
