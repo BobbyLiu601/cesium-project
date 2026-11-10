@@ -13,10 +13,7 @@ const emit = defineEmits<{
   select: [anchor: string]
 }>()
 
-const openedSections = [
-  ...menuGroups.map((group) => group.id),
-  ...menuGroups.flatMap((group) => group.sections.map((section) => section.id)),
-]
+const openedGroups = menuGroups.map((group) => group.id)
 const menuRef = ref<{ updateActiveIndex: (index: string) => void } | null>(null)
 
 watch(
@@ -34,7 +31,7 @@ watch(
     ref="menuRef"
     class="sidebar-menu"
     :default-active="activeAnchor"
-    :default-openeds="openedSections"
+    :default-openeds="openedGroups"
     :unique-opened="false"
     aria-label="后台菜单"
   >
@@ -56,31 +53,18 @@ watch(
       </template>
 
       <template v-if="group.id === 'layers'">
-        <ElSubMenu
+        <ElMenuItem
           v-for="section in group.sections"
           :key="section.id"
           :index="section.id"
-          class="sidebar-menu__section"
-          :expand-close-icon="ArrowDown"
-          :expand-open-icon="ArrowDown"
+          class="sidebar-menu__section-item"
+          :aria-current="activeAnchor === section.id ? 'location' : undefined"
+          @click="emit('select', section.id)"
+          @keydown.enter.prevent="emit('select', section.id)"
+          @keydown.space.prevent="emit('select', section.id)"
         >
-          <template #title>
-            <span class="sidebar-menu__label">{{ section.code }}、{{ section.title }}</span>
-          </template>
-
-          <ElMenuItem
-            v-for="item in section.items"
-            :key="item.id"
-            :index="item.id"
-            class="sidebar-menu__feature"
-            :aria-current="activeAnchor === item.id ? 'location' : undefined"
-            @click="emit('select', item.id)"
-            @keydown.enter.prevent="emit('select', item.id)"
-            @keydown.space.prevent="emit('select', item.id)"
-          >
-            <span class="sidebar-menu__label">{{ item.displayName }}</span>
-          </ElMenuItem>
-        </ElSubMenu>
+          <span class="sidebar-menu__label">{{ section.code }}、{{ section.title }}</span>
+        </ElMenuItem>
       </template>
 
       <template v-else>
@@ -169,22 +153,12 @@ watch(
   color: var(--color-sidebar-muted);
 }
 
-.sidebar-menu :deep(.el-sub-menu .el-sub-menu__title) {
-  height: 40px;
-  padding-left: 36px !important;
-  font-size: 13px;
-}
-
-.sidebar-menu :deep(.sidebar-menu__feature) {
+.sidebar-menu :deep(.sidebar-menu__section-item) {
   padding-left: 54px !important;
 }
 
 .sidebar-menu__group {
   margin-bottom: 16px;
-}
-
-.sidebar-menu__section :deep(.el-sub-menu__title) {
-  padding-left: 42px !important;
 }
 
 .sidebar-menu :deep(.el-menu-item:hover),

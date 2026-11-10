@@ -4,24 +4,24 @@ import { ElButton, ElDrawer } from 'element-plus'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import SidebarMenu from '@/components/SidebarMenu.vue'
-import { featureAnchors } from '@/data/layers'
+import { contentAnchors, getNavigationAnchorForContent, layerSections } from '@/data/layers'
 
 const route = useRoute()
 const router = useRouter()
 const drawerVisible = ref(false)
 const activeAnchor = ref('')
 const contentElement = ref<HTMLElement | null>(null)
-const defaultAnchor = featureAnchors[0] ?? ''
+const defaultAnchor = layerSections[0]?.id ?? ''
 const showcaseRouteName = 'layers'
 
 function getRouteAnchor() {
   const routeFeatureId = typeof route.meta.featureId === 'string' ? route.meta.featureId : ''
-  if (featureAnchors.includes(routeFeatureId)) {
+  if (contentAnchors.includes(routeFeatureId)) {
     return routeFeatureId
   }
 
   const hash = route.hash.replace(/^#/, '')
-  return featureAnchors.includes(hash) ? hash : ''
+  return contentAnchors.includes(hash) ? hash : ''
 }
 
 async function scrollToAnchor(anchor: string) {
@@ -44,7 +44,7 @@ async function scrollToAnchor(anchor: string) {
 
 async function handleMenuSelect(anchor: string) {
   drawerVisible.value = false
-  activeAnchor.value = anchor
+  activeAnchor.value = getNavigationAnchorForContent(anchor) || anchor
   const hash = `#${anchor}`
 
   if (route.name !== showcaseRouteName || route.hash !== hash) {
@@ -64,7 +64,8 @@ watch(
     }
 
     const routeAnchor = getRouteAnchor()
-    activeAnchor.value = routeAnchor || defaultAnchor
+    activeAnchor.value =
+      getNavigationAnchorForContent(routeAnchor) || (routeAnchor ? routeAnchor : defaultAnchor)
 
     if (routeAnchor && route.name === showcaseRouteName) {
       await scrollToAnchor(routeAnchor)

@@ -5,12 +5,16 @@ import { createVectorScene } from '../demos/vectorScene'
 import type { VectorSceneId } from '../data/layers'
 import {
   billboardCollectionInstances,
+  GeometryInstance,
   dataSourceInstances,
   EllipsoidTerrainProvider,
   entityCollectionInstances,
   polylineDashMaterialInstances,
+  PolylineColorAppearance,
+  primitiveInstances,
   resetCesiumMock,
   screenSpaceEventHandlerInstances,
+  ScreenSpaceEventType,
   terrainSampleRequests,
   Viewer as ViewerMock,
   viewerInstances,
@@ -61,6 +65,7 @@ describe('vector scene builders', () => {
 
       expect(scene.actions.length).toBeGreaterThan(0)
       expect(statuses[statuses.length - 1]).toBeTruthy()
+      expect(viewer.camera.viewBoundingSphere).toHaveBeenCalledTimes(sceneId === 'geojson' ? 0 : 1)
       expect(() => scene.dispose()).not.toThrow()
     },
   )
@@ -127,20 +132,20 @@ describe('vector scene builders', () => {
     )
 
     expect(entityCollectionInstances).toHaveLength(1)
-    expect(entityCollectionInstances[0]?.values).toHaveLength(1)
+    expect(entityCollectionInstances[0]?.values).toHaveLength(3)
 
     await scene.actions[0]?.run()
-    expect(entityCollectionInstances[0]?.values).toHaveLength(2)
+    expect(entityCollectionInstances[0]?.values).toHaveLength(4)
 
     const originalFirstId = entityCollectionInstances[0]?.values[0]?.id
     await scene.actions.find((action) => action.id === 'promote-first')?.run()
-    expect(entityCollectionInstances[0]?.values[1]?.id).toBe(originalFirstId)
+    expect(entityCollectionInstances[0]?.values[3]?.id).toBe(originalFirstId)
 
     await scene.actions.find((action) => action.id === 'query-first')?.run()
     expect(entityCollectionInstances[0]?.getById).toHaveBeenCalledWith('collection-entity-1')
 
     await scene.actions[1]?.run()
-    expect(entityCollectionInstances[0]?.values).toHaveLength(1)
+    expect(entityCollectionInstances[0]?.values).toHaveLength(3)
   })
 
   it('removes viewer entities by object and id', async () => {
@@ -183,8 +188,66 @@ describe('vector scene builders', () => {
     )
 
     expect(screenSpaceEventHandlerInstances).toHaveLength(1)
+    const linePrimitive = primitiveInstances.find(
+      (primitive) => primitive.options.appearance instanceof PolylineColorAppearance,
+    )
+    const lineGeometry = linePrimitive?.options.geometryInstances as GeometryInstance | undefined
+    expect(lineGeometry).toBeInstanceOf(GeometryInstance)
+    expect(lineGeometry?.options.attributes).toEqual({
+      color: expect.objectContaining({ color: expect.anything() }),
+    })
     scene.dispose()
     expect(screenSpaceEventHandlerInstances[0]?.destroy).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the HTML overlay visible after camera framing', async () => {
+    const viewer = createViewer()
+    const host = document.createElement('div')
+
+    await createVectorScene(viewer, host, 'html-overlay', () => {})
+
+    const overlay = host.querySelector<HTMLElement>('[data-demo-overlay]')
+    expect(overlay).not.toBeNull()
+    expect(overlay?.style.display).toBe('block')
+    expect(overlay?.textContent).toContain('气泡窗口')
+  })
+
+  it('keeps the click popup hidden until an icon is selected', async () => {
+    const viewer = createViewer()
+    const host = document.createElement('div')
+    const scene = await createVectorScene(viewer, host, 'click-popup', () => {})
+    const overlay = host.querySelector<HTMLElement>('[data-demo-overlay]')
+
+    expect(overlay?.style.display).toBe('none')
+
+    await scene.actions.find((action) => action.id === 'show-first-popup')?.run()
+
+    expect(overlay?.style.display).toBe('block')
+    expect(overlay?.textContent).toContain('设备 A')
+  })
+
+  it('opens and closes the popup through the canvas click handler', async () => {
+    const viewer = createViewer()
+    const host = document.createElement('div')
+    const scene = await createVectorScene(viewer, host, 'click-popup', () => {})
+    const overlay = host.querySelector<HTMLElement>('[data-demo-overlay]')
+    const mockViewer = viewerInstances[0]!
+    const entity = mockViewer.entities.values[0]
+
+    mockViewer.scene.pick.mockReturnValue({ id: entity })
+    screenSpaceEventHandlerInstances[0]?.actions.get(ScreenSpaceEventType.LEFT_CLICK)?.({
+      position: { x: 120, y: 240 },
+    })
+
+    expect(overlay?.style.display).toBe('block')
+    expect(overlay?.textContent).toContain('设备 A')
+
+    overlay
+      ?.querySelector('[data-popup-close]')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+    expect(overlay?.style.display).toBe('none')
+    scene.dispose()
   })
 
   it('falls back to a static GIF frame when ImageDecoder is unavailable', async () => {
@@ -196,7 +259,7 @@ describe('vector scene builders', () => {
 
     expect(statuses[statuses.length - 1]).toContain('静态帧')
     expect(viewerInstances[0]?.entities.values).toHaveLength(1)
-    expect(viewerInstances[0]?.entities.values[0]?.billboard?.scale).toBe(1.5)
+    expect(viewerInstances[0]?.entities.values[0]?.billboard?.scale).toBe(0.55)
     scene.dispose()
   })
 })

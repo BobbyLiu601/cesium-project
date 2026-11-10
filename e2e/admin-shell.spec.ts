@@ -52,10 +52,11 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '1.2、地形' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '1.3、矢量' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '视觉效果' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: '1.1.1、天地图' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
   )
+  await expect(page.getByRole('menuitem', { name: '1.3.1、entity点' })).toHaveCount(0)
   await expectSubmenuArrowsPointDown(page.locator('.admin-sidebar'))
   await expect(page.getByRole('button', { name: '打开1.1.1、天地图' })).toContainText(
     '1.1.1、天地图',
@@ -158,7 +159,7 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   expect(menuHighlight.activeItemLabelColor).toBe('rgb(224, 76, 64)')
   await expect(page.locator('.sidebar-menu__marker')).toHaveCount(0)
 
-  const hoveredMenuItem = sidebar.getByRole('menuitem', { name: '1.2.1、高程' })
+  const hoveredMenuItem = sidebar.getByRole('menuitem', { name: '1.2、地形' })
   await hoveredMenuItem.hover()
   await expect(hoveredMenuItem).toHaveCSS('background-color', 'rgba(255, 72, 62, 0.04)')
   await expect(hoveredMenuItem).toHaveCSS('border-left-color', 'rgb(224, 76, 64)')
@@ -340,7 +341,9 @@ test('矢量示例深链直接打开 entity点 并可执行交互和关闭', asy
   const dialogPanel = page.locator('.feature-dialog--vector')
   const globe = dialog.getByTestId('vector-demo-globe')
   await expect(dialog).toBeVisible()
-  await expect(globe).toHaveAttribute('data-scene-id', 'entity-point')
+  await expect(globe).toHaveAttribute('data-scene-id', 'entity-point', {
+    timeout: CESIUM_READY_TIMEOUT,
+  })
   await expectCesiumReady(globe)
   await expect(globe.locator('canvas')).toBeVisible()
   await expect(globe.getByText('已展示贴地、空中和高远三种 Entity 点')).toBeVisible()
@@ -356,6 +359,123 @@ test('矢量示例深链直接打开 entity点 并可执行交互和关闭', asy
   await expect(dialog).toBeHidden()
   await expect(page).toHaveURL(/\/layers#entity-point$/)
   await expect(page.getByRole('button', { name: '打开1.3.1、entity点' })).toBeFocused()
+})
+
+test('矢量示例修订项可稳定复现', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.setViewportSize({ width: 1440, height: 900 })
+  const appearanceErrors: string[] = []
+  const pageErrors: string[] = []
+
+  page.on('console', (message) => {
+    if (
+      message.type() === 'error' &&
+      /Appearance|Geometry mismatch|geometry instances/i.test(message.text())
+    ) {
+      appearanceErrors.push(message.text())
+    }
+  })
+  page.on('pageerror', (error) => pageErrors.push(error.message))
+
+  await page.goto('/layers')
+  await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '1.2、地形' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '1.3、矢量' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '1.3.1、entity点' })).toHaveCount(0)
+
+  await page.goto('/layers/vector/1-3-8-primitive')
+  let globe = page.getByTestId('vector-demo-globe')
+  await expectCesiumReady(globe)
+  await page.waitForTimeout(1_200)
+  expect(appearanceErrors).toEqual([])
+  expect(pageErrors).toEqual([])
+
+  await page.goto('/layers/vector/1-3-12-html-overlay')
+  globe = page.getByTestId('vector-demo-globe')
+  await expectCesiumReady(globe)
+  const htmlOverlay = globe.locator('[data-demo-overlay]')
+  await expect(htmlOverlay).toBeVisible()
+  await expect(htmlOverlay).toContainText('气泡窗口')
+
+  await page.goto('/layers/vector/1-3-13-click-popup')
+  globe = page.getByTestId('vector-demo-globe')
+  await expectCesiumReady(globe)
+  await page.waitForTimeout(2_600)
+  const canvas = globe.locator('canvas')
+  const canvasScreenshot = await canvas.screenshot()
+  const markerPoints = await page.evaluate(async (imageBase64) => {
+    const image = new Image()
+    image.src = `data:image/png;base64,${imageBase64}`
+    await image.decode()
+
+    const copy = document.createElement('canvas')
+    copy.width = image.naturalWidth
+    copy.height = image.naturalHeight
+    const context = copy.getContext('2d')
+    if (!context) {
+      return []
+    }
+
+    context.drawImage(image, 0, 0)
+    const { data, width, height } = context.getImageData(0, 0, copy.width, copy.height)
+    const clusters = [
+      { minX: width, minY: height, maxX: -1, maxY: -1, count: 0 },
+      { minX: width, minY: height, maxX: -1, maxY: -1, count: 0 },
+    ]
+
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const offset = (y * width + x) * 4
+        const red = data[offset] ?? 0
+        const green = data[offset + 1] ?? 0
+        const blue = data[offset + 2] ?? 0
+        const alpha = data[offset + 3] ?? 0
+        if (alpha > 200 && red > 170 && green < 120 && blue < 130) {
+          const cluster = clusters[y < height / 2 ? 0 : 1]
+          cluster.minX = Math.min(cluster.minX, x)
+          cluster.minY = Math.min(cluster.minY, y)
+          cluster.maxX = Math.max(cluster.maxX, x)
+          cluster.maxY = Math.max(cluster.maxY, y)
+          cluster.count += 1
+        }
+      }
+    }
+
+    const canvasBounds = document
+      .querySelector('[data-testid="vector-demo-globe"] canvas')
+      ?.getBoundingClientRect()
+    if (!canvasBounds) {
+      return []
+    }
+
+    return clusters
+      .filter((cluster) => cluster.count > 20)
+      .map((cluster) => ({
+        x: (canvasBounds.width / width) * ((cluster.minX + cluster.maxX) / 2),
+        y: (canvasBounds.height / height) * ((cluster.minY + cluster.maxY) / 2),
+      }))
+  }, canvasScreenshot.toString('base64'))
+
+  expect(markerPoints.length).toBeGreaterThanOrEqual(2)
+  const firstMarker = markerPoints[0]!
+  await canvas.click({ position: firstMarker })
+  const clickOverlay = globe.locator('[data-demo-overlay]')
+  await expect(clickOverlay).toBeVisible()
+  await expect(clickOverlay).toContainText(/设备 [AB]/)
+  await clickOverlay.locator('[data-popup-close]').click()
+  await expect(clickOverlay).toBeHidden()
+
+  await page.goto('/layers/vector/1-3-16-gif')
+  globe = page.getByTestId('vector-demo-globe')
+  await expectCesiumReady(globe)
+  await page.waitForTimeout(2_600)
+  const gifCanvas = globe.locator('canvas')
+  const gifClip = await gifCanvas.boundingBox()
+  expect(gifClip).not.toBeNull()
+  const firstFrame = await page.screenshot({ clip: gifClip! })
+  await page.waitForTimeout(350)
+  const secondFrame = await page.screenshot({ clip: gifClip! })
+  expect(firstFrame.equals(secondFrame)).toBe(false)
 })
 
 test('通过 Enter 或空格打开天地图弹窗', async ({ page }) => {
@@ -476,12 +596,12 @@ test('移动端可通过按钮和键盘打开抽屉，并选择菜单关闭', as
   await expect(drawer.getByText('1、图层', { exact: true })).toBeVisible()
   await expectSubmenuArrowsPointDown(drawer)
 
-  const menuItem = drawer.getByRole('menuitem', { name: '1.1.1、天地图' })
+  const menuItem = drawer.getByRole('menuitem', { name: '1.1、影像' })
   await menuItem.focus()
   await menuItem.press('Enter')
 
   await expect(drawer).toBeHidden()
-  await expect(page).toHaveURL(/\/layers#tianditu$/)
+  await expect(page).toHaveURL(/\/layers#imagery$/)
 })
 
 test('移动端点击抽屉遮罩后自动关闭', async ({ page }) => {

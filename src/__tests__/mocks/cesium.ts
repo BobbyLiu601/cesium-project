@@ -9,6 +9,7 @@ export interface MockViewer {
   }
   camera: {
     setView: ReturnType<typeof vi.fn<(options: unknown) => void>>
+    viewBoundingSphere: ReturnType<typeof vi.fn<(sphere: unknown, orientation: unknown) => void>>
     lookAt: ReturnType<typeof vi.fn<(center: unknown, headingPitchRange: unknown) => void>>
     lookAtTransform: ReturnType<typeof vi.fn<(transform: unknown) => void>>
     flyTo: ReturnType<typeof vi.fn<(options: unknown) => void>>
@@ -92,6 +93,21 @@ export class MockEntityCollection {
       entity instanceof Object && 'id' in entity && typeof entity.id === 'string'
         ? (entity as MockEntity)
         : ({ id: `entity-${this.values.length + 1}`, ...entity } as MockEntity)
+    const rawPosition = (created as unknown as { position?: unknown }).position
+    if (rawPosition && typeof (rawPosition as { getValue?: unknown }).getValue !== 'function') {
+      created.position = { getValue: () => rawPosition }
+    }
+    if (created.properties) {
+      created.properties = Object.fromEntries(
+        Object.entries(created.properties).map(([key, value]) => {
+          const rawValue = value as unknown
+          if (rawValue && typeof (rawValue as { getValue?: unknown }).getValue === 'function') {
+            return [key, value]
+          }
+          return [key, { getValue: () => rawValue }]
+        }),
+      )
+    }
     this.values.push(created)
     return created
   })
@@ -199,6 +215,7 @@ export class Viewer implements MockViewer {
 
   camera = {
     setView: vi.fn<(options: unknown) => void>(),
+    viewBoundingSphere: vi.fn<(sphere: unknown, orientation: unknown) => void>(),
     lookAt: vi.fn<(center: unknown, headingPitchRange: unknown) => void>(),
     lookAtTransform: vi.fn<(transform: unknown) => void>(),
     flyTo: vi.fn<(options: unknown) => void>(),
@@ -449,6 +466,17 @@ export class Cartesian2 {
     public x: number,
     public y: number,
   ) {}
+}
+
+export class BoundingSphere {
+  constructor(
+    public center: unknown,
+    public radius: number,
+  ) {}
+
+  static fromPoints(points: unknown[]) {
+    return new BoundingSphere(points[0], 0)
+  }
 }
 
 export class WebMapTileServiceImageryProvider implements MockTileProvider {

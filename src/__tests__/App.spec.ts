@@ -130,6 +130,8 @@ describe('App', () => {
     expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
     expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(19)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(2)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(3)
+    expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
     expect(wrapper.findAll('.el-sub-menu__icon-arrow').length).toBeGreaterThanOrEqual(2)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示能力')
@@ -529,11 +531,11 @@ describe('App', () => {
 
   it('keeps the menu selection in sync with the current route', async () => {
     const wrapper = await mountAt('/layers')
-    const earthMenuItem = wrapper
+    const imageryMenuItem = wrapper
       .findAll('[role="menuitem"]')
-      .find((item) => item.text() === '1.1.1、天地图')
+      .find((item) => item.text() === '1.1、影像')
 
-    expect(earthMenuItem?.attributes('aria-current')).toBe('location')
+    expect(imageryMenuItem?.attributes('aria-current')).toBe('location')
 
     await router.push('/layers#radar')
     await flushPromises()
@@ -543,7 +545,7 @@ describe('App', () => {
       .find((item) => item.text() === '雷达图')
 
     expect(radarMenuItem?.attributes('aria-current')).toBe('location')
-    expect(earthMenuItem?.attributes('aria-current')).toBeUndefined()
+    expect(imageryMenuItem?.attributes('aria-current')).toBeUndefined()
 
     await router.push('/a-missing-page')
     await flushPromises()
@@ -680,12 +682,12 @@ describe('App', () => {
     const wrapper = await mountAt('/missing-route')
     const menuItem = wrapper
       .findAll('[role="menuitem"]')
-      .find((item) => item.text() === '1.1.1、天地图')
+      .find((item) => item.text() === '1.1、影像')
 
     await menuItem?.trigger('click')
     await flushPromises()
 
-    expect(router.currentRoute.value.fullPath).toBe('/layers#tianditu')
+    expect(router.currentRoute.value.fullPath).toBe('/layers#imagery')
     expect(wrapper.get('[data-testid="feature-card"]').text()).toContain('1.1.1、天地图')
 
     wrapper.unmount()

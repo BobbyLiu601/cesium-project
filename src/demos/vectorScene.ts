@@ -1,6 +1,7 @@
 import * as Cesium from 'cesium'
 
-import pulseGifUrl from '@/assets/vector-demo-pulse.gif'
+import markerIconUrl from '@/assets/vector-marker.svg'
+import hurricaneGifUrl from '@/assets/vector-demo-hurricane.gif'
 import { districtGeoJson, roadGeoJson } from '@/data/demoGeoJson'
 import type { VectorSceneId } from '@/data/layers'
 
@@ -18,26 +19,61 @@ export interface VectorScene {
 type StatusReporter = (message: string) => void
 
 const CENTER = { longitude: 113.33, latitude: 23.16 }
-const markerSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="128" viewBox="0 0 96 128">
-  <path d="M48 4C25 4 7 22 7 45c0 31 41 79 41 79s41-48 41-79C89 22 71 4 48 4Z" fill="#d63c46" stroke="#fff" stroke-width="5"/>
-  <circle cx="48" cy="44" r="18" fill="#fff"/>
-  <circle cx="48" cy="44" r="8" fill="#17283e"/>
-</svg>`
-const markerDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markerSvg)}`
 
 function requestRender(viewer: Cesium.Viewer) {
   viewer.scene.requestRender()
 }
 
-function focusCamera(viewer: Cesium.Viewer) {
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 9_000),
-    orientation: {
-      heading: Cesium.Math.toRadians(10),
-      pitch: Cesium.Math.toRadians(-52),
-      roll: 0,
-    },
-  })
+async function loadBillboardImage(url: string) {
+  if (typeof Image === 'undefined' || navigator.userAgent.includes('jsdom')) {
+    return url
+  }
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const image = new Image()
+      image.decoding = 'async'
+      image.onload = () => resolve(image)
+      image.onerror = () => reject(new Error(`图标加载失败：${url}`))
+      image.src = url
+    })
+    await image.decode?.().catch(() => undefined)
+    return image
+  } catch (error) {
+    console.error('图标资源加载失败，降级为直接使用资源地址', error)
+    return url
+  }
+}
+
+interface CameraFrameOptions {
+  heading?: number
+  pitch?: number
+  minimumRange?: number
+  rangeFactor?: number
+}
+
+function frameCamera(
+  viewer: Cesium.Viewer,
+  positions: Cesium.Cartesian3[],
+  options: CameraFrameOptions = {},
+) {
+  if (positions.length === 0) {
+    return
+  }
+
+  const { heading = 10, pitch = -48, minimumRange = 2_500, rangeFactor = 2.5 } = options
+  const sphere = Cesium.BoundingSphere.fromPoints(positions)
+  sphere.radius = Math.max(sphere.radius, minimumRange / rangeFactor)
+  const range = Math.max(minimumRange, sphere.radius * rangeFactor)
+
+  viewer.camera.viewBoundingSphere(
+    sphere,
+    new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(heading),
+      Cesium.Math.toRadians(pitch),
+      range,
+    ),
+  )
 }
 
 function createHtmlOverlay(
@@ -45,21 +81,34 @@ function createHtmlOverlay(
   host: HTMLElement,
   position: Cesium.Cartesian3,
   content: string,
-  options: { closable?: boolean; offsetY?: number } = {},
+  options: { closable?: boolean; offsetY?: number; visible?: boolean } = {},
 ) {
   const element = document.createElement('div')
   element.className = 'vector-demo-overlay'
   element.dataset.demoOverlay = 'true'
   element.innerHTML = content
   element.style.position = 'absolute'
+  element.style.top = '0'
+  element.style.left = '0'
   element.style.zIndex = '4'
   element.style.maxWidth = '280px'
   element.style.pointerEvents = options.closable ? 'auto' : 'none'
   element.style.filter = 'drop-shadow(0 10px 22px rgb(0 0 0 / 28%))'
   host.append(element)
 
+  let currentPosition = position
+  let visible = options.visible ?? true
+
   const updatePosition = () => {
-    const windowPosition = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, position)
+    if (!visible) {
+      element.style.display = 'none'
+      return
+    }
+
+    const windowPosition = Cesium.SceneTransforms.worldToWindowCoordinates(
+      viewer.scene,
+      currentPosition,
+    )
     if (
       !windowPosition ||
       !Number.isFinite(windowPosition.x) ||
@@ -69,8 +118,21 @@ function createHtmlOverlay(
       return
     }
 
+    const hostWidth = host.clientWidth
+    const hostHeight = host.clientHeight
+    const horizontalMargin = hostWidth > 0 ? Math.min(150, hostWidth / 2) : 0
+    const verticalMargin = hostHeight > 0 ? Math.min(100, hostHeight / 2) : 0
+    const x =
+      hostWidth > 0
+        ? Math.min(Math.max(windowPosition.x, horizontalMargin), hostWidth - horizontalMargin)
+        : windowPosition.x
+    const y =
+      hostHeight > 0
+        ? Math.min(Math.max(windowPosition.y, verticalMargin), hostHeight - 12)
+        : windowPosition.y
+
     element.style.display = 'block'
-    element.style.transform = `translate(${windowPosition.x}px, ${windowPosition.y}px) translate(-50%, calc(-100% - ${options.offsetY ?? 14}px))`
+    element.style.transform = `translate(${x}px, ${y}px) translate(-50%, calc(-100% - ${options.offsetY ?? 14}px))`
   }
 
   viewer.scene.preRender.addEventListener(updatePosition)
@@ -78,6 +140,23 @@ function createHtmlOverlay(
 
   return {
     element,
+    setContent(nextContent: string) {
+      element.innerHTML = nextContent
+      updatePosition()
+    },
+    setPosition(nextPosition: Cesium.Cartesian3) {
+      currentPosition = nextPosition
+      updatePosition()
+    },
+    show() {
+      visible = true
+      updatePosition()
+    },
+    hide() {
+      visible = false
+      element.style.display = 'none'
+    },
+    refresh: updatePosition,
     destroy: () => {
       viewer.scene.preRender.removeEventListener(updatePosition)
       element.remove()
@@ -87,7 +166,7 @@ function createHtmlOverlay(
 
 function createEntityPointScene(viewer: Cesium.Viewer, setStatus: StatusReporter): VectorScene {
   const positions = [
-    Cesium.Cartesian3.fromDegrees(113.28, 23.12, 0),
+    Cesium.Cartesian3.fromDegrees(113.28, 23.12, 2),
     Cesium.Cartesian3.fromDegrees(113.33, 23.17, 1_200),
     Cesium.Cartesian3.fromDegrees(113.39, 23.13, 2_400),
   ]
@@ -101,7 +180,6 @@ function createEntityPointScene(viewer: Cesium.Viewer, setStatus: StatusReporter
         pixelSize: 14,
         outlineColor: Cesium.Color.WHITE,
         outlineWidth: 2,
-        heightReference: index === 0 ? Cesium.HeightReference.CLAMP_TO_GROUND : undefined,
       },
       label: {
         text: ['贴地点', '空中点', '高远点'][index],
@@ -110,12 +188,16 @@ function createEntityPointScene(viewer: Cesium.Viewer, setStatus: StatusReporter
         showBackground: true,
         backgroundColor: Cesium.Color.fromCssColorString('#17283ecc'),
         pixelOffset: new Cesium.Cartesian2(0, -28),
-        heightReference: index === 0 ? Cesium.HeightReference.CLAMP_TO_GROUND : undefined,
       },
     }),
   )
 
-  focusCamera(viewer)
+  frameCamera(viewer, positions, {
+    heading: 12,
+    pitch: -48,
+    minimumRange: 3_600,
+    rangeFactor: 2.95,
+  })
   setStatus('已展示贴地、空中和高远三种 Entity 点')
 
   return {
@@ -165,12 +247,12 @@ function createEntityLineScene(viewer: Cesium.Viewer, setStatus: StatusReporter)
       id: 'ground-line',
       name: '贴地红线',
       polyline: {
-        positions: Cesium.Cartesian3.fromDegreesArray([
-          113.22, 23.1, 113.29, 23.16, 113.37, 23.12, 113.45, 23.2,
+        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
+          113.22, 23.1, 2, 113.29, 23.16, 2, 113.37, 23.12, 2, 113.45, 23.2, 2,
         ]),
         width: 8,
         material: Cesium.Color.RED,
-        clampToGround: true,
+        clampToGround: false,
       },
     }),
     viewer.entities.add({
@@ -198,7 +280,21 @@ function createEntityLineScene(viewer: Cesium.Viewer, setStatus: StatusReporter)
     }),
   ]
 
-  focusCamera(viewer)
+  frameCamera(
+    viewer,
+    [
+      ...Cesium.Cartesian3.fromDegreesArrayHeights([
+        113.22, 23.1, 2, 113.29, 23.16, 2, 113.37, 23.12, 2, 113.45, 23.2, 2,
+      ]),
+      ...Cesium.Cartesian3.fromDegreesArrayHeights([
+        113.22, 23.1, 900, 113.29, 23.16, 1_400, 113.37, 23.12, 1_000, 113.45, 23.2, 1_800,
+      ]),
+      ...Cesium.Cartesian3.fromDegreesArrayHeights([
+        113.24, 23.24, 3_500, 113.31, 23.2, 3_900, 113.4, 23.24, 3_600,
+      ]),
+    ],
+    { heading: 8, pitch: -50, minimumRange: 5_200, rangeFactor: 2.7 },
+  )
   setStatus('红色贴地线启用深度检测，蓝色空中线显示被地形遮挡的段落')
 
   return {
@@ -223,25 +319,32 @@ function createEntityPolygonScene(viewer: Cesium.Viewer, setStatus: StatusReport
   const positions = Cesium.Cartesian3.fromDegreesArray([
     113.24, 23.11, 113.31, 23.1, 113.34, 23.16, 113.29, 23.21, 113.23, 23.18,
   ])
+  const extrudedPositions = Cesium.Cartesian3.fromDegreesArray([
+    113.36, 23.13, 113.43, 23.11, 113.46, 23.18, 113.4, 23.22, 113.35, 23.19,
+  ])
+  const floatingPositions = Cesium.Cartesian3.fromDegreesArray([
+    113.29, 23.24, 113.37, 23.22, 113.41, 23.28, 113.33, 23.31,
+  ])
+  const slantedPositions = Cesium.Cartesian3.fromDegreesArrayHeights([
+    113.44, 23.24, 420, 113.52, 23.22, 860, 113.55, 23.29, 620, 113.47, 23.32, 1_100,
+  ])
   const entities = [
     viewer.entities.add({
       id: 'clamped-polygon',
       name: '贴地面',
       polygon: {
         hierarchy: positions,
+        height: 0,
         material: Cesium.Color.fromCssColorString('#41c7a5aa'),
         outline: true,
         outlineColor: Cesium.Color.WHITE,
-        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
       },
     }),
     viewer.entities.add({
       id: 'extruded-polygon',
       name: '拉伸墙',
       polygon: {
-        hierarchy: Cesium.Cartesian3.fromDegreesArray([
-          113.36, 23.13, 113.43, 23.11, 113.46, 23.18, 113.4, 23.22, 113.35, 23.19,
-        ]),
+        hierarchy: extrudedPositions,
         extrudedHeight: 280,
         material: Cesium.Color.fromCssColorString('#d63c46aa'),
         outline: true,
@@ -252,9 +355,7 @@ function createEntityPolygonScene(viewer: Cesium.Viewer, setStatus: StatusReport
       id: 'floating-polygon',
       name: '悬浮面',
       polygon: {
-        hierarchy: Cesium.Cartesian3.fromDegreesArray([
-          113.29, 23.24, 113.37, 23.22, 113.41, 23.28, 113.33, 23.31,
-        ]),
+        hierarchy: floatingPositions,
         height: 820,
         material: Cesium.Color.fromCssColorString('#f3c64fbb'),
         outline: true,
@@ -265,9 +366,7 @@ function createEntityPolygonScene(viewer: Cesium.Viewer, setStatus: StatusReport
       id: 'slanted-polygon',
       name: '按点高度面',
       polygon: {
-        hierarchy: Cesium.Cartesian3.fromDegreesArrayHeights([
-          113.44, 23.24, 420, 113.52, 23.22, 860, 113.55, 23.29, 620, 113.47, 23.32, 1_100,
-        ]),
+        hierarchy: slantedPositions,
         perPositionHeight: true,
         material: Cesium.Color.fromCssColorString('#4f8df7cc'),
         outline: true,
@@ -276,7 +375,11 @@ function createEntityPolygonScene(viewer: Cesium.Viewer, setStatus: StatusReport
     }),
   ]
 
-  focusCamera(viewer)
+  frameCamera(
+    viewer,
+    [...positions, ...extrudedPositions, ...floatingPositions, ...slantedPositions],
+    { heading: 8, pitch: -50, minimumRange: 5_600, rangeFactor: 2.5 },
+  )
   setStatus('已展示贴地面、拉伸墙、按点高度面和悬浮面，可缩放查看公共 API 配置效果')
 
   return {
@@ -296,13 +399,17 @@ function createEntityPolygonScene(viewer: Cesium.Viewer, setStatus: StatusReport
   }
 }
 
-function createBillboardScene(viewer: Cesium.Viewer, setStatus: StatusReporter): VectorScene {
+async function createBillboardScene(
+  viewer: Cesium.Viewer,
+  setStatus: StatusReporter,
+): Promise<VectorScene> {
+  const markerImage = await loadBillboardImage(markerIconUrl)
   const billboard = viewer.entities.add({
     id: 'billboard-demo',
     name: '距离缩放图标',
     position: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80),
     billboard: {
-      image: markerDataUrl,
+      image: markerImage,
       scale: 1,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
@@ -312,13 +419,10 @@ function createBillboardScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
     },
   })
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 2_500),
-    orientation: {
-      heading: 0,
-      pitch: Cesium.Math.toRadians(-55),
-      roll: 0,
-    },
+  frameCamera(viewer, [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)], {
+    heading: 0,
+    pitch: -42,
+    minimumRange: 2_200,
   })
   setStatus('滚轮缩放相机可观察 Billboard 按距离自动缩放')
 
@@ -347,10 +451,11 @@ function createBillboardScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
   }
 }
 
-function createBillboardCollectionScene(
+async function createBillboardCollectionScene(
   viewer: Cesium.Viewer,
   setStatus: StatusReporter,
-): VectorScene {
+): Promise<VectorScene> {
+  const markerImage = await loadBillboardImage(markerIconUrl)
   const collection = new Cesium.BillboardCollection({ scene: viewer.scene })
   let seed = 20261110
   const random = () => {
@@ -365,20 +470,25 @@ function createBillboardCollectionScene(
         22.8 + random() * 0.9,
         30 + random() * 4_500,
       ),
-      image: markerDataUrl,
+      image: markerImage,
       scale: 0.06 + random() * 0.08,
       scaleByDistance: new Cesium.NearFarScalar(2_000, 1, 160_000, 0.18),
     })
   }
 
   viewer.scene.primitives.add(collection)
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(113.4, 23.2, 42_000),
-    orientation: {
-      heading: 0,
-      pitch: Cesium.Math.toRadians(-60),
-      roll: 0,
-    },
+  const framingPositions = [
+    Cesium.Cartesian3.fromDegrees(112.9, 22.8, 30),
+    Cesium.Cartesian3.fromDegrees(114.1, 22.8, 30),
+    Cesium.Cartesian3.fromDegrees(112.9, 23.7, 30),
+    Cesium.Cartesian3.fromDegrees(114.1, 23.7, 30),
+    Cesium.Cartesian3.fromDegrees(113.5, 23.25, 4_500),
+  ]
+  frameCamera(viewer, framingPositions, {
+    heading: 0,
+    pitch: -55,
+    minimumRange: 80_000,
+    rangeFactor: 2.05,
   })
   setStatus('BillboardCollection 已加载 50,000 个固定种子图标')
 
@@ -388,13 +498,11 @@ function createBillboardCollectionScene(
         id: 'zoom-collection',
         label: '缩放到图标范围',
         run() {
-          viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(113.4, 23.2, 24_000),
-            orientation: {
-              heading: 0,
-              pitch: Cesium.Math.toRadians(-68),
-              roll: 0,
-            },
+          frameCamera(viewer, framingPositions, {
+            heading: 0,
+            pitch: -60,
+            minimumRange: 65_000,
+            rangeFactor: 1.75,
           })
           requestRender(viewer)
         },
@@ -460,11 +568,17 @@ function createPopupScene(
   overlays[0]?.element
     .querySelector<HTMLElement>('[data-popup-close]')
     ?.addEventListener('click', () => {
-      overlays[0]?.element.remove()
+      overlays[0]?.hide()
       setStatus('已关闭第一个 HTML 弹窗')
     })
 
-  focusCamera(viewer)
+  frameCamera(viewer, positions, {
+    heading: 8,
+    pitch: -50,
+    minimumRange: 5_000,
+    rangeFactor: 2.4,
+  })
+  overlays.forEach((overlay) => overlay.refresh())
   setStatus('三个 HTML 弹窗跟随固定世界坐标，可关闭第一个弹窗')
 
   return {
@@ -473,7 +587,16 @@ function createPopupScene(
         id: 'recenter-popups',
         label: '重新定位弹窗',
         run() {
-          focusCamera(viewer)
+          frameCamera(viewer, positions, {
+            heading: 8,
+            pitch: -50,
+            minimumRange: 5_000,
+            rangeFactor: 2.4,
+          })
+          overlays.forEach((overlay) => {
+            overlay.show()
+            overlay.refresh()
+          })
           requestRender(viewer)
           setStatus('相机已回到弹窗展示视角')
         },
@@ -536,6 +659,12 @@ function createPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
   const positions = Cesium.Cartesian3.fromDegreesArray([
     113.27, 23.11, 113.34, 23.1, 113.37, 23.17, 113.31, 23.21, 113.25, 23.17,
   ])
+  const linePositions = Cesium.Cartesian3.fromDegreesArrayHeights([
+    113.25, 23.23, 1_200, 113.32, 23.26, 1_700, 113.4, 23.23, 1_300,
+  ])
+  const glowPositions = Cesium.Cartesian3.fromDegreesArray([
+    113.23, 23.12, 113.3, 23.08, 113.39, 23.14, 113.47, 23.21,
+  ])
   const polygonPrimitive = new Cesium.Primitive({
     geometryInstances: new Cesium.GeometryInstance({
       geometry: Cesium.PolygonGeometry.fromPositions({ positions }),
@@ -554,11 +683,12 @@ function createPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
   const linePrimitive = new Cesium.Primitive({
     geometryInstances: new Cesium.GeometryInstance({
       geometry: new Cesium.PolylineGeometry({
-        positions: Cesium.Cartesian3.fromDegreesArrayHeights([
-          113.25, 23.23, 1_200, 113.32, 23.26, 1_700, 113.4, 23.23, 1_300,
-        ]),
+        positions: linePositions,
         width: 8,
       }),
+      attributes: {
+        color: Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.DODGERBLUE),
+      },
     }),
     appearance: new Cesium.PolylineColorAppearance(),
     asynchronous: false,
@@ -566,9 +696,7 @@ function createPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
   const glowPrimitive = new Cesium.Primitive({
     geometryInstances: new Cesium.GeometryInstance({
       geometry: new Cesium.PolylineGeometry({
-        positions: Cesium.Cartesian3.fromDegreesArray([
-          113.23, 23.12, 113.3, 23.08, 113.39, 23.14, 113.47, 23.21,
-        ]),
+        positions: glowPositions,
         width: 10,
       }),
     }),
@@ -582,7 +710,12 @@ function createPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
   })
   const primitives = [polygonPrimitive, linePrimitive, glowPrimitive]
   primitives.forEach((primitive) => viewer.scene.primitives.add(primitive))
-  focusCamera(viewer)
+  frameCamera(viewer, [...positions, ...linePositions, ...glowPositions], {
+    heading: 10,
+    pitch: -48,
+    minimumRange: 5_500,
+    rangeFactor: 2.7,
+  })
 
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
   handler.setInputAction((movement: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
@@ -600,7 +733,12 @@ function createPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
         id: 'focus-primitive',
         label: '回到总览',
         run() {
-          focusCamera(viewer)
+          frameCamera(viewer, [...positions, ...linePositions, ...glowPositions], {
+            heading: 10,
+            pitch: -48,
+            minimumRange: 5_500,
+            rangeFactor: 2.7,
+          })
           requestRender(viewer)
         },
       },
@@ -627,14 +765,37 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     113.26, 23.26, 800, 113.32, 23.28, 900, 113.38, 23.26, 850,
   ])
   const ellipsoidMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-    Cesium.Cartesian3.fromDegrees(113.39, 23.24, 1_200),
+    Cesium.Cartesian3.fromDegrees(113.39, 23.24, 1_500),
   )
   const boxMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-    Cesium.Cartesian3.fromDegrees(113.24, 23.16, 500),
+    Cesium.Cartesian3.fromDegrees(113.24, 23.16, 1_700),
   )
   const cylinderMatrix = Cesium.Transforms.eastNorthUpToFixedFrame(
-    Cesium.Cartesian3.fromDegrees(113.36, 23.05, 600),
+    Cesium.Cartesian3.fromDegrees(113.36, 23.08, 2_600),
   )
+  const framingPositions = [
+    ...Cesium.Cartesian3.fromDegreesArray([
+      113.21, 23.07, 113.27, 23.07, 113.21, 23.12, 113.27, 23.12,
+    ]),
+    ...polygonPositions,
+    ...wallPositions,
+    ...corridorPositions,
+    ...volumePositions,
+    Cesium.Cartesian3.fromDegrees(113.39, 23.24, 1_000),
+    Cesium.Cartesian3.fromDegrees(113.39, 23.24, 2_000),
+    Cesium.Cartesian3.fromDegrees(113.24, 23.16, 700),
+    Cesium.Cartesian3.fromDegrees(113.24, 23.16, 2_700),
+    Cesium.Cartesian3.fromDegrees(113.36, 23.08, 1_400),
+    Cesium.Cartesian3.fromDegrees(113.36, 23.08, 3_800),
+    Cesium.Cartesian3.fromDegrees(113.3, 23.17, 300),
+    Cesium.Cartesian3.fromDegrees(113.32, 23.19, 300),
+    Cesium.Cartesian3.fromDegrees(113.41, 23.12, 300),
+    Cesium.Cartesian3.fromDegrees(113.43, 23.14, 300),
+    Cesium.Cartesian3.fromDegrees(113.24, 23.16, 950),
+    Cesium.Cartesian3.fromDegrees(113.36, 23.05, 1_100),
+    Cesium.Cartesian3.fromDegrees(113.4, 23.1, 900),
+    Cesium.Cartesian3.fromDegrees(113.47, 23.18, 900),
+  ]
 
   const geometries = [
     new Cesium.GeometryInstance({
@@ -670,7 +831,7 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     }),
     new Cesium.GeometryInstance({
       geometry: new Cesium.EllipsoidGeometry({
-        radii: new Cesium.Cartesian3(500, 320, 240),
+        radii: new Cesium.Cartesian3(900, 600, 500),
       }),
       modelMatrix: ellipsoidMatrix,
       attributes: {
@@ -679,8 +840,8 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     }),
     new Cesium.GeometryInstance({
       geometry: new Cesium.BoxGeometry({
-        minimum: new Cesium.Cartesian3(-400, -300, -450),
-        maximum: new Cesium.Cartesian3(400, 300, 450),
+        minimum: new Cesium.Cartesian3(-800, -600, -1_000),
+        maximum: new Cesium.Cartesian3(800, 600, 1_000),
       }),
       modelMatrix: boxMatrix,
       attributes: {
@@ -689,9 +850,9 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     }),
     new Cesium.GeometryInstance({
       geometry: new Cesium.CylinderGeometry({
-        length: 1_200,
-        topRadius: 240,
-        bottomRadius: 480,
+        length: 2_400,
+        topRadius: 500,
+        bottomRadius: 900,
       }),
       modelMatrix: cylinderMatrix,
       attributes: {
@@ -744,7 +905,12 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     asynchronous: false,
   })
   viewer.scene.primitives.add(primitive)
-  focusCamera(viewer)
+  frameCamera(viewer, framingPositions, {
+    heading: 8,
+    pitch: -48,
+    minimumRange: 8_500,
+    rangeFactor: 2.7,
+  })
   setStatus('已创建矩形、多边形、椭圆、圆、椭球、盒体、圆柱、墙、走廊和折线体')
 
   return {
@@ -753,7 +919,12 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
         id: 'focus-all',
         label: '回到几何体总览',
         run() {
-          focusCamera(viewer)
+          frameCamera(viewer, framingPositions, {
+            heading: 8,
+            pitch: -48,
+            minimumRange: 8_500,
+            rangeFactor: 2.7,
+          })
           requestRender(viewer)
         },
       },
@@ -771,27 +942,41 @@ function createEntityCollectionScene(
   const dataSource = new Cesium.CustomDataSource('entity-collection-demo')
   viewer.dataSources.add(dataSource)
   let sequence = 0
+  const initialPositions: Cesium.Cartesian3[] = []
 
   const addEntity = () => {
     sequence += 1
     const offset = (sequence % 5) * 0.012
+    const position = Cesium.Cartesian3.fromDegrees(113.28 + offset, 23.12 + offset, 600)
     dataSource.entities.add({
       id: `collection-entity-${sequence}`,
       name: `集合实体 ${sequence}`,
-      position: Cesium.Cartesian3.fromDegrees(113.28 + offset, 23.12 + offset, 600),
+      position,
       point: {
         color: Cesium.Color.fromCssColorString('#44d7b6'),
-        pixelSize: 13,
+        pixelSize: 18,
         outlineColor: Cesium.Color.WHITE,
         outlineWidth: 2,
       },
     })
+    initialPositions.push(position)
     setStatus(`EntityCollection 当前包含 ${dataSource.entities.values.length} 个实体`)
     requestRender(viewer)
   }
 
   addEntity()
-  focusCamera(viewer)
+  addEntity()
+  addEntity()
+  frameCamera(
+    viewer,
+    [
+      ...initialPositions,
+      ...Cesium.Cartesian3.fromDegreesArray([
+        113.28, 23.12, 113.328, 23.168, 113.28, 23.168, 113.328, 23.12,
+      ]),
+    ],
+    { heading: 8, pitch: -45, minimumRange: 4_200, rangeFactor: 2.8 },
+  )
 
   return {
     actions: [
@@ -864,7 +1049,7 @@ function createEntityOperationScene(viewer: Cesium.Viewer, setStatus: StatusRepo
       position: Cesium.Cartesian3.fromDegrees(113.25 + offset, 23.1 + offset, 500),
       point: {
         color: Cesium.Color.fromCssColorString('#f3c64f'),
-        pixelSize: 14,
+        pixelSize: 18,
         outlineColor: Cesium.Color.WHITE,
         outlineWidth: 2,
       },
@@ -875,7 +1060,14 @@ function createEntityOperationScene(viewer: Cesium.Viewer, setStatus: StatusRepo
   }
   addEntity()
   addEntity()
-  focusCamera(viewer)
+  frameCamera(
+    viewer,
+    [
+      Cesium.Cartesian3.fromDegrees(113.25, 23.1, 500),
+      Cesium.Cartesian3.fromDegrees(113.292, 23.142, 500),
+    ],
+    { heading: 8, pitch: -45, minimumRange: 3_000, rangeFactor: 2.8 },
+  )
 
   return {
     actions: [
@@ -949,14 +1141,9 @@ function createHtmlOverlayScene(
     popupMarkup('气泡窗口', '覆盖层跟随地面点，并在相机移动时持续更新。'),
     { offsetY: 18 },
   )
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 3_800),
-    orientation: {
-      heading: Cesium.Math.toRadians(25),
-      pitch: Cesium.Math.toRadians(-48),
-      roll: 0,
-    },
-  })
+  frameCamera(viewer, [position], { heading: 12, pitch: -45, minimumRange: 1_800 })
+  overlay.show()
+  overlay.refresh()
   setStatus('HTML 气泡正在跟随固定地面点')
 
   return {
@@ -965,14 +1152,9 @@ function createHtmlOverlayScene(
         id: 'recenter',
         label: '重新定位气泡',
         run() {
-          viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 3_800),
-            orientation: {
-              heading: Cesium.Math.toRadians(25),
-              pitch: Cesium.Math.toRadians(-48),
-              roll: 0,
-            },
-          })
+          frameCamera(viewer, [position], { heading: 12, pitch: -45, minimumRange: 1_800 })
+          overlay.show()
+          overlay.refresh()
           requestRender(viewer)
           setStatus('气泡窗口已跟随到新的相机视角')
         },
@@ -985,11 +1167,12 @@ function createHtmlOverlayScene(
   }
 }
 
-function createClickPopupScene(
+async function createClickPopupScene(
   viewer: Cesium.Viewer,
   host: HTMLElement,
   setStatus: StatusReporter,
-): VectorScene {
+): Promise<VectorScene> {
+  const markerImage = await loadBillboardImage(markerIconUrl)
   const positions = [
     Cesium.Cartesian3.fromDegrees(113.3, 23.14, 30),
     Cesium.Cartesian3.fromDegrees(113.38, 23.18, 30),
@@ -1004,7 +1187,7 @@ function createClickPopupScene(
         status: index === 0 ? '在线' : '待巡检',
       },
       billboard: {
-        image: markerDataUrl,
+        image: markerImage,
         verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
         heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
         scale: 0.72,
@@ -1016,9 +1199,34 @@ function createClickPopupScene(
     host,
     positions[0]!,
     popupMarkup('设备 A', '温度 26°C · 在线'),
-    { closable: true, offsetY: 4 },
+    { closable: true, offsetY: 4, visible: false },
   )
-  overlay.element.style.display = 'none'
+
+  const openEntityPopup = (entity: Cesium.Entity) => {
+    const entityPosition = entity.position?.getValue(viewer.clock.currentTime)
+    if (!entityPosition) {
+      return
+    }
+
+    overlay.setContent(
+      popupMarkup(
+        entity.name ?? '未命名实体',
+        `温度 ${entity.properties?.temperature?.getValue() ?? '-'}°C · ${entity.properties?.status?.getValue() ?? '-'}`,
+        true,
+      ),
+    )
+    overlay.setPosition(entityPosition)
+    overlay.show()
+    setStatus(`已打开 ${entity.name} 的数据气泡`)
+  }
+
+  overlay.element.addEventListener('click', (event) => {
+    const target = event.target
+    if (target instanceof Element && target.closest('[data-popup-close]')) {
+      overlay.hide()
+      setStatus('数据气泡已关闭')
+    }
+  })
 
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
   handler.setInputAction((movement: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
@@ -1027,32 +1235,16 @@ function createClickPopupScene(
     if (!entity?.position) {
       return
     }
-
-    const position = entity.position.getValue(viewer.clock.currentTime)
-    if (!position) {
-      return
-    }
-    overlay.element.innerHTML = popupMarkup(
-      entity.name ?? '未命名实体',
-      `温度 ${entity.properties?.temperature?.getValue() ?? '-'}°C · ${entity.properties?.status?.getValue() ?? '-'}`,
-      true,
-    )
-    overlay.element.style.display = 'block'
-    const screenPosition = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, position)
-    if (screenPosition) {
-      overlay.element.style.transform = `translate(${screenPosition.x}px, ${screenPosition.y}px) translate(-50%, calc(-100% - 4px))`
-    }
-    setStatus(`已打开 ${entity.name} 的数据气泡`)
+    openEntityPopup(entity)
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK)
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(113.34, 23.16, 5_500),
-    orientation: {
-      heading: 0,
-      pitch: Cesium.Math.toRadians(-55),
-      roll: 0,
-    },
+  frameCamera(viewer, positions, {
+    heading: 8,
+    pitch: -48,
+    minimumRange: 5_000,
+    rangeFactor: 2.9,
   })
+  overlay.hide()
   setStatus('点击任意图标，在该位置打开包含数据的气泡')
 
   return {
@@ -1061,8 +1253,10 @@ function createClickPopupScene(
         id: 'show-first-popup',
         label: '打开设备 A 气泡',
         run() {
-          setStatus('设备 A 气泡已显示在地图锚点上方')
-          overlay.element.style.display = 'block'
+          const entity = entities[0]
+          if (entity) {
+            openEntityPopup(entity)
+          }
           requestRender(viewer)
         },
       },
@@ -1078,16 +1272,18 @@ function createClickPopupScene(
 function createRoadScene(viewer: Cesium.Viewer, setStatus: StatusReporter): VectorScene {
   const entities: Cesium.Entity[] = []
   const highlightEntities: Cesium.Entity[] = []
+  const framingPositions: Cesium.Cartesian3[] = []
   let alternate = false
 
   for (const [index, feature] of roadGeoJson.features.entries()) {
-    const positions = Cesium.Cartesian3.fromDegreesArray(
-      feature.geometry.coordinates.flatMap(([longitude, latitude]) => [longitude, latitude]),
+    const positions = Cesium.Cartesian3.fromDegreesArrayHeights(
+      feature.geometry.coordinates.flatMap(([longitude, latitude]) => [longitude, latitude, 24]),
     )
+    framingPositions.push(...positions)
     const roadWidth = Math.max(12, feature.properties.width / 7)
     const common = {
       positions,
-      clampToGround: true,
+      clampToGround: false,
     }
 
     entities.push(
@@ -1140,13 +1336,11 @@ function createRoadScene(viewer: Cesium.Viewer, setStatus: StatusReporter): Vect
     )
   }
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(113.35, 23.17, 24_000),
-    orientation: {
-      heading: Cesium.Math.toRadians(8),
-      pitch: Cesium.Math.toRadians(-62),
-      roll: 0,
-    },
+  frameCamera(viewer, framingPositions, {
+    heading: 8,
+    pitch: -50,
+    minimumRange: 5_500,
+    rangeFactor: 2.45,
   })
   setStatus('本地道路数据已生成路基、边线、黑色虚线和黄色路面')
 
@@ -1175,7 +1369,10 @@ function createRoadScene(viewer: Cesium.Viewer, setStatus: StatusReporter): Vect
   }
 }
 
-function createSvgScene(viewer: Cesium.Viewer, setStatus: StatusReporter): VectorScene {
+async function createSvgScene(
+  viewer: Cesium.Viewer,
+  setStatus: StatusReporter,
+): Promise<VectorScene> {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="240" height="160" viewBox="0 0 240 160">
     <defs><linearGradient id="g" x1="0" x2="1"><stop stop-color="#44d7b6"/><stop offset="1" stop-color="#2d7ff9"/></linearGradient></defs>
     <rect x="10" y="10" width="220" height="140" rx="24" fill="url(#g)"/>
@@ -1191,23 +1388,21 @@ function createSvgScene(viewer: Cesium.Viewer, setStatus: StatusReporter): Vecto
       console.error('SVG Blob URL 创建失败，使用 Data URL', error)
     }
   }
+  const svgImage = await loadBillboardImage(objectUrl)
   const entity = viewer.entities.add({
     id: 'svg-billboard',
     position: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80),
     billboard: {
-      image: objectUrl,
+      image: svgImage,
       scale: 1,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
     },
   })
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 2_200),
-    orientation: {
-      heading: 0,
-      pitch: Cesium.Math.toRadians(-58),
-      roll: 0,
-    },
+  frameCamera(viewer, [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)], {
+    heading: 0,
+    pitch: -42,
+    minimumRange: 2_000,
   })
   setStatus('自制 SVG 已转为本地 Blob URL 并用作 Billboard')
 
@@ -1217,14 +1412,11 @@ function createSvgScene(viewer: Cesium.Viewer, setStatus: StatusReporter): Vecto
         id: 'reset-svg',
         label: '重置 SVG 视角',
         run() {
-          viewer.camera.setView({
-            destination: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 2_200),
-            orientation: {
-              heading: 0,
-              pitch: Cesium.Math.toRadians(-58),
-              roll: 0,
-            },
-          })
+          frameCamera(
+            viewer,
+            [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)],
+            { heading: 0, pitch: -42, minimumRange: 2_000 },
+          )
           requestRender(viewer)
           setStatus('已重置 SVG Billboard 视角')
         },
@@ -1243,6 +1435,7 @@ async function createGifScene(
   viewer: Cesium.Viewer,
   setStatus: StatusReporter,
 ): Promise<VectorScene> {
+  const gifFallbackImage = await loadBillboardImage(hurricaneGifUrl)
   let frameTimer: ReturnType<typeof setInterval> | undefined
   let decoder: ImageDecoder | undefined
   let canvas: HTMLCanvasElement | undefined
@@ -1252,8 +1445,8 @@ async function createGifScene(
     id: 'gif-billboard',
     position: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80),
     billboard: {
-      image: new Cesium.CallbackProperty(() => canvas ?? pulseGifUrl, false),
-      scale: 1.5,
+      image: new Cesium.CallbackProperty(() => canvas ?? gifFallbackImage, false),
+      scale: 0.55,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
     },
@@ -1264,7 +1457,7 @@ async function createGifScene(
 
   if (ImageDecoderClass) {
     try {
-      const response = await fetch(pulseGifUrl)
+      const response = await fetch(hurricaneGifUrl)
       const data = await response.arrayBuffer()
       decoder = new ImageDecoderClass({ data, type: 'image/gif' })
       await decoder.tracks.ready
@@ -1302,13 +1495,10 @@ async function createGifScene(
     setStatus('当前浏览器不支持 GIF 帧解码，已显示静态帧')
   }
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 2_200),
-    orientation: {
-      heading: 0,
-      pitch: Cesium.Math.toRadians(-58),
-      roll: 0,
-    },
+  frameCamera(viewer, [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)], {
+    heading: 0,
+    pitch: -42,
+    minimumRange: 2_000,
   })
 
   return {

@@ -4,22 +4,22 @@ import type { Component } from 'vue'
 import elevationImage from '@/assets/elevation-cover.jpg'
 import radarEffectCover from '@/assets/radar-effect-cover.jpg'
 import tiandituImage from '@/assets/three-dimensional-earth.svg'
-import allPrimitiveCover from '@/assets/vector-covers/all-primitive.svg'
-import billboardCover from '@/assets/vector-covers/billboard.svg'
-import billboardCollectionCover from '@/assets/vector-covers/billboard-collection.svg'
-import clickPopupCover from '@/assets/vector-covers/click-popup.svg'
-import entityCollectionCover from '@/assets/vector-covers/entity-collection.svg'
-import entityLineCover from '@/assets/vector-covers/entity-line.svg'
-import entityOperationCover from '@/assets/vector-covers/entity-operation.svg'
-import entityPointCover from '@/assets/vector-covers/entity-point.svg'
-import entityPolygonCover from '@/assets/vector-covers/entity-polygon.svg'
-import geojsonCover from '@/assets/vector-covers/geojson.svg'
-import gifCover from '@/assets/vector-covers/gif.svg'
-import htmlOverlayCover from '@/assets/vector-covers/html-overlay.svg'
-import popupCover from '@/assets/vector-covers/popup.svg'
-import primitiveCover from '@/assets/vector-covers/primitive.svg'
-import roadCover from '@/assets/vector-covers/road.svg'
-import svgCover from '@/assets/vector-covers/svg.svg'
+import allPrimitiveCover from '@/assets/vector-covers/all-primitive.jpg'
+import billboardCover from '@/assets/vector-covers/billboard.jpg'
+import billboardCollectionCover from '@/assets/vector-covers/billboard-collection.jpg'
+import clickPopupCover from '@/assets/vector-covers/click-popup.jpg'
+import entityCollectionCover from '@/assets/vector-covers/entity-collection.jpg'
+import entityLineCover from '@/assets/vector-covers/entity-line.jpg'
+import entityOperationCover from '@/assets/vector-covers/entity-operation.jpg'
+import entityPointCover from '@/assets/vector-covers/entity-point.jpg'
+import entityPolygonCover from '@/assets/vector-covers/entity-polygon.jpg'
+import geojsonCover from '@/assets/vector-covers/geojson.jpg'
+import gifCover from '@/assets/vector-covers/gif.jpg'
+import htmlOverlayCover from '@/assets/vector-covers/html-overlay.jpg'
+import popupCover from '@/assets/vector-covers/popup.jpg'
+import primitiveCover from '@/assets/vector-covers/primitive.jpg'
+import roadCover from '@/assets/vector-covers/road.jpg'
+import svgCover from '@/assets/vector-covers/svg.jpg'
 
 export type VectorSceneId =
   | 'entity-point'
@@ -342,6 +342,7 @@ export const menuGroups: MenuGroup[] = [
 export const featureSections: FeatureSection[] = [...layerSections, effectsSection]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)
+export const contentAnchors = [...featureAnchors, ...layerSections.map((section) => section.id)]
 export const featuredRoutes = allFeatures
   .filter((feature) => feature.kind !== 'radar')
   .map((feature) => ({
@@ -352,4 +353,15 @@ export const featuredRoutes = allFeatures
 
 export function getFeatureById(featureId: string | undefined) {
   return allFeatures.find((feature) => feature.id === featureId)
+}
+
+export function getNavigationAnchorForContent(anchor: string) {
+  const layerSection = layerSections.find(
+    (section) => section.id === anchor || section.items.some((feature) => feature.id === anchor),
+  )
+  if (layerSection) {
+    return layerSection.id
+  }
+
+  return effectsSection.items.some((feature) => feature.id === anchor) ? anchor : ''
 }

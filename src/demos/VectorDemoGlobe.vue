@@ -26,6 +26,23 @@ const actions = ref<VectorAction[]>([])
 let session: GlobeSession | undefined
 let vectorScene: VectorScene | undefined
 let cancelled = false
+let renderTimers: ReturnType<typeof setTimeout>[] = []
+
+function clearScheduledRenders() {
+  renderTimers.forEach((timer) => clearTimeout(timer))
+  renderTimers = []
+}
+
+function scheduleSceneRenders(viewer: Cesium.Viewer) {
+  clearScheduledRenders()
+  renderTimers = [120, 350, 750, 1_400, 2_400].map((delay) =>
+    setTimeout(() => {
+      if (getActiveSession() === session) {
+        viewer.scene.requestRender()
+      }
+    }, delay),
+  )
+}
 
 function resize() {
   session?.viewer.resize()
@@ -52,6 +69,7 @@ async function createSession() {
     return
   }
 
+  clearScheduledRenders()
   disposeActiveSession()
 
   let host: HTMLDivElement | undefined
@@ -119,6 +137,7 @@ async function createSession() {
     }
 
     container.value.replaceChildren(host)
+    viewer.resize()
     vectorScene = await createVectorScene(viewer, host, props.sceneId, setStatus)
 
     if (cancelled || getActiveSession() !== session) {
@@ -142,6 +161,7 @@ async function createSession() {
     viewer.resize()
     viewer.scene.requestRender()
     sceneState.value = 'ready'
+    scheduleSceneRenders(viewer)
   } catch (error) {
     vectorScene?.dispose()
     vectorScene = undefined
@@ -164,6 +184,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cancelled = true
+  clearScheduledRenders()
   vectorScene?.dispose()
   vectorScene = undefined
 
