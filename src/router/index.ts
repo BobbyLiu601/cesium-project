@@ -7,7 +7,7 @@ const router = createRouter({
   routes: [
     {
       path: '/',
-      redirect: '/basic-config',
+      redirect: { name: 'basic-config' },
     },
     {
       path: '/basic-config',
@@ -17,7 +17,7 @@ const router = createRouter({
     {
       path: '/effects',
       redirect: {
-        path: '/basic-config',
+        name: 'basic-config',
         hash: '#radar',
       },
     },

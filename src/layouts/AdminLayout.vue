@@ -12,6 +12,7 @@ const drawerVisible = ref(false)
 const activeAnchor = ref('')
 const contentElement = ref<HTMLElement | null>(null)
 const defaultAnchor = featureAnchors[0] ?? ''
+const showcaseRouteName = 'basic-config'
 
 function getRouteAnchor() {
   const hash = route.hash.replace(/^#/, '')
@@ -41,8 +42,8 @@ async function handleMenuSelect(anchor: string) {
   activeAnchor.value = anchor
   const hash = `#${anchor}`
 
-  if (route.path !== '/basic-config' || route.hash !== hash) {
-    await router.push({ path: '/basic-config', hash })
+  if (route.name !== showcaseRouteName || route.hash !== hash) {
+    await router.push({ name: showcaseRouteName, hash })
     return
   }
 
@@ -52,7 +53,7 @@ async function handleMenuSelect(anchor: string) {
 watch(
   () => route.fullPath,
   async () => {
-    if (route.path !== '/basic-config') {
+    if (route.name !== showcaseRouteName) {
       activeAnchor.value = ''
       return
     }
@@ -135,7 +136,7 @@ watch(
   height: 72px;
   padding: 0 24px;
   background: var(--color-chrome);
-  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  border-bottom: 1px solid var(--color-chrome-border);
 }
 
 .admin-brand {
@@ -153,7 +154,11 @@ watch(
   color: transparent;
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: linear-gradient(180deg, #45a6ff 0 50%, #ffd43b 50% 100%);
+  background: linear-gradient(
+    180deg,
+    var(--color-brand-blue) 0 50%,
+    var(--color-brand-yellow) 50% 100%
+  );
   background-clip: text;
   -webkit-background-clip: text;
 }
@@ -184,8 +189,8 @@ watch(
   width: 40px;
   height: 40px;
   padding: 0;
-  color: #f7f9fc;
-  --el-button-hover-bg-color: rgb(255 255 255 / 8%);
+  color: var(--color-on-chrome);
+  --el-button-hover-bg-color: var(--color-menu-hover);
   --el-button-hover-text-color: #ffffff;
 }
 
@@ -210,12 +215,12 @@ watch(
 :global(.mobile-navigation-drawer .el-drawer__header) {
   padding: 20px 20px 12px;
   margin-bottom: 0;
-  color: #f7f9fc;
+  color: var(--color-on-chrome);
   font-weight: 600;
 }
 
 :global(.mobile-navigation-drawer .el-drawer__close-btn) {
-  color: #f7f9fc;
+  color: var(--color-on-chrome);
 }
 
 :global(.mobile-navigation-drawer .el-drawer__body) {

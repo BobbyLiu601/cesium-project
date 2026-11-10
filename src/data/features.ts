@@ -1,3 +1,6 @@
+import { MagicStick, Setting } from '@element-plus/icons-vue'
+import type { Component } from 'vue'
+
 import elevationImage from '@/assets/elevation-cover.jpg'
 import radarEffectCover from '@/assets/radar-effect-cover.jpg'
 import threeDimensionalEarthImage from '@/assets/three-dimensional-earth.svg'
@@ -12,6 +15,7 @@ export interface FeatureItem {
 export interface FeatureSection {
   id: 'basic-config' | 'effects'
   title: string
+  icon: Component
   items: FeatureItem[]
 }
 
@@ -19,6 +23,7 @@ export const featureSections: FeatureSection[] = [
   {
     id: 'basic-config',
     title: '基础配置',
+    icon: Setting,
     items: [
       {
         id: 'three-dimensional-earth',
@@ -37,6 +42,7 @@ export const featureSections: FeatureSection[] = [
   {
     id: 'effects',
     title: '视觉效果',
+    icon: MagicStick,
     items: [
       {
         id: 'radar',

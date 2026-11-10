@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { MagicStick, Setting } from '@element-plus/icons-vue'
-import { nextTick, ref, type Component } from 'vue'
+import { nextTick, ref } from 'vue'
 
 import { disposeActiveSession } from '@/components/cesiumGlobeSession'
 import ElevationDialog from '@/components/ElevationDialog.vue'
@@ -9,11 +8,6 @@ import PageHeading from '@/components/PageHeading.vue'
 import RadarDialog from '@/components/RadarDialog.vue'
 import ThreeDimensionalEarthDialog from '@/components/ThreeDimensionalEarthDialog.vue'
 import { featureSections, type FeatureSection } from '@/data/features'
-
-const sectionIcons: Record<FeatureSection['id'], Component> = {
-  'basic-config': Setting,
-  effects: MagicStick,
-}
 
 const gridTestIds: Record<FeatureSection['id'], string> = {
   'basic-config': 'feature-grid',
@@ -70,7 +64,7 @@ async function restoreFeatureFocus(featureId: string) {
     >
       <PageHeading
         :heading-id="`${section.id}-heading`"
-        :icon="sectionIcons[section.id]"
+        :icon="section.icon"
         :level="index === 0 ? 1 : 2"
         :title="section.title"
       />

@@ -12,7 +12,7 @@ const route = useRoute()
       无法找到地址 <code>{{ route.fullPath }}</code
       >。请检查地址或返回基础配置。
     </p>
-    <RouterLink class="not-found__link" to="/basic-config"> 返回基础配置 </RouterLink>
+    <RouterLink class="not-found__link" :to="{ name: 'basic-config' }"> 返回基础配置 </RouterLink>
   </section>
 </template>
 

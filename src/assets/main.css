@@ -10,8 +10,16 @@
   --color-primary-strong: #b52d37;
   --color-primary-soft: #fdf0f1;
   --color-chrome: #17283e;
+  --color-chrome-border: rgb(255 255 255 / 8%);
+  --color-on-chrome: #f7f9fc;
   --color-sidebar-text: #e8eef6;
   --color-sidebar-muted: #aebccc;
+  --color-menu-hover: rgb(255 255 255 / 8%);
+  --color-menu-active-bg: rgb(255 255 255 / 9%);
+  --color-menu-active: #e04c40;
+  --color-chrome-focus: rgb(255 255 255 / 65%);
+  --color-brand-blue: #45a6ff;
+  --color-brand-yellow: #ffd43b;
   font-family: 'Avenir Next', 'HarmonyOS Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   color: var(--color-text);
   background-color: var(--color-background);

@@ -136,7 +136,7 @@ Mapzen Terrain Tiles 是很好的公开备选：AWS Open Data 说明其提供全
 
 ## 对当前工程的落地影响
 
-- 功能入口：在 `src/data/features.ts` 增加“高程”卡片；在 `src/views/BasicConfigView.vue` 增加对应弹窗状态和 `openFeature` 分支。
+- 功能入口：在 `src/data/features.ts` 增加“高程”卡片；在 `src/views/ShowcaseView.vue` 增加对应弹窗状态和 `openFeature` 分支。
 - 三维初始化：现有 `src/components/CesiumGlobe.vue:55` 使用 `EllipsoidTerrainProvider`。高程模式需改为异步创建 `ArcGISTiledElevationTerrainProvider`；建议抽成 `terrainProvider` 选择参数，避免复制 Viewer 初始化。
 - 视图：现有相机初始高度为 `22_000_000`，适合全球视图；高程弹窗应设置海珠区或广州的局部视角，否则看不到地形起伏。
 - 署名：在线方案必须展示 Provider credit；本地 Copernicus 方案必须展示 Copernicus 要求的署名。当前 credit 容器被隐藏，不能直接沿用。

@@ -94,6 +94,23 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
       fontWeight: style.fontWeight,
     }
   })
+  const menuHighlight = await sidebar.evaluate((element) => {
+    const activeGroup = element.querySelector<HTMLElement>(
+      '.el-sub-menu.is-active > .el-sub-menu__title',
+    )
+    const activeGroupIcon = activeGroup?.querySelector<HTMLElement>('.sidebar-menu__icon')
+    const activeItem = element.querySelector<HTMLElement>('.el-menu-item.is-active')
+
+    if (!activeGroup || !activeGroupIcon || !activeItem) {
+      throw new Error('未找到菜单高亮元素')
+    }
+
+    return {
+      activeGroupColor: getComputedStyle(activeGroup).color,
+      activeGroupIconColor: getComputedStyle(activeGroupIcon).color,
+      activeItemColor: getComputedStyle(activeItem).color,
+    }
+  })
 
   expect(headerBox?.height).toBeCloseTo(72, 0)
   expect(sidebarBox?.width).toBeCloseTo(230, 0)
@@ -104,6 +121,9 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   expect(brandStyle.color).toBe('rgba(0, 0, 0, 0)')
   expect(brandStyle.backgroundImage).toContain('linear-gradient')
   expect(brandStyle.backgroundClip).toBe('text')
+  expect(menuHighlight.activeGroupColor).toBe('rgb(224, 76, 64)')
+  expect(menuHighlight.activeGroupIconColor).toBe('rgb(224, 76, 64)')
+  expect(menuHighlight.activeItemColor).toBe('rgb(174, 188, 204)')
   await expect(header.getByRole('menuitem')).toHaveCount(0)
   await expect(heading.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
 

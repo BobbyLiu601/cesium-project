@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { MagicStick, Setting } from '@element-plus/icons-vue'
 import { ElIcon, ElMenu, ElMenuItem, ElSubMenu } from 'element-plus'
-import { nextTick, ref, watch, type Component } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 
-import { featureSections, type FeatureSection } from '@/data/features'
+import { featureSections } from '@/data/features'
 
 const props = defineProps<{
   activeAnchor: string
@@ -12,11 +11,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   select: [anchor: string]
 }>()
-
-const sectionIcons: Record<FeatureSection['id'], Component> = {
-  'basic-config': Setting,
-  effects: MagicStick,
-}
 
 const openedSections = featureSections.map((section) => section.id)
 const menuRef = ref<{ updateActiveIndex: (index: string) => void } | null>(null)
@@ -48,7 +42,7 @@ watch(
     >
       <template #title>
         <ElIcon class="sidebar-menu__icon" aria-hidden="true">
-          <component :is="sectionIcons[section.id]" />
+          <component :is="section.icon" />
         </ElIcon>
         <span class="sidebar-menu__label">{{ section.title }}</span>
       </template>
@@ -72,9 +66,9 @@ watch(
 <style scoped>
 .sidebar-menu {
   --el-menu-bg-color: var(--color-chrome);
-  --el-menu-hover-bg-color: rgb(255 255 255 / 8%);
+  --el-menu-hover-bg-color: var(--color-menu-hover);
   --el-menu-text-color: var(--color-sidebar-muted);
-  --el-menu-active-color: #ffffff;
+  --el-menu-active-color: var(--color-menu-active);
   width: 100%;
   border-right: 0;
 }
@@ -91,17 +85,17 @@ watch(
 
 .sidebar-menu :deep(.el-sub-menu__title:hover) {
   color: var(--color-sidebar-text);
-  background: rgb(255 255 255 / 8%);
+  background: var(--color-menu-hover);
 }
 
 .sidebar-menu :deep(.el-sub-menu__title:focus-visible),
 .sidebar-menu :deep(.el-menu-item:focus-visible) {
-  outline: 2px solid rgb(255 255 255 / 65%);
+  outline: 2px solid var(--color-chrome-focus);
   outline-offset: -2px;
 }
 
 .sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
-  color: #ffffff;
+  color: var(--color-menu-active);
 }
 
 .sidebar-menu :deep(.el-sub-menu__icon-arrow) {
@@ -118,7 +112,7 @@ watch(
 }
 
 .sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title .sidebar-menu__icon) {
-  color: #ff8b92;
+  color: var(--color-menu-active);
 }
 
 .sidebar-menu :deep(.el-menu-item) {
@@ -135,8 +129,8 @@ watch(
 }
 
 .sidebar-menu :deep(.el-menu-item.is-active) {
-  color: #ffffff;
-  background: rgb(255 255 255 / 9%);
+  color: var(--color-sidebar-muted);
+  background: var(--color-menu-active-bg);
   box-shadow: inset 2px 0 0 var(--color-primary);
 }
 
@@ -157,7 +151,7 @@ watch(
 }
 
 .sidebar-menu :deep(.el-menu-item.is-active) .sidebar-menu__marker {
-  background: #ff8b92;
+  background: var(--color-menu-active);
   opacity: 1;
 }
 

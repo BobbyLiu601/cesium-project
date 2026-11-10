@@ -309,7 +309,7 @@ viewer.scene.postProcessStages.add(bloom)
 1. 在 `src/components/` 新增一个独立的 Cesium 雷达效果工厂（例如 `radarEffect.ts`），接收 `Viewer` 和站点坐标，返回 `{ destroy }`。这样不把材质、几何和动画状态塞进 `CesiumGlobe.vue`。
 2. `CesiumGlobe.vue` 目前使用 `requestRenderMode: true`，雷达模式打开时要按上文启动显式渲染循环；关闭弹窗时取消循环并移除 Primitive。
 3. 现有 `ThreeDimensionalEarthDialog` 标题固定为“三维地球”，可改为接收 `title`/`mode`，或在同一个 Viewer 会话上切换“普通地球 / 雷达”内容；不要为雷达再创建第二套 Viewer。
-4. `src/data/features.ts` 增加 `radar` 项，`BasicConfigView.vue` 增加对应弹窗状态。菜单“3D特效”放在“基础配置”下方，内容项名称使用“雷达图”。
+4. `src/data/features.ts` 增加 `radar` 项，`ShowcaseView.vue` 增加对应弹窗状态。菜单“视觉效果”放在“基础配置”下方，内容项名称使用“雷达图”。
 5. 验收截图应从实际 Cesium canvas 抓取，而不是使用示意图。可在动画稳定后固定 `time`，用 Playwright 设置 1200×700 视口并截取弹窗中的 canvas。
 
 ## 视觉与截图建议
