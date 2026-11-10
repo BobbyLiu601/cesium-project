@@ -219,7 +219,7 @@ async function validateBrowserBehavior(origin, basePath) {
     }
 
     await waitForText(page, '三维效果展示')
-    await page.waitForURL((url) => url.pathname === `${basePath}basic-config`, {
+    await page.waitForURL((url) => url.pathname === `${basePath}layers`, {
       timeout: PAGE_TIMEOUT_MS,
     })
 
@@ -232,7 +232,7 @@ async function validateBrowserBehavior(origin, basePath) {
       )
     }
 
-    await page.getByRole('button', { name: '打开三维地球' }).click()
+    await page.getByRole('button', { name: '打开1.1.1、天地图' }).click()
     await page.waitForFunction(
       () =>
         document
@@ -250,7 +250,8 @@ async function validateBrowserBehavior(origin, basePath) {
       )
     }
 
-    const fallbackResponse = await page.goto(`${origin}${basePath}basic-config`, {
+    const fallbackPath = `${basePath}missing/page`
+    const fallbackResponse = await page.goto(`${origin}${fallbackPath}?from=pages-check`, {
       waitUntil: 'domcontentloaded',
     })
     if (fallbackResponse?.status() !== 404) {
@@ -261,8 +262,8 @@ async function validateBrowserBehavior(origin, basePath) {
       )
     }
 
-    await page.getByRole('button', { name: '打开雷达图' }).waitFor({ timeout: PAGE_TIMEOUT_MS })
-    if (new URL(page.url()).pathname !== `${basePath}basic-config`) {
+    await page.getByRole('heading', { name: '页面不存在' }).waitFor({ timeout: PAGE_TIMEOUT_MS })
+    if (new URL(page.url()).pathname !== fallbackPath) {
       addFailure(failures, 'fallback-url', '404.html 回退后没有保留原始子路由地址。')
     }
   } finally {
