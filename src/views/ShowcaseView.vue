@@ -9,8 +9,10 @@ import PageHeading from '@/components/PageHeading.vue'
 import RadarDialog from '@/components/RadarDialog.vue'
 import {
   effectsSection,
+  formatMenuGroupTitle,
   getFeatureById,
   layerSections,
+  layersMenuGroup,
   type FeatureItem,
   type FeatureSection,
 } from '@/data/layers'
@@ -36,6 +38,10 @@ async function openFeature(feature: FeatureItem) {
   if (feature.kind === 'radar') {
     disposeActiveSession()
     radarDialogVisible.value = true
+    return
+  }
+
+  if (!feature.routeName) {
     return
   }
 
@@ -86,9 +92,9 @@ watch(
     <section id="layers" class="showcase__section" aria-labelledby="layers-heading">
       <PageHeading
         heading-id="layers-heading"
-        :icon="layerSections[0]!.icon"
+        :icon="layersMenuGroup.icon"
         :level="1"
-        title="1、图层"
+        :title="formatMenuGroupTitle(layersMenuGroup)"
       />
 
       <div
@@ -190,22 +196,22 @@ watch(
   font-size: 17px;
   font-weight: 600;
   line-height: 1.4;
-  color: #424a51;
+  color: var(--color-text);
 }
 
 .showcase__group-count {
   flex: 0 0 auto;
   padding: 2px 9px;
   font-size: 12px;
-  color: #7b858e;
-  background: #eceff1;
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
   border-radius: 999px;
 }
 
 .showcase__body {
   padding: 20px;
   margin: 0;
-  background: #f9f9f9;
+  background: var(--color-surface-card);
   border-radius: 3px;
 }
 

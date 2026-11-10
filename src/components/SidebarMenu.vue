@@ -3,7 +3,7 @@ import { ArrowDown } from '@element-plus/icons-vue'
 import { ElIcon, ElMenu, ElMenuItem, ElSubMenu } from 'element-plus'
 import { nextTick, ref, watch } from 'vue'
 
-import { menuGroups } from '@/data/layers'
+import { formatMenuGroupTitle, menuGroups } from '@/data/layers'
 
 const props = defineProps<{
   activeAnchor: string
@@ -48,7 +48,7 @@ watch(
           <component :is="group.icon" />
         </ElIcon>
         <span class="sidebar-menu__label">
-          {{ group.code ? `${group.code}、${group.title}` : group.title }}
+          {{ formatMenuGroupTitle(group) }}
         </span>
       </template>
 

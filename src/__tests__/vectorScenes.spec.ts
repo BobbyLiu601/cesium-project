@@ -248,6 +248,7 @@ describe('vector scene builders', () => {
 
     expect(overlay?.style.display).toBe('none')
     scene.dispose()
+    expect(screenSpaceEventHandlerInstances[0]?.destroy).toHaveBeenCalledOnce()
   })
 
   it('uses a native animated GIF overlay when ImageDecoder is unavailable', async () => {

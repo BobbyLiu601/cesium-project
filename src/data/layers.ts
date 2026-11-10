@@ -44,13 +44,16 @@ export type FeatureKind = 'tianditu' | 'elevation' | 'vector' | 'radar'
 export interface FeatureItem {
   id: string
   code: string
+  /** 参考站中的原始名称，用于日志和无障碍兜底。 */
   name: string
+  /** 菜单与卡片展示名称，默认由编号和原始名称生成。 */
   displayName: string
   imageSrc: string
   imageAlt: string
   kind: FeatureKind
-  routeName: string
-  routePath: string
+  /** 可独立深链的功能才配置路由；雷达图通过弹窗打开。 */
+  routeName?: string
+  routePath?: string
   sceneId?: VectorSceneId
 }
 
@@ -70,6 +73,10 @@ export interface MenuGroup {
   sections: FeatureSection[]
 }
 
+export function formatMenuGroupTitle(group: Pick<MenuGroup, 'code' | 'title'>) {
+  return group.code ? `${group.code}、${group.title}` : group.title
+}
+
 function defineFeature(
   feature: Omit<FeatureItem, 'displayName'> & { displayName?: string },
 ): FeatureItem {
@@ -80,6 +87,7 @@ function defineFeature(
   }
 }
 
+// 功能名称保持参考站原文，避免编号和检索关键词与来源偏离。
 export const layerSections: FeatureSection[] = [
   {
     id: 'imagery',
@@ -316,40 +324,43 @@ export const effectsSection: FeatureSection = {
       imageSrc: radarEffectCover,
       imageAlt: '广州海珠区三维雷达扫描效果截图',
       kind: 'radar',
-      routeName: 'effects-radar',
-      routePath: '/layers#radar',
     }),
   ],
 }
 
-export const menuGroups: MenuGroup[] = [
-  {
-    id: 'layers',
-    code: '1',
-    title: '图层',
-    icon: FolderOpened,
-    sections: layerSections,
-  },
-  {
-    id: 'effects',
-    code: '',
-    title: '视觉效果',
-    icon: MagicStick,
-    sections: [effectsSection],
-  },
-]
+export const layersMenuGroup: MenuGroup = {
+  id: 'layers',
+  code: '1',
+  title: '图层',
+  icon: FolderOpened,
+  sections: layerSections,
+}
+
+const effectsMenuGroup: MenuGroup = {
+  id: 'effects',
+  code: '',
+  title: '视觉效果',
+  icon: MagicStick,
+  sections: [effectsSection],
+}
+
+export const menuGroups: MenuGroup[] = [layersMenuGroup, effectsMenuGroup]
 
 export const featureSections: FeatureSection[] = [...layerSections, effectsSection]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)
 export const contentAnchors = [...featureAnchors, ...layerSections.map((section) => section.id)]
-export const featuredRoutes = allFeatures
-  .filter((feature) => feature.kind !== 'radar')
-  .map((feature) => ({
-    path: feature.routePath,
-    name: feature.routeName,
-    featureId: feature.id,
-  }))
+export const featuredRoutes = allFeatures.flatMap((feature) =>
+  feature.routeName && feature.routePath
+    ? [
+        {
+          path: feature.routePath,
+          name: feature.routeName,
+          featureId: feature.id,
+        },
+      ]
+    : [],
+)
 
 export function getFeatureById(featureId: string | undefined) {
   return allFeatures.find((feature) => feature.id === featureId)

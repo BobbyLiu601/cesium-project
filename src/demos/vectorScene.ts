@@ -52,6 +52,29 @@ interface CameraFrameOptions {
   rangeFactor?: number
 }
 
+const CAMERA_PRESETS = {
+  entityPoint: { heading: 12, pitch: -48, minimumRange: 3_600, rangeFactor: 2.95 },
+  entityLine: { heading: 8, pitch: -50, minimumRange: 5_200, rangeFactor: 2.7 },
+  entityPolygon: { heading: 8, pitch: -50, minimumRange: 5_600, rangeFactor: 2.5 },
+  marker: { heading: 0, pitch: -42, minimumRange: 2_200, rangeFactor: 2.5 },
+  markerClose: { heading: 0, pitch: -42, minimumRange: 2_000, rangeFactor: 2.5 },
+  billboardCollection: { heading: 0, pitch: -55, minimumRange: 80_000, rangeFactor: 2.05 },
+  billboardCollectionFocus: {
+    heading: 0,
+    pitch: -60,
+    minimumRange: 65_000,
+    rangeFactor: 1.75,
+  },
+  popup: { heading: 8, pitch: -50, minimumRange: 5_000, rangeFactor: 2.4 },
+  primitive: { heading: 10, pitch: -48, minimumRange: 5_500, rangeFactor: 2.7 },
+  allPrimitive: { heading: 8, pitch: -48, minimumRange: 8_500, rangeFactor: 2.7 },
+  entityCollection: { heading: 8, pitch: -45, minimumRange: 4_200, rangeFactor: 2.8 },
+  entityOperation: { heading: 8, pitch: -45, minimumRange: 3_000, rangeFactor: 2.8 },
+  htmlOverlay: { heading: 12, pitch: -45, minimumRange: 1_800, rangeFactor: 2.5 },
+  clickPopup: { heading: 8, pitch: -48, minimumRange: 5_000, rangeFactor: 2.9 },
+  road: { heading: 8, pitch: -50, minimumRange: 5_500, rangeFactor: 2.45 },
+} as const satisfies Record<string, CameraFrameOptions>
+
 function frameCamera(
   viewer: Cesium.Viewer,
   positions: Cesium.Cartesian3[],
@@ -74,6 +97,19 @@ function frameCamera(
       range,
     ),
   )
+}
+
+function resetCameraView(
+  viewer: Cesium.Viewer,
+  positions: Cesium.Cartesian3[],
+  preset: CameraFrameOptions,
+) {
+  frameCamera(viewer, positions, preset)
+  requestRender(viewer)
+}
+
+function removeEntities(viewer: Cesium.Viewer, entities: readonly Cesium.Entity[]) {
+  entities.forEach((entity) => viewer.entities.remove(entity))
 }
 
 function createHtmlOverlay(
@@ -263,12 +299,7 @@ function createEntityPointScene(viewer: Cesium.Viewer, setStatus: StatusReporter
     }),
   )
 
-  frameCamera(viewer, positions, {
-    heading: 12,
-    pitch: -48,
-    minimumRange: 3_600,
-    rangeFactor: 2.95,
-  })
+  frameCamera(viewer, positions, CAMERA_PRESETS.entityPoint)
   setStatus('已展示贴地、空中和高远三种 Entity 点')
 
   return {
@@ -307,7 +338,7 @@ function createEntityPointScene(viewer: Cesium.Viewer, setStatus: StatusReporter
       },
     ],
     dispose() {
-      entities.forEach((entity) => viewer.entities.remove(entity))
+      removeEntities(viewer, entities)
     },
   }
 }
@@ -364,7 +395,7 @@ function createEntityLineScene(viewer: Cesium.Viewer, setStatus: StatusReporter)
         113.24, 23.24, 3_500, 113.31, 23.2, 3_900, 113.4, 23.24, 3_600,
       ]),
     ],
-    { heading: 8, pitch: -50, minimumRange: 5_200, rangeFactor: 2.7 },
+    CAMERA_PRESETS.entityLine,
   )
   setStatus('红色贴地线启用深度检测，蓝色空中线显示被地形遮挡的段落')
 
@@ -381,7 +412,7 @@ function createEntityLineScene(viewer: Cesium.Viewer, setStatus: StatusReporter)
       },
     ],
     dispose() {
-      lines.forEach((entity) => viewer.entities.remove(entity))
+      removeEntities(viewer, lines)
     },
   }
 }
@@ -449,7 +480,7 @@ function createEntityPolygonScene(viewer: Cesium.Viewer, setStatus: StatusReport
   frameCamera(
     viewer,
     [...positions, ...extrudedPositions, ...floatingPositions, ...slantedPositions],
-    { heading: 8, pitch: -50, minimumRange: 5_600, rangeFactor: 2.5 },
+    CAMERA_PRESETS.entityPolygon,
   )
   setStatus('已展示贴地面、拉伸墙、按点高度面和悬浮面，可缩放查看公共 API 配置效果')
 
@@ -465,7 +496,7 @@ function createEntityPolygonScene(viewer: Cesium.Viewer, setStatus: StatusReport
       },
     ],
     dispose() {
-      entities.forEach((entity) => viewer.entities.remove(entity))
+      removeEntities(viewer, entities)
     },
   }
 }
@@ -490,11 +521,11 @@ async function createBillboardScene(
     },
   })
 
-  frameCamera(viewer, [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)], {
-    heading: 0,
-    pitch: -42,
-    minimumRange: 2_200,
-  })
+  frameCamera(
+    viewer,
+    [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)],
+    CAMERA_PRESETS.marker,
+  )
   setStatus('滚轮缩放相机可观察 Billboard 按距离自动缩放')
 
   return {
@@ -555,12 +586,7 @@ async function createBillboardCollectionScene(
     Cesium.Cartesian3.fromDegrees(114.1, 23.7, 30),
     Cesium.Cartesian3.fromDegrees(113.5, 23.25, 4_500),
   ]
-  frameCamera(viewer, framingPositions, {
-    heading: 0,
-    pitch: -55,
-    minimumRange: 80_000,
-    rangeFactor: 2.05,
-  })
+  frameCamera(viewer, framingPositions, CAMERA_PRESETS.billboardCollection)
   setStatus('BillboardCollection 已加载 50,000 个固定种子图标')
 
   return {
@@ -569,13 +595,7 @@ async function createBillboardCollectionScene(
         id: 'zoom-collection',
         label: '缩放到图标范围',
         run() {
-          frameCamera(viewer, framingPositions, {
-            heading: 0,
-            pitch: -60,
-            minimumRange: 65_000,
-            rangeFactor: 1.75,
-          })
-          requestRender(viewer)
+          resetCameraView(viewer, framingPositions, CAMERA_PRESETS.billboardCollectionFocus)
         },
       },
     ],
@@ -643,12 +663,8 @@ function createPopupScene(
       setStatus('已关闭第一个 HTML 弹窗')
     })
 
-  frameCamera(viewer, positions, {
-    heading: 8,
-    pitch: -50,
-    minimumRange: 5_000,
-    rangeFactor: 2.4,
-  })
+  const frameOverview = () => frameCamera(viewer, positions, CAMERA_PRESETS.popup)
+  frameOverview()
   overlays.forEach((overlay) => overlay.refresh())
   setStatus('三个 HTML 弹窗跟随固定世界坐标，可关闭第一个弹窗')
 
@@ -658,12 +674,7 @@ function createPopupScene(
         id: 'recenter-popups',
         label: '重新定位弹窗',
         run() {
-          frameCamera(viewer, positions, {
-            heading: 8,
-            pitch: -50,
-            minimumRange: 5_000,
-            rangeFactor: 2.4,
-          })
+          frameOverview()
           overlays.forEach((overlay) => {
             overlay.show()
             overlay.refresh()
@@ -675,7 +686,7 @@ function createPopupScene(
     ],
     dispose() {
       overlays.forEach((overlay) => overlay.destroy())
-      entities.forEach((entity) => viewer.entities.remove(entity))
+      removeEntities(viewer, entities)
     },
   }
 }
@@ -781,12 +792,9 @@ function createPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
   })
   const primitives = [polygonPrimitive, linePrimitive, glowPrimitive]
   primitives.forEach((primitive) => viewer.scene.primitives.add(primitive))
-  frameCamera(viewer, [...positions, ...linePositions, ...glowPositions], {
-    heading: 10,
-    pitch: -48,
-    minimumRange: 5_500,
-    rangeFactor: 2.7,
-  })
+  const framingPositions = [...positions, ...linePositions, ...glowPositions]
+  const frameOverview = () => frameCamera(viewer, framingPositions, CAMERA_PRESETS.primitive)
+  frameOverview()
 
   const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas)
   handler.setInputAction((movement: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
@@ -804,13 +812,7 @@ function createPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporter):
         id: 'focus-primitive',
         label: '回到总览',
         run() {
-          frameCamera(viewer, [...positions, ...linePositions, ...glowPositions], {
-            heading: 10,
-            pitch: -48,
-            minimumRange: 5_500,
-            rangeFactor: 2.7,
-          })
-          requestRender(viewer)
+          resetCameraView(viewer, framingPositions, CAMERA_PRESETS.primitive)
         },
       },
     ],
@@ -976,12 +978,7 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     asynchronous: false,
   })
   viewer.scene.primitives.add(primitive)
-  frameCamera(viewer, framingPositions, {
-    heading: 8,
-    pitch: -48,
-    minimumRange: 8_500,
-    rangeFactor: 2.7,
-  })
+  frameCamera(viewer, framingPositions, CAMERA_PRESETS.allPrimitive)
   setStatus('已创建矩形、多边形、椭圆、圆、椭球、盒体、圆柱、墙、走廊和折线体')
 
   return {
@@ -990,13 +987,7 @@ function createAllPrimitiveScene(viewer: Cesium.Viewer, setStatus: StatusReporte
         id: 'focus-all',
         label: '回到几何体总览',
         run() {
-          frameCamera(viewer, framingPositions, {
-            heading: 8,
-            pitch: -48,
-            minimumRange: 8_500,
-            rangeFactor: 2.7,
-          })
-          requestRender(viewer)
+          resetCameraView(viewer, framingPositions, CAMERA_PRESETS.allPrimitive)
         },
       },
     ],
@@ -1046,7 +1037,7 @@ function createEntityCollectionScene(
         113.28, 23.12, 113.328, 23.168, 113.28, 23.168, 113.328, 23.12,
       ]),
     ],
-    { heading: 8, pitch: -45, minimumRange: 4_200, rangeFactor: 2.8 },
+    CAMERA_PRESETS.entityCollection,
   )
 
   return {
@@ -1137,7 +1128,7 @@ function createEntityOperationScene(viewer: Cesium.Viewer, setStatus: StatusRepo
       Cesium.Cartesian3.fromDegrees(113.25, 23.1, 500),
       Cesium.Cartesian3.fromDegrees(113.292, 23.142, 500),
     ],
-    { heading: 8, pitch: -45, minimumRange: 3_000, rangeFactor: 2.8 },
+    CAMERA_PRESETS.entityOperation,
   )
 
   return {
@@ -1188,7 +1179,7 @@ function createEntityOperationScene(viewer: Cesium.Viewer, setStatus: StatusRepo
       },
     ],
     dispose() {
-      entities.forEach((entity) => viewer.entities.remove(entity))
+      removeEntities(viewer, entities)
       entities.length = 0
     },
   }
@@ -1212,7 +1203,7 @@ function createHtmlOverlayScene(
     popupMarkup('气泡窗口', '覆盖层跟随地面点，并在相机移动时持续更新。'),
     { offsetY: 18 },
   )
-  frameCamera(viewer, [position], { heading: 12, pitch: -45, minimumRange: 1_800 })
+  frameCamera(viewer, [position], CAMERA_PRESETS.htmlOverlay)
   overlay.show()
   overlay.refresh()
   setStatus('HTML 气泡正在跟随固定地面点')
@@ -1223,10 +1214,9 @@ function createHtmlOverlayScene(
         id: 'recenter',
         label: '重新定位气泡',
         run() {
-          frameCamera(viewer, [position], { heading: 12, pitch: -45, minimumRange: 1_800 })
+          resetCameraView(viewer, [position], CAMERA_PRESETS.htmlOverlay)
           overlay.show()
           overlay.refresh()
-          requestRender(viewer)
           setStatus('气泡窗口已跟随到新的相机视角')
         },
       },
@@ -1309,12 +1299,7 @@ async function createClickPopupScene(
     openEntityPopup(entity)
   }, Cesium.ScreenSpaceEventType.LEFT_CLICK)
 
-  frameCamera(viewer, positions, {
-    heading: 8,
-    pitch: -48,
-    minimumRange: 5_000,
-    rangeFactor: 2.9,
-  })
+  frameCamera(viewer, positions, CAMERA_PRESETS.clickPopup)
   overlay.hide()
   setStatus('点击任意图标，在该位置打开包含数据的气泡')
 
@@ -1335,7 +1320,7 @@ async function createClickPopupScene(
     dispose() {
       handler.destroy()
       overlay.destroy()
-      entities.forEach((entity) => viewer.entities.remove(entity))
+      removeEntities(viewer, entities)
     },
   }
 }
@@ -1407,12 +1392,7 @@ function createRoadScene(viewer: Cesium.Viewer, setStatus: StatusReporter): Vect
     )
   }
 
-  frameCamera(viewer, framingPositions, {
-    heading: 8,
-    pitch: -50,
-    minimumRange: 5_500,
-    rangeFactor: 2.45,
-  })
+  frameCamera(viewer, framingPositions, CAMERA_PRESETS.road)
   setStatus('本地道路数据已生成路基、边线、黑色虚线和黄色路面')
 
   return {
@@ -1435,7 +1415,7 @@ function createRoadScene(viewer: Cesium.Viewer, setStatus: StatusReporter): Vect
       },
     ],
     dispose() {
-      entities.forEach((entity) => viewer.entities.remove(entity))
+      removeEntities(viewer, entities)
     },
   }
 }
@@ -1470,11 +1450,11 @@ async function createSvgScene(
       heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
     },
   })
-  frameCamera(viewer, [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)], {
-    heading: 0,
-    pitch: -42,
-    minimumRange: 2_000,
-  })
+  frameCamera(
+    viewer,
+    [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)],
+    CAMERA_PRESETS.markerClose,
+  )
   setStatus('自制 SVG 已转为本地 Blob URL 并用作 Billboard')
 
   return {
@@ -1483,12 +1463,11 @@ async function createSvgScene(
         id: 'reset-svg',
         label: '重置 SVG 视角',
         run() {
-          frameCamera(
+          resetCameraView(
             viewer,
             [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)],
-            { heading: 0, pitch: -42, minimumRange: 2_000 },
+            CAMERA_PRESETS.markerClose,
           )
-          requestRender(viewer)
           setStatus('已重置 SVG Billboard 视角')
         },
       },
@@ -1580,11 +1559,7 @@ async function createGifScene(
     useNativeGif()
   }
 
-  frameCamera(viewer, [position], {
-    heading: 0,
-    pitch: -42,
-    minimumRange: 2_000,
-  })
+  frameCamera(viewer, [position], CAMERA_PRESETS.markerClose)
 
   return {
     actions: usesNativeGif
