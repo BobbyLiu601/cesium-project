@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 const CESIUM_READY_TIMEOUT = 15_000
 
@@ -6,6 +6,21 @@ async function expectCesiumReady(globe: Locator) {
   await expect(globe).toHaveAttribute('data-cesium-state', 'ready', {
     timeout: CESIUM_READY_TIMEOUT,
   })
+}
+
+async function expectCanvasToAnimate(page: Page, canvas: Locator) {
+  const clip = await canvas.boundingBox()
+  expect(clip).not.toBeNull()
+
+  const frames: Buffer[] = []
+  for (let index = 0; index < 6; index += 1) {
+    frames.push(await page.screenshot({ clip: clip! }))
+    if (index < 5) {
+      await page.waitForTimeout(150)
+    }
+  }
+
+  expect(frames.some((frame) => !frame.equals(frames[0]!))).toBe(true)
 }
 
 async function expectSubmenuArrowsPointDown(menu: Locator) {
@@ -61,6 +76,9 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开1.1.1、天地图' })).toContainText(
     '1.1.1、天地图',
   )
+  await expect(
+    page.getByRole('button', { name: '打开1.1.1、天地图' }).locator('img'),
+  ).toHaveAttribute('src', /tianditu-cover/)
   await expect(page.getByRole('button', { name: '打开1.2.1、高程' })).toContainText('1.2.1、高程')
   await expect(page.getByRole('button', { name: '打开1.3.1、entity点' })).toContainText(
     '1.3.1、entity点',
@@ -470,12 +488,27 @@ test('矢量示例修订项可稳定复现', async ({ page }) => {
   await expectCesiumReady(globe)
   await page.waitForTimeout(2_600)
   const gifCanvas = globe.locator('canvas')
-  const gifClip = await gifCanvas.boundingBox()
-  expect(gifClip).not.toBeNull()
-  const firstFrame = await page.screenshot({ clip: gifClip! })
-  await page.waitForTimeout(350)
-  const secondFrame = await page.screenshot({ clip: gifClip! })
-  expect(firstFrame.equals(secondFrame)).toBe(false)
+  await expectCanvasToAnimate(page, gifCanvas)
+})
+
+test('GIF 在不支持 ImageDecoder 时仍使用原生图片动画', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(globalThis, 'ImageDecoder', {
+      configurable: true,
+      value: undefined,
+    })
+  })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/layers/vector/1-3-16-gif')
+
+  const globe = page.getByTestId('vector-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe.getByText('当前浏览器使用原生 GIF 动画播放')).toBeVisible()
+  const nativeGif = globe.locator('img[data-demo-gif]')
+  await expect(nativeGif).toBeVisible()
+  await expect(nativeGif).toHaveCSS('filter', 'none')
+
+  await expectCanvasToAnimate(page, globe.locator('canvas'))
 })
 
 test('通过 Enter 或空格打开天地图弹窗', async ({ page }) => {

@@ -3,7 +3,7 @@ import type { Component } from 'vue'
 
 import elevationImage from '@/assets/elevation-cover.jpg'
 import radarEffectCover from '@/assets/radar-effect-cover.jpg'
-import tiandituImage from '@/assets/three-dimensional-earth.svg'
+import tiandituImage from '@/assets/tianditu-cover.jpg'
 import allPrimitiveCover from '@/assets/vector-covers/all-primitive.jpg'
 import billboardCover from '@/assets/vector-covers/billboard.jpg'
 import billboardCollectionCover from '@/assets/vector-covers/billboard-collection.jpg'
@@ -92,7 +92,7 @@ export const layerSections: FeatureSection[] = [
         code: '1.1.1',
         name: '天地图',
         imageSrc: tiandituImage,
-        imageAlt: '蓝色三维地球与环绕轨道示意图',
+        imageAlt: '天地图卫星影像三维地球实际效果截图',
         kind: 'tianditu',
         routeName: 'layer-imagery-tianditu',
         routePath: '/layers/imagery/1-1-1-tianditu',

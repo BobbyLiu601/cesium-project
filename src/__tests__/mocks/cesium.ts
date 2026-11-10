@@ -50,6 +50,7 @@ export interface MockViewer {
 export interface MockEntity {
   id: string
   name?: string
+  show?: boolean
   position?: {
     getValue: (time?: unknown) => unknown
   }

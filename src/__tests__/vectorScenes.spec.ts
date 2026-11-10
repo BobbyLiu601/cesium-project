@@ -250,16 +250,22 @@ describe('vector scene builders', () => {
     scene.dispose()
   })
 
-  it('falls back to a static GIF frame when ImageDecoder is unavailable', async () => {
+  it('uses a native animated GIF overlay when ImageDecoder is unavailable', async () => {
     const statuses: string[] = []
     const viewer = createViewer()
-    const scene = await createVectorScene(viewer, document.createElement('div'), 'gif', (message) =>
-      statuses.push(message),
-    )
+    const host = document.createElement('div')
+    const scene = await createVectorScene(viewer, host, 'gif', (message) => statuses.push(message))
 
-    expect(statuses[statuses.length - 1]).toContain('静态帧')
+    expect(statuses[statuses.length - 1]).toContain('原生 GIF 动画')
     expect(viewerInstances[0]?.entities.values).toHaveLength(1)
     expect(viewerInstances[0]?.entities.values[0]?.billboard?.scale).toBe(0.55)
+    expect(viewerInstances[0]?.entities.values[0]?.show).toBe(false)
+    const fallbackImage = host.querySelector<HTMLImageElement>('img[data-demo-gif]')
+    expect(fallbackImage?.src).toContain('vector-demo-hurricane.gif')
+    expect(fallbackImage?.style.filter).toBe('none')
+    expect(scene.actions[0]?.id).toBe('replay-gif')
+
     scene.dispose()
+    expect(host.querySelector('img[data-demo-gif]')).toBeNull()
   })
 })

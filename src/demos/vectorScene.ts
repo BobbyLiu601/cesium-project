@@ -164,6 +164,77 @@ function createHtmlOverlay(
   }
 }
 
+function createNativeGifOverlay(
+  viewer: Cesium.Viewer,
+  host: HTMLElement,
+  position: Cesium.Cartesian3,
+  url: string,
+  scale: number,
+) {
+  const image = document.createElement('img')
+  image.dataset.demoGif = 'true'
+  image.alt = '动态飓风 GIF'
+  image.decoding = 'async'
+  image.src = url
+  image.style.position = 'absolute'
+  image.style.top = '0'
+  image.style.left = '0'
+  image.style.zIndex = '4'
+  image.style.pointerEvents = 'none'
+  image.style.display = 'none'
+  image.style.filter = 'none'
+  host.append(image)
+
+  const updatePosition = () => {
+    if (!image.complete || image.naturalWidth === 0) {
+      return
+    }
+
+    const windowPosition = Cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene, position)
+    if (
+      !windowPosition ||
+      !Number.isFinite(windowPosition.x) ||
+      !Number.isFinite(windowPosition.y)
+    ) {
+      image.style.display = 'none'
+      return
+    }
+
+    const width = Math.max(1, Math.round(image.naturalWidth * scale))
+    const height = Math.max(1, Math.round(image.naturalHeight * scale))
+    const hostWidth = host.clientWidth
+    const hostHeight = host.clientHeight
+    const x =
+      hostWidth > 0
+        ? Math.min(Math.max(windowPosition.x, width / 2), hostWidth - width / 2)
+        : windowPosition.x
+    const y =
+      hostHeight > 0
+        ? Math.min(Math.max(windowPosition.y, height), hostHeight - 8)
+        : windowPosition.y
+
+    image.style.width = `${width}px`
+    image.style.height = `${height}px`
+    image.style.display = 'block'
+    image.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`
+  }
+
+  image.addEventListener('load', updatePosition)
+  viewer.scene.preRender.addEventListener(updatePosition)
+  updatePosition()
+
+  return {
+    replay() {
+      image.src = `${url}?replay=${Date.now()}`
+    },
+    destroy() {
+      image.removeEventListener('load', updatePosition)
+      viewer.scene.preRender.removeEventListener(updatePosition)
+      image.remove()
+    },
+  }
+}
+
 function createEntityPointScene(viewer: Cesium.Viewer, setStatus: StatusReporter): VectorScene {
   const positions = [
     Cesium.Cartesian3.fromDegrees(113.28, 23.12, 2),
@@ -1433,24 +1504,35 @@ async function createSvgScene(
 
 async function createGifScene(
   viewer: Cesium.Viewer,
+  host: HTMLElement,
   setStatus: StatusReporter,
 ): Promise<VectorScene> {
+  const position = Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)
   const gifFallbackImage = await loadBillboardImage(hurricaneGifUrl)
   let frameTimer: ReturnType<typeof setInterval> | undefined
   let decoder: ImageDecoder | undefined
-  let canvas: HTMLCanvasElement | undefined
   let drawFrame: (() => Promise<void>) | undefined
+  let activeFrame: string | HTMLCanvasElement | HTMLImageElement = gifFallbackImage
+  let nativeGifOverlay: ReturnType<typeof createNativeGifOverlay> | undefined
+  let usesNativeGif = false
 
   const entity = viewer.entities.add({
     id: 'gif-billboard',
-    position: Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80),
+    position,
     billboard: {
-      image: new Cesium.CallbackProperty(() => canvas ?? gifFallbackImage, false),
+      image: new Cesium.CallbackProperty(() => activeFrame, false),
       scale: 0.55,
       verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
       heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
     },
   })
+
+  const useNativeGif = () => {
+    usesNativeGif = true
+    entity.show = false
+    nativeGifOverlay = createNativeGifOverlay(viewer, host, position, hurricaneGifUrl, 0.55)
+    setStatus('当前浏览器使用原生 GIF 动画播放')
+  }
 
   const ImageDecoderClass =
     typeof globalThis.ImageDecoder === 'function' ? globalThis.ImageDecoder : undefined
@@ -1462,18 +1544,21 @@ async function createGifScene(
       decoder = new ImageDecoderClass({ data, type: 'image/gif' })
       await decoder.tracks.ready
       const frameCount = decoder.tracks.selectedTrack?.frameCount ?? 2
-      canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
+      const probeCanvas = document.createElement('canvas')
+      const context = probeCanvas.getContext('2d')
 
       if (context && frameCount > 1) {
         let frameIndex = 0
         drawFrame = async () => {
           const { image } = await decoder!.decode({ frameIndex })
-          canvas!.width = Math.max(1, image.displayWidth ?? 96)
-          canvas!.height = Math.max(1, image.displayHeight ?? 96)
-          context.clearRect(0, 0, canvas!.width, canvas!.height)
-          context.drawImage(image, 0, 0, canvas!.width, canvas!.height)
+          const frameCanvas = document.createElement('canvas')
+          frameCanvas.width = Math.max(1, image.displayWidth ?? 96)
+          frameCanvas.height = Math.max(1, image.displayHeight ?? 96)
+          const frameContext = frameCanvas.getContext('2d')
+          frameContext?.clearRect(0, 0, frameCanvas.width, frameCanvas.height)
+          frameContext?.drawImage(image, 0, 0, frameCanvas.width, frameCanvas.height)
           image.close()
+          activeFrame = frameCanvas
           requestRender(viewer)
           frameIndex = (frameIndex + 1) % frameCount
         }
@@ -1483,50 +1568,60 @@ async function createGifScene(
         }, 120)
         setStatus('GIF 已通过 ImageDecoder 解码为动画帧')
       } else {
-        canvas = undefined
-        setStatus('GIF 仅包含静态帧，已显示静态画面')
+        useNativeGif()
       }
     } catch (error) {
-      canvas = undefined
-      console.error('GIF 动画解码失败，降级为静态帧', error)
-      setStatus('GIF 动画解码失败，已显示静态帧')
+      decoder?.close()
+      decoder = undefined
+      console.error('GIF 动画解码失败，降级为浏览器原生动画', error)
+      useNativeGif()
     }
   } else {
-    setStatus('当前浏览器不支持 GIF 帧解码，已显示静态帧')
+    useNativeGif()
   }
 
-  frameCamera(viewer, [Cesium.Cartesian3.fromDegrees(CENTER.longitude, CENTER.latitude, 80)], {
+  frameCamera(viewer, [position], {
     heading: 0,
     pitch: -42,
     minimumRange: 2_000,
   })
 
   return {
-    actions: [
-      {
-        id: 'toggle-gif',
-        label: '暂停/继续动画',
-        run() {
-          if (frameTimer) {
-            clearInterval(frameTimer)
-            frameTimer = undefined
-            setStatus('GIF 动画已暂停')
-          } else if (drawFrame) {
-            frameTimer = setInterval(() => {
-              void drawFrame?.()
-            }, 120)
-            setStatus('GIF 动画已继续播放')
-          } else {
-            setStatus('当前为静态帧，无法继续动画')
-          }
-        },
-      },
-    ],
+    actions: usesNativeGif
+      ? [
+          {
+            id: 'replay-gif',
+            label: '重新播放 GIF',
+            run() {
+              nativeGifOverlay?.replay()
+              setStatus('GIF 动画已重新开始播放')
+            },
+          },
+        ]
+      : [
+          {
+            id: 'toggle-gif',
+            label: '暂停/继续动画',
+            run() {
+              if (frameTimer) {
+                clearInterval(frameTimer)
+                frameTimer = undefined
+                setStatus('GIF 动画已暂停')
+              } else if (drawFrame) {
+                frameTimer = setInterval(() => {
+                  void drawFrame?.()
+                }, 120)
+                setStatus('GIF 动画已继续播放')
+              }
+            },
+          },
+        ],
     dispose() {
       if (frameTimer) {
         clearInterval(frameTimer)
       }
       decoder?.close()
+      nativeGifOverlay?.destroy()
       viewer.entities.remove(entity)
     },
   }
@@ -1573,6 +1668,6 @@ export async function createVectorScene(
     case 'svg':
       return createSvgScene(viewer, setStatus)
     case 'gif':
-      return createGifScene(viewer, setStatus)
+      return createGifScene(viewer, host, setStatus)
   }
 }

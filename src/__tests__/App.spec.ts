@@ -178,7 +178,7 @@ describe('App', () => {
 
     expect(cards[0]?.attributes('aria-label')).toBe('打开1.1.1、天地图')
     expect(cards[0]?.text()).toContain('1.1.1、天地图')
-    expect(cards[0]?.get('img').attributes('alt')).toBe('蓝色三维地球与环绕轨道示意图')
+    expect(cards[0]?.get('img').attributes('alt')).toBe('天地图卫星影像三维地球实际效果截图')
     expect(cards[1]?.attributes('aria-label')).toBe('打开1.2.1、高程')
     expect(cards[1]?.text()).toContain('1.2.1、高程')
     expect(cards[1]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
