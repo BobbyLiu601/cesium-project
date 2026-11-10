@@ -83,11 +83,27 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   const headerBox = await header.boundingBox()
   const sidebarBox = await sidebar.boundingBox()
   const brandBox = await brand.boundingBox()
+  const brandStyle = await brand.evaluate((element) => {
+    const style = getComputedStyle(element)
+    return {
+      backgroundColor: style.backgroundColor,
+      backgroundClip: style.backgroundClip,
+      backgroundImage: style.backgroundImage,
+      color: style.color,
+      fontSize: style.fontSize,
+      fontWeight: style.fontWeight,
+    }
+  })
 
   expect(headerBox?.height).toBeCloseTo(72, 0)
   expect(sidebarBox?.width).toBeCloseTo(230, 0)
   expect(brandBox?.x).toBeGreaterThanOrEqual(20)
   expect(brandBox?.x).toBeLessThanOrEqual(28)
+  expect(brandStyle.fontSize).toBe('32px')
+  expect(brandStyle.fontWeight).toBe('700')
+  expect(brandStyle.color).toBe('rgba(0, 0, 0, 0)')
+  expect(brandStyle.backgroundImage).toContain('linear-gradient')
+  expect(brandStyle.backgroundClip).toBe('text')
   await expect(header.getByRole('menuitem')).toHaveCount(0)
   await expect(heading.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
 
@@ -95,30 +111,56 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
     const headerElement = document.querySelector('header')
     const sidebarElement = document.querySelector('aside')
     const contentElement = document.querySelector('main')
+    const pageHeadingElement = document.querySelector('.page-heading')
+    const pageHeadingTitle = document.querySelector('.page-heading__title')
+    const bodyPanel = document.querySelector('.showcase__body')
     const cardElement = document.querySelector('[data-feature-id="three-dimensional-earth"]')
     const cardHeading = cardElement?.querySelector('.feature-card__heading')
     const cardMedia = cardElement?.querySelector('.feature-card__media')
 
-    if (!headerElement || !sidebarElement || !contentElement || !cardElement) {
+    if (
+      !headerElement ||
+      !sidebarElement ||
+      !contentElement ||
+      !pageHeadingElement ||
+      !pageHeadingTitle ||
+      !bodyPanel ||
+      !cardElement ||
+      !cardMedia
+    ) {
       throw new Error('未找到后台布局元素')
     }
+
+    const cardMediaBox = cardMedia.getBoundingClientRect()
 
     return {
       headerBackground: getComputedStyle(headerElement).backgroundColor,
       sidebarBackground: getComputedStyle(sidebarElement).backgroundColor,
       contentBackground: getComputedStyle(contentElement).backgroundColor,
+      pageHeadingBackground: getComputedStyle(pageHeadingElement).backgroundColor,
+      pageHeadingTitleColor: getComputedStyle(pageHeadingTitle).color,
+      pageHeadingTitleFontSize: getComputedStyle(pageHeadingTitle).fontSize,
+      pageHeadingTitleFontWeight: getComputedStyle(pageHeadingTitle).fontWeight,
+      bodyPanelBackground: getComputedStyle(bodyPanel).backgroundColor,
       cardRadius: getComputedStyle(cardElement).borderRadius,
       cardShadow: getComputedStyle(cardElement).boxShadow,
+      cardMediaAspectRatio: cardMediaBox.width / cardMediaBox.height,
       headingTop: cardHeading?.getBoundingClientRect().top ?? 0,
-      mediaTop: cardMedia?.getBoundingClientRect().top ?? 0,
+      mediaTop: cardMediaBox.top,
     }
   })
 
   expect(layout.headerBackground).toBe(layout.sidebarBackground)
-  expect(layout.headerBackground).not.toBe('rgb(255, 255, 255)')
-  expect(layout.contentBackground).toBe('rgb(244, 245, 245)')
+  expect(layout.headerBackground).toBe('rgb(23, 40, 62)')
+  expect(layout.contentBackground).toBe('rgb(245, 246, 246)')
+  expect(layout.pageHeadingBackground).toBe('rgba(0, 0, 0, 0)')
+  expect(layout.pageHeadingTitleColor).toBe('rgb(85, 85, 85)')
+  expect(layout.pageHeadingTitleFontSize).toBe('24px')
+  expect(layout.pageHeadingTitleFontWeight).toBe('500')
+  expect(layout.bodyPanelBackground).toBe('rgb(249, 249, 249)')
   expect(layout.cardRadius).toBe('2px')
-  expect(layout.cardShadow).toBe('none')
+  expect(layout.cardShadow).not.toBe('none')
+  expect(layout.cardMediaAspectRatio).toBeCloseTo(4 / 3, 2)
   expect(layout.headingTop).toBeLessThan(layout.mediaTop)
 })
 
@@ -301,9 +343,12 @@ for (const viewport of responsiveViewports) {
     } else if (viewport.width < 1200) {
       expect(ratio).toBeGreaterThan(0.46)
       expect(ratio).toBeLessThan(0.52)
-    } else {
+    } else if (viewport.width < 1440) {
       expect(ratio).toBeGreaterThan(0.2)
       expect(ratio).toBeLessThan(0.26)
+    } else {
+      expect(ratio).toBeGreaterThan(0.14)
+      expect(ratio).toBeLessThan(0.17)
     }
   })
 }

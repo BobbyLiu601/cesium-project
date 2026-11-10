@@ -146,12 +146,16 @@ watch(
 
 .admin-brand__title {
   overflow: hidden;
-  font-size: 21px;
-  font-weight: 600;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
   letter-spacing: 0.04em;
-  color: #f7f9fc;
+  color: transparent;
   text-overflow: ellipsis;
   white-space: nowrap;
+  background: linear-gradient(180deg, #45a6ff 0 50%, #ffd43b 50% 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
 }
 
 .admin-body {
@@ -233,7 +237,7 @@ watch(
   }
 
   .admin-brand__title {
-    font-size: 18px;
+    font-size: 22px;
     letter-spacing: 0.02em;
   }
 

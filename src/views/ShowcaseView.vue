@@ -107,17 +107,20 @@ async function restoreFeatureFocus(featureId: string) {
 }
 
 .showcase__section + .showcase__section {
-  margin-top: 32px;
+  margin-top: 20px;
 }
 
 .showcase__body {
-  padding: 32px 40px 40px;
+  padding: 20px;
+  margin: 16px 20px 20px;
+  background: #f9f9f9;
+  border-radius: 3px;
 }
 
 .feature-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: 20px 16px;
 }
 
 .showcase :deep(.feature-card) {
@@ -136,13 +139,20 @@ async function restoreFeatureFocus(featureId: string) {
   }
 }
 
+@media (min-width: 1440px) {
+  .feature-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 767px) {
   .showcase__section + .showcase__section {
-    margin-top: 24px;
+    margin-top: 16px;
   }
 
   .showcase__body {
-    padding: 20px 16px 28px;
+    padding: 12px;
+    margin: 12px;
   }
 }
 </style>

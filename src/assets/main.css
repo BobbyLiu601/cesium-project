@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  --color-background: #f4f5f5;
+  --color-background: #f5f6f6;
   --color-surface: #ffffff;
   --color-surface-muted: #f7f7f7;
   --color-text: #22262b;
@@ -9,7 +9,7 @@
   --color-primary: #d63c46;
   --color-primary-strong: #b52d37;
   --color-primary-soft: #fdf0f1;
-  --color-chrome: #0d2340;
+  --color-chrome: #17283e;
   --color-sidebar-text: #e8eef6;
   --color-sidebar-muted: #aebccc;
   font-family: 'Avenir Next', 'HarmonyOS Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;

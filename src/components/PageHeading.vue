@@ -29,10 +29,9 @@ const headingTag = computed(() => `h${props.level ?? 1}`)
   display: flex;
   align-items: center;
   gap: 11px;
-  min-height: 84px;
+  min-height: 76px;
   padding: 0 40px;
-  background: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
+  background: transparent;
 }
 
 .page-heading::after {
@@ -40,32 +39,32 @@ const headingTag = computed(() => `h${props.level ?? 1}`)
   right: 40px;
   bottom: 0;
   left: 40px;
-  height: 2px;
+  height: 1px;
   content: '';
   background: rgb(214 60 70 / 22%);
 }
 
 .page-heading__icon {
   flex: 0 0 auto;
-  font-size: 22px;
-  color: var(--color-primary);
+  font-size: 20px;
+  color: #50585f;
 }
 
 .page-heading__title {
   margin: 0;
   overflow: hidden;
   font-size: 24px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.25;
-  letter-spacing: 0.01em;
-  color: var(--color-text);
+  letter-spacing: 0;
+  color: #555555;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 @media (max-width: 767px) {
   .page-heading {
-    min-height: 68px;
+    min-height: 64px;
     padding: 0 16px;
   }
 
@@ -75,11 +74,11 @@ const headingTag = computed(() => `h${props.level ?? 1}`)
   }
 
   .page-heading__icon {
-    font-size: 20px;
+    font-size: 18px;
   }
 
   .page-heading__title {
-    font-size: 21px;
+    font-size: 20px;
   }
 }
 </style>
