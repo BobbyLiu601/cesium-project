@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ArrowDown } from '@element-plus/icons-vue'
 import { ElIcon, ElMenu, ElMenuItem, ElSubMenu } from 'element-plus'
 import { nextTick, ref, watch } from 'vue'
 
@@ -39,6 +40,8 @@ watch(
       :key="section.id"
       :index="section.id"
       class="sidebar-menu__section"
+      :expand-close-icon="ArrowDown"
+      :expand-open-icon="ArrowDown"
     >
       <template #title>
         <ElIcon class="sidebar-menu__icon" aria-hidden="true">
@@ -106,12 +109,11 @@ watch(
   transition: transform 160ms ease;
 }
 
-.sidebar-menu :deep(.el-sub-menu.is-opened > .el-sub-menu__title .el-sub-menu__icon-arrow) {
-  /* Element Plus sets the opened-state rotation as an inline style. */
-  transform: none !important;
+.sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title .sidebar-menu__icon) {
+  color: var(--color-menu-active);
 }
 
-.sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title .sidebar-menu__icon) {
+.sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title .el-sub-menu__icon-arrow) {
   color: var(--color-menu-active);
 }
 
