@@ -1,22 +1,71 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { nextTick, ref, watch } from 'vue'
 import { ElButton, ElDrawer } from 'element-plus'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import SidebarMenu from '@/components/SidebarMenu.vue'
+import { featureAnchors } from '@/data/features'
 
 const route = useRoute()
 const router = useRouter()
 const drawerVisible = ref(false)
-const activePath = computed(() => route.path)
+const activeAnchor = ref('')
+const contentElement = ref<HTMLElement | null>(null)
+const defaultAnchor = featureAnchors[0] ?? ''
 
-async function handleMenuSelect(path: string) {
-  drawerVisible.value = false
-
-  if (route.path !== path) {
-    await router.push(path)
-  }
+function getRouteAnchor() {
+  const hash = route.hash.replace(/^#/, '')
+  return featureAnchors.includes(hash) ? hash : ''
 }
+
+async function scrollToAnchor(anchor: string) {
+  await nextTick()
+  const target =
+    contentElement.value?.querySelector<HTMLElement>(`#${anchor}`) ??
+    document.getElementById(anchor)
+
+  if (target && contentElement.value?.contains(target)) {
+    const content = contentElement.value
+    const targetTop =
+      content.scrollTop + target.getBoundingClientRect().top - content.getBoundingClientRect().top
+
+    content.scrollTo?.({ top: Math.max(0, targetTop - 20), behavior: 'smooth' })
+    return
+  }
+
+  target?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+}
+
+async function handleMenuSelect(anchor: string) {
+  drawerVisible.value = false
+  activeAnchor.value = anchor
+  const hash = `#${anchor}`
+
+  if (route.path !== '/basic-config' || route.hash !== hash) {
+    await router.push({ path: '/basic-config', hash })
+    return
+  }
+
+  await scrollToAnchor(anchor)
+}
+
+watch(
+  () => route.fullPath,
+  async () => {
+    if (route.path !== '/basic-config') {
+      activeAnchor.value = ''
+      return
+    }
+
+    const routeAnchor = getRouteAnchor()
+    activeAnchor.value = routeAnchor || defaultAnchor
+
+    if (routeAnchor) {
+      await scrollToAnchor(routeAnchor)
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -43,11 +92,11 @@ async function handleMenuSelect(path: string) {
     <div class="admin-body">
       <aside class="admin-sidebar">
         <nav aria-label="侧边导航">
-          <SidebarMenu :active-path="activePath" @select="handleMenuSelect" />
+          <SidebarMenu :active-anchor="activeAnchor" @select="handleMenuSelect" />
         </nav>
       </aside>
 
-      <main class="admin-content">
+      <main ref="contentElement" class="admin-content">
         <RouterView />
       </main>
     </div>
@@ -59,7 +108,11 @@ async function handleMenuSelect(path: string) {
       size="230px"
       title="后台导航"
     >
-      <SidebarMenu :active-path="activePath" aria-label="后台导航菜单" @select="handleMenuSelect" />
+      <SidebarMenu
+        :active-anchor="activeAnchor"
+        aria-label="后台导航菜单"
+        @select="handleMenuSelect"
+      />
     </ElDrawer>
   </div>
 </template>

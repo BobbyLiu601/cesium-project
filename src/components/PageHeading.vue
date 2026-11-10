@@ -1,11 +1,15 @@
 <script setup lang="ts">
-import type { Component } from 'vue'
+import { computed, type Component } from 'vue'
 import { ElIcon } from 'element-plus'
 
-defineProps<{
+const props = defineProps<{
   title: string
   icon: Component
+  headingId?: string
+  level?: 1 | 2
 }>()
+
+const headingTag = computed(() => `h${props.level ?? 1}`)
 </script>
 
 <template>
@@ -13,7 +17,9 @@ defineProps<{
     <ElIcon class="page-heading__icon" aria-hidden="true">
       <component :is="icon" />
     </ElIcon>
-    <h1 class="page-heading__title">{{ title }}</h1>
+    <component :is="headingTag" :id="headingId" class="page-heading__title">
+      {{ title }}
+    </component>
   </header>
 </template>
 

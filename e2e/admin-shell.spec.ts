@@ -8,6 +8,18 @@ async function expectCesiumReady(globe: Locator) {
   })
 }
 
+async function expectSubmenuArrowsPointDown(menu: Locator) {
+  const arrows = menu.locator('.el-sub-menu__icon-arrow')
+  await expect(arrows).toHaveCount(2)
+  await expect
+    .poll(() =>
+      arrows.evaluateAll((elements) =>
+        elements.map((element) => getComputedStyle(element).transform),
+      ),
+    )
+    .toEqual(['none', 'none'])
+}
+
 const responsiveViewports = [
   { width: 375, height: 812, name: '手机' },
   { width: 767, height: 900, name: '手机断点前' },
@@ -36,18 +48,21 @@ test('根路径进入基础配置并显示后台管理壳', async ({ page }) => 
   await expect(page).toHaveURL(/\/basic-config$/)
   await expect(page.getByText('三维效果展示', { exact: true })).toBeVisible()
   await expect(page.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: '基础配置' })).toHaveAttribute(
+  await expect(page.getByRole('heading', { level: 2, name: '视觉效果' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '三维地球' })).toHaveAttribute(
     'aria-current',
-    'page',
+    'location',
   )
+  await expectSubmenuArrowsPointDown(page.locator('.admin-sidebar'))
   await expect(page.getByRole('button', { name: '打开三维地球' })).toContainText('三维地球')
   await expect(page.getByRole('button', { name: '打开高程' })).toContainText('高程')
-  await expect(page.getByTestId('feature-card')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: '打开雷达图' })).toContainText('雷达图')
+  await expect(page.getByTestId('feature-card')).toHaveCount(3)
   expect(
     await page
       .getByTestId('feature-card')
       .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-feature-id'))),
-  ).toEqual(['three-dimensional-earth', 'elevation'])
+  ).toEqual(['three-dimensional-earth', 'elevation', 'radar'])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
     0,
@@ -63,7 +78,7 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   const header = page.getByRole('banner')
   const sidebar = page.getByRole('navigation', { name: '侧边导航' })
   const brand = page.getByText('三维效果展示', { exact: true })
-  const heading = page.getByTestId('page-heading')
+  const heading = page.getByTestId('page-heading').first()
 
   const headerBox = await header.boundingBox()
   const sidebarBox = await sidebar.boundingBox()
@@ -307,13 +322,14 @@ test('移动端可通过按钮和键盘打开抽屉，并选择菜单关闭', as
   const drawer = page.getByRole('dialog', { name: '后台导航' })
   await expect(drawer).toBeVisible()
   await expect(drawer.getByText('基础配置', { exact: true })).toBeVisible()
+  await expectSubmenuArrowsPointDown(drawer)
 
-  const menuItem = drawer.getByRole('menuitem', { name: '基础配置' })
+  const menuItem = drawer.getByRole('menuitem', { name: '三维地球' })
   await menuItem.focus()
   await menuItem.press('Enter')
 
   await expect(drawer).toBeHidden()
-  await expect(page).toHaveURL(/\/basic-config$/)
+  await expect(page).toHaveURL(/\/basic-config#three-dimensional-earth$/)
 })
 
 test('移动端点击抽屉遮罩后自动关闭', async ({ page }) => {
@@ -370,17 +386,31 @@ test('从高程卡片打开独立场景，加载失败时仍可操作、全屏�
   await expect(card).toBeFocused()
 })
 
-test('从视觉效果菜单打开雷达图真实场景，并可全屏、退出全屏和关闭', async ({ page }) => {
+test('视觉效果菜单通过向下箭头分组并锚定雷达图内容', async ({ page }) => {
   await page.goto('/basic-config')
 
-  const effectsMenuItem = page.getByRole('menuitem', { name: '视觉效果' })
+  const effectsMenuItem = page.getByRole('menuitem', { name: '雷达图' })
   await effectsMenuItem.click()
 
-  await expect(page).toHaveURL(/\/effects$/)
-  await expect(effectsMenuItem).toHaveAttribute('aria-current', 'page')
+  await expect(page).toHaveURL(/\/basic-config#radar$/)
+  await expect(effectsMenuItem).toHaveAttribute('aria-current', 'location')
   const card = page.getByRole('button', { name: '打开雷达图' })
   await expect(card).toContainText('雷达图')
   await expect(card.locator('img')).toHaveAttribute('alt', '广州海珠区三维雷达扫描效果截图')
+  await expectSubmenuArrowsPointDown(page.locator('.admin-sidebar'))
+
+  await expect
+    .poll(() =>
+      card.evaluate((element) => {
+        const content = document.querySelector('main')
+        if (!content) {
+          throw new Error('未找到内容区')
+        }
+
+        return element.getBoundingClientRect().top - content.getBoundingClientRect().top
+      }),
+    )
+    .toBeLessThan(120)
 
   await card.click()
 

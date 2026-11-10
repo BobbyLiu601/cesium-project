@@ -127,21 +127,36 @@ describe('App', () => {
     expect(router.currentRoute.value.fullPath).toBe('/basic-config')
     expect(wrapper.text()).toContain('三维效果展示')
     expect(wrapper.get('h1').text()).toBe('基础配置')
+    expect(wrapper.get('h2').text()).toBe('视觉效果')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(3)
+    expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(2)
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
 
     wrapper.unmount()
   })
 
-  it('shows both feature cards as accessible buttons in the requested order', async () => {
+  it('shows all feature cards as accessible buttons across both content sections', async () => {
     const wrapper = await mountAt('/basic-config')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(2)
+    expect(cards).toHaveLength(3)
     expect(cards.map((card) => card.attributes('data-feature-id'))).toEqual([
       'three-dimensional-earth',
       'elevation',
+      'radar',
     ])
+    expect(cards.map((card) => card.attributes('id'))).toEqual([
+      'three-dimensional-earth',
+      'elevation',
+      'radar',
+    ])
+    expect(
+      wrapper.get('[data-testid="feature-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(2)
+    expect(
+      wrapper.get('[data-testid="effect-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(1)
 
     for (const card of cards) {
       expect(card.element.tagName).toBe('BUTTON')
@@ -159,10 +174,16 @@ describe('App', () => {
     expect(cards[1]?.attributes('aria-label')).toBe('打开高程')
     expect(cards[1]?.text()).toContain('高程')
     expect(cards[1]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
+    expect(cards[2]?.attributes('aria-label')).toBe('打开雷达图')
+    expect(cards[2]?.text()).toContain('雷达图')
+    expect(cards[2]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
     expect(wrapper.get('h1').text()).toBe('基础配置')
+    expect(wrapper.get('h2').text()).toBe('视觉效果')
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
-    expect(wrapper.get('[data-testid="page-heading"]').text()).toBe('基础配置')
+    expect(
+      wrapper.findAll('[data-testid="page-heading"]').map((heading) => heading.text()),
+    ).toEqual(['基础配置', '视觉效果'])
 
     wrapper.unmount()
   })
@@ -466,39 +487,48 @@ describe('App', () => {
 
   it('keeps the menu selection in sync with the current route', async () => {
     const wrapper = await mountAt('/basic-config')
-    const activeMenuItem = wrapper
+    const earthMenuItem = wrapper
       .findAll('[role="menuitem"]')
-      .find((item) => item.text() === '基础配置')
+      .find((item) => item.text() === '三维地球')
 
-    expect(activeMenuItem?.attributes('aria-current')).toBe('page')
+    expect(earthMenuItem?.attributes('aria-current')).toBe('location')
+
+    await router.push('/basic-config#radar')
+    await flushPromises()
+
+    const radarMenuItem = wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text() === '雷达图')
+
+    expect(radarMenuItem?.attributes('aria-current')).toBe('location')
+    expect(earthMenuItem?.attributes('aria-current')).toBeUndefined()
 
     await router.push('/a-missing-page')
     await flushPromises()
 
-    const menuItemAfterNavigation = wrapper
-      .findAll('[role="menuitem"]')
-      .find((item) => item.text() === '基础配置')
-
-    expect(menuItemAfterNavigation?.attributes('aria-current')).toBeUndefined()
+    expect(
+      wrapper.findAll('[role="menuitem"]').some((item) => item.attributes('aria-current')),
+    ).toBe(false)
 
     wrapper.unmount()
   })
 
-  it('shows the visual effects menu and radar card on the effects page', async () => {
+  it('redirects the effects route to the radar anchor while showing all content', async () => {
     const wrapper = await mountAt('/effects')
-    const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '视觉效果')
+    const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '雷达图')
 
-    expect(menuItem?.attributes('aria-current')).toBe('page')
-    expect(wrapper.find('[data-testid="effects-view"]').exists()).toBe(true)
-    expect(wrapper.get('h1').text()).toBe('视觉效果')
+    expect(router.currentRoute.value.fullPath).toBe('/basic-config#radar')
+    expect(menuItem?.attributes('aria-current')).toBe('location')
+    expect(wrapper.find('[data-testid="showcase-view"]').exists()).toBe(true)
+    expect(wrapper.get('h2').text()).toBe('视觉效果')
 
     const cards = wrapper.findAll('[data-testid="feature-card"]')
-    expect(cards).toHaveLength(1)
-    expect(cards[0]?.attributes('data-feature-id')).toBe('radar')
-    expect(cards[0]?.attributes('aria-label')).toBe('打开雷达图')
-    expect(cards[0]?.text()).toContain('雷达图')
-    expect(cards[0]?.get('img').attributes('src')).not.toMatch(/^https?:\/\//)
-    expect(cards[0]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
+    expect(cards).toHaveLength(3)
+    const radarCard = cards.find((card) => card.attributes('data-feature-id') === 'radar')
+    expect(radarCard?.attributes('aria-label')).toBe('打开雷达图')
+    expect(radarCard?.text()).toContain('雷达图')
+    expect(radarCard?.get('img').attributes('src')).not.toMatch(/^https?:\/\//)
+    expect(radarCard?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
 
     wrapper.unmount()
   })
@@ -604,14 +634,14 @@ describe('App', () => {
     wrapper.unmount()
   })
 
-  it('navigates to the basic configuration page from the sidebar menu', async () => {
+  it('navigates to an anchor from the sidebar menu on another route', async () => {
     const wrapper = await mountAt('/missing-route')
-    const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '基础配置')
+    const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '三维地球')
 
     await menuItem?.trigger('click')
     await flushPromises()
 
-    expect(router.currentRoute.value.path).toBe('/basic-config')
+    expect(router.currentRoute.value.fullPath).toBe('/basic-config#three-dimensional-earth')
     expect(wrapper.get('[data-testid="feature-card"]').text()).toContain('三维地球')
 
     wrapper.unmount()
