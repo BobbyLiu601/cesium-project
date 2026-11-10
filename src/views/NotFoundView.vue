@@ -19,12 +19,13 @@ const route = useRoute()
 <style scoped>
 .not-found {
   width: min(660px, calc(100% - 32px));
-  padding: 46px;
-  margin: clamp(28px, 8vh, 80px) auto;
-  background: linear-gradient(135deg, rgb(37 99 235 / 9%), transparent 48%), var(--color-surface);
+  padding: 38px 40px;
+  margin: clamp(28px, 8vh, 72px) auto;
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: 20px;
-  box-shadow: var(--shadow-card);
+  border-top: 3px solid var(--color-primary);
+  border-radius: 2px;
+  box-shadow: none;
 }
 
 .not-found__code {
@@ -33,13 +34,13 @@ const route = useRoute()
   font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.06em;
-  color: rgb(37 99 235 / 18%);
+  color: rgb(214 60 70 / 16%);
 }
 
 .not-found h1 {
   margin: 0;
   font-size: clamp(26px, 3vw, 34px);
-  color: #14213a;
+  color: var(--color-text);
 }
 
 .not-found__message {
@@ -63,26 +64,26 @@ const route = useRoute()
   min-height: 40px;
   padding: 0 18px;
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   color: #fff;
   text-decoration: none;
-  background: linear-gradient(135deg, #2f72ff, var(--color-primary-strong));
-  border-radius: 9px;
-  box-shadow: 0 9px 20px rgb(37 99 235 / 22%);
+  background: var(--color-primary);
+  border-radius: 2px;
+  box-shadow: none;
 }
 
 .not-found__link:hover {
-  background: linear-gradient(135deg, #1d66ff, #1e40af);
+  background: var(--color-primary-strong);
 }
 
 .not-found__link:focus-visible {
-  outline: 3px solid rgb(37 99 235 / 28%);
-  outline-offset: 3px;
+  outline: 2px solid rgb(214 60 70 / 42%);
+  outline-offset: 2px;
 }
 
 @media (max-width: 767px) {
   .not-found {
-    padding: 30px 24px;
+    padding: 28px 24px;
     margin-top: 24px;
   }
 }

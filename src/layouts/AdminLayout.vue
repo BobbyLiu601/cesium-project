@@ -36,7 +36,6 @@ async function handleMenuSelect(path: string) {
       </ElButton>
 
       <div class="admin-brand">
-        <span class="admin-brand__accent" aria-hidden="true"></span>
         <span class="admin-brand__title">三维效果展示</span>
       </div>
     </header>
@@ -57,7 +56,7 @@ async function handleMenuSelect(path: string) {
       v-model="drawerVisible"
       class="mobile-navigation-drawer"
       direction="ltr"
-      size="248px"
+      size="230px"
       title="后台导航"
     >
       <SidebarMenu :active-path="activePath" aria-label="后台导航菜单" @select="handleMenuSelect" />
@@ -68,12 +67,10 @@ async function handleMenuSelect(path: string) {
 <style scoped>
 .admin-shell {
   display: grid;
-  grid-template-rows: 64px minmax(0, 1fr);
+  grid-template-rows: 72px minmax(0, 1fr);
   height: 100dvh;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 92% 6%, rgb(67 126 255 / 12%), transparent 26rem),
-    linear-gradient(145deg, #f5f8fc 0%, var(--color-background) 55%, #e9f0f8 100%);
+  background: var(--color-background);
 }
 
 .admin-header {
@@ -82,52 +79,39 @@ async function handleMenuSelect(path: string) {
   display: flex;
   align-items: center;
   gap: 10px;
-  height: 64px;
+  height: 72px;
   padding: 0 24px;
-  background: rgb(255 255 255 / 92%);
-  border-bottom: 1px solid var(--color-border);
-  box-shadow: var(--shadow-header);
-  backdrop-filter: blur(14px);
+  background: var(--color-chrome);
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
 
 .admin-brand {
   display: flex;
   align-items: center;
-  gap: 12px;
   min-width: 0;
-}
-
-.admin-brand__accent {
-  width: 4px;
-  height: 22px;
-  background: linear-gradient(180deg, #60a5fa, var(--color-primary-strong));
-  border-radius: 999px;
-  box-shadow: 0 0 0 4px rgb(37 99 235 / 8%);
 }
 
 .admin-brand__title {
   overflow: hidden;
-  font-size: 19px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: #15233b;
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #f7f9fc;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .admin-body {
   display: grid;
-  grid-template-columns: 238px minmax(0, 1fr);
+  grid-template-columns: 230px minmax(0, 1fr);
   min-height: 0;
 }
 
 .admin-sidebar {
   min-height: 0;
-  padding: 16px 14px;
+  padding: 12px 0 18px;
   overflow-y: auto;
-  background: rgb(255 255 255 / 72%);
-  border-right: 1px solid var(--color-border);
-  backdrop-filter: blur(12px);
+  background: var(--color-chrome);
 }
 
 .admin-content {
@@ -135,14 +119,17 @@ async function handleMenuSelect(path: string) {
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  background: var(--color-background);
 }
 
 .mobile-menu-button {
   display: none;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   padding: 0;
-  color: var(--color-text);
+  color: #f7f9fc;
+  --el-button-hover-bg-color: rgb(255 255 255 / 8%);
+  --el-button-hover-text-color: #ffffff;
 }
 
 .mobile-menu-button__icon {
@@ -159,14 +146,23 @@ async function handleMenuSelect(path: string) {
   border-radius: 999px;
 }
 
-:deep(.mobile-navigation-drawer .el-drawer__header) {
-  margin-bottom: 8px;
-  color: var(--color-text);
-  font-weight: 700;
+:global(.mobile-navigation-drawer) {
+  --el-drawer-bg-color: var(--color-chrome);
 }
 
-:deep(.mobile-navigation-drawer .el-drawer__body) {
-  padding: 0 14px 20px;
+:global(.mobile-navigation-drawer .el-drawer__header) {
+  padding: 20px 20px 12px;
+  margin-bottom: 0;
+  color: #f7f9fc;
+  font-weight: 600;
+}
+
+:global(.mobile-navigation-drawer .el-drawer__close-btn) {
+  color: #f7f9fc;
+}
+
+:global(.mobile-navigation-drawer .el-drawer__body) {
+  padding: 4px 0 20px;
 }
 
 @media (max-width: 767px) {
@@ -180,11 +176,12 @@ async function handleMenuSelect(path: string) {
   }
 
   .admin-brand {
-    gap: 9px;
+    min-width: 0;
   }
 
   .admin-brand__title {
-    font-size: 17px;
+    font-size: 18px;
+    letter-spacing: 0.02em;
   }
 
   .admin-body {
@@ -197,6 +194,7 @@ async function handleMenuSelect(path: string) {
 
   .mobile-menu-button {
     display: inline-flex;
+    flex: 0 0 auto;
   }
 }
 </style>

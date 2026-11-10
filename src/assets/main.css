@@ -1,16 +1,17 @@
 :root {
   color-scheme: light;
-  --color-background: #edf2f8;
+  --color-background: #f4f5f5;
   --color-surface: #ffffff;
-  --color-surface-muted: #f6f9fd;
-  --color-text: #172033;
-  --color-text-secondary: #667085;
-  --color-border: #dde6f2;
-  --color-primary: #2563eb;
-  --color-primary-strong: #1d4ed8;
-  --color-primary-soft: #eaf2ff;
-  --shadow-card: 0 14px 34px rgb(31 56 92 / 8%);
-  --shadow-header: 0 1px 0 rgb(29 53 87 / 8%), 0 8px 24px rgb(31 56 92 / 5%);
+  --color-surface-muted: #f7f7f7;
+  --color-text: #22262b;
+  --color-text-secondary: #6b7076;
+  --color-border: #dedfe1;
+  --color-primary: #d63c46;
+  --color-primary-strong: #b52d37;
+  --color-primary-soft: #fdf0f1;
+  --color-chrome: #0d2340;
+  --color-sidebar-text: #e8eef6;
+  --color-sidebar-muted: #aebccc;
   font-family: 'Avenir Next', 'HarmonyOS Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif;
   color: var(--color-text);
   background-color: var(--color-background);

@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { Setting } from '@element-plus/icons-vue'
 import { nextTick, ref } from 'vue'
 
 import { disposeActiveSession } from '@/components/cesiumGlobeSession'
 import ElevationDialog from '@/components/ElevationDialog.vue'
 import FeatureCard from '@/components/FeatureCard.vue'
+import PageHeading from '@/components/PageHeading.vue'
 import ThreeDimensionalEarthDialog from '@/components/ThreeDimensionalEarthDialog.vue'
 import { featureItems } from '@/data/features'
 
@@ -37,13 +39,17 @@ async function restoreFeatureFocus(featureId: string) {
 
 <template>
   <section class="basic-config">
-    <div class="feature-grid" data-testid="feature-grid">
-      <FeatureCard
-        v-for="feature in featureItems"
-        :key="feature.id"
-        :feature="feature"
-        @activate="openFeature(feature.id)"
-      />
+    <PageHeading title="基础配置" :icon="Setting" />
+
+    <div class="basic-config__body">
+      <div class="feature-grid" data-testid="feature-grid">
+        <FeatureCard
+          v-for="feature in featureItems"
+          :key="feature.id"
+          :feature="feature"
+          @activate="openFeature(feature.id)"
+        />
+      </div>
     </div>
 
     <ThreeDimensionalEarthDialog
@@ -57,16 +63,18 @@ async function restoreFeatureFocus(featureId: string) {
 <style scoped>
 .basic-config {
   width: 100%;
-  max-width: 1280px;
   min-height: 100%;
-  padding: 32px;
-  margin: 0 auto;
+  background: var(--color-background);
+}
+
+.basic-config__body {
+  padding: 32px 40px 40px;
 }
 
 .feature-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
+  gap: 16px;
 }
 
 @media (min-width: 768px) {
@@ -77,13 +85,13 @@ async function restoreFeatureFocus(featureId: string) {
 
 @media (min-width: 1200px) {
   .feature-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 767px) {
-  .basic-config {
-    padding: 22px 16px 28px;
+  .basic-config__body {
+    padding: 20px 16px 28px;
   }
 }
 </style>

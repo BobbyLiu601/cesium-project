@@ -126,6 +126,7 @@ describe('App', () => {
 
     expect(router.currentRoute.value.fullPath).toBe('/basic-config')
     expect(wrapper.text()).toContain('三维效果展示')
+    expect(wrapper.get('h1').text()).toBe('基础配置')
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
 
@@ -147,6 +148,8 @@ describe('App', () => {
       expect(card.attributes('type')).toBe('button')
       expect(card.findAll('div')).toHaveLength(0)
       expect(card.findAll('span')).toHaveLength(3)
+      expect(card.findAll('span')[0]?.classes()).toContain('feature-card__heading')
+      expect(card.findAll('span')[2]?.classes()).toContain('feature-card__media')
       expect(card.get('img').attributes('src')).not.toMatch(/^https?:\/\//)
     }
 
@@ -156,10 +159,10 @@ describe('App', () => {
     expect(cards[1]?.attributes('aria-label')).toBe('打开高程')
     expect(cards[1]?.text()).toContain('高程')
     expect(cards[1]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
-    expect(wrapper.find('h1').exists()).toBe(false)
+    expect(wrapper.get('h1').text()).toBe('基础配置')
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
-    expect(wrapper.get('.basic-config').text()).not.toContain('基础配置')
+    expect(wrapper.get('[data-testid="page-heading"]').text()).toBe('基础配置')
 
     wrapper.unmount()
   })
@@ -487,6 +490,7 @@ describe('App', () => {
 
     expect(menuItem?.attributes('aria-current')).toBe('page')
     expect(wrapper.find('[data-testid="effects-view"]').exists()).toBe(true)
+    expect(wrapper.get('h1').text()).toBe('视觉效果')
 
     const cards = wrapper.findAll('[data-testid="feature-card"]')
     expect(cards).toHaveLength(1)

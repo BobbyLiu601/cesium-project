@@ -35,6 +35,7 @@ test('根路径进入基础配置并显示后台管理壳', async ({ page }) => 
 
   await expect(page).toHaveURL(/\/basic-config$/)
   await expect(page.getByText('三维效果展示', { exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '基础配置' })).toHaveAttribute(
     'aria-current',
     'page',
@@ -53,6 +54,57 @@ test('根路径进入基础配置并显示后台管理壳', async ({ page }) => 
   )
   await expect(page.locator('canvas')).toHaveCount(0)
   expect(cesiumRequests).toHaveLength(0)
+})
+
+test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/basic-config')
+
+  const header = page.getByRole('banner')
+  const sidebar = page.getByRole('navigation', { name: '侧边导航' })
+  const brand = page.getByText('三维效果展示', { exact: true })
+  const heading = page.getByTestId('page-heading')
+
+  const headerBox = await header.boundingBox()
+  const sidebarBox = await sidebar.boundingBox()
+  const brandBox = await brand.boundingBox()
+
+  expect(headerBox?.height).toBeCloseTo(72, 0)
+  expect(sidebarBox?.width).toBeCloseTo(230, 0)
+  expect(brandBox?.x).toBeGreaterThanOrEqual(20)
+  expect(brandBox?.x).toBeLessThanOrEqual(28)
+  await expect(header.getByRole('menuitem')).toHaveCount(0)
+  await expect(heading.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
+
+  const layout = await page.evaluate(() => {
+    const headerElement = document.querySelector('header')
+    const sidebarElement = document.querySelector('aside')
+    const contentElement = document.querySelector('main')
+    const cardElement = document.querySelector('[data-feature-id="three-dimensional-earth"]')
+    const cardHeading = cardElement?.querySelector('.feature-card__heading')
+    const cardMedia = cardElement?.querySelector('.feature-card__media')
+
+    if (!headerElement || !sidebarElement || !contentElement || !cardElement) {
+      throw new Error('未找到后台布局元素')
+    }
+
+    return {
+      headerBackground: getComputedStyle(headerElement).backgroundColor,
+      sidebarBackground: getComputedStyle(sidebarElement).backgroundColor,
+      contentBackground: getComputedStyle(contentElement).backgroundColor,
+      cardRadius: getComputedStyle(cardElement).borderRadius,
+      cardShadow: getComputedStyle(cardElement).boxShadow,
+      headingTop: cardHeading?.getBoundingClientRect().top ?? 0,
+      mediaTop: cardMedia?.getBoundingClientRect().top ?? 0,
+    }
+  })
+
+  expect(layout.headerBackground).toBe(layout.sidebarBackground)
+  expect(layout.headerBackground).not.toBe('rgb(255, 255, 255)')
+  expect(layout.contentBackground).toBe('rgb(244, 245, 245)')
+  expect(layout.cardRadius).toBe('2px')
+  expect(layout.cardShadow).toBe('none')
+  expect(layout.headingTop).toBeLessThan(layout.mediaTop)
 })
 
 test('通过卡片图片或文字打开三维地球，并可全屏、退出全屏和关闭', async ({ page }) => {
@@ -235,8 +287,8 @@ for (const viewport of responsiveViewports) {
       expect(ratio).toBeGreaterThan(0.46)
       expect(ratio).toBeLessThan(0.52)
     } else {
-      expect(ratio).toBeGreaterThan(0.3)
-      expect(ratio).toBeLessThan(0.34)
+      expect(ratio).toBeGreaterThan(0.2)
+      expect(ratio).toBeLessThan(0.26)
     }
   })
 }
@@ -247,6 +299,8 @@ test('移动端可通过按钮和键盘打开抽屉，并选择菜单关闭', as
 
   const openButton = page.getByRole('button', { name: '打开导航菜单' })
   await expect(openButton).toBeVisible()
+  const headerBox = await page.getByRole('banner').boundingBox()
+  expect(headerBox?.height).toBeCloseTo(60, 0)
   await openButton.focus()
   await openButton.press('Enter')
 
