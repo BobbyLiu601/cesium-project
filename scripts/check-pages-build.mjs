@@ -250,7 +250,7 @@ async function validateBrowserBehavior(origin, basePath) {
       )
     }
 
-    const fallbackResponse = await page.goto(`${origin}${basePath}effects`, {
+    const fallbackResponse = await page.goto(`${origin}${basePath}basic-config`, {
       waitUntil: 'domcontentloaded',
     })
     if (fallbackResponse?.status() !== 404) {
@@ -262,7 +262,7 @@ async function validateBrowserBehavior(origin, basePath) {
     }
 
     await page.getByRole('button', { name: '打开雷达图' }).waitFor({ timeout: PAGE_TIMEOUT_MS })
-    if (new URL(page.url()).pathname !== `${basePath}effects`) {
+    if (new URL(page.url()).pathname !== `${basePath}basic-config`) {
       addFailure(failures, 'fallback-url', '404.html 回退后没有保留原始子路由地址。')
     }
   } finally {
