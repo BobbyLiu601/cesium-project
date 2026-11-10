@@ -59,7 +59,6 @@ watch(
         @keydown.enter.prevent="emit('select', item.id)"
         @keydown.space.prevent="emit('select', item.id)"
       >
-        <span class="sidebar-menu__marker" aria-hidden="true"></span>
         <span class="sidebar-menu__label">{{ item.name }}</span>
       </ElMenuItem>
     </ElSubMenu>
@@ -81,6 +80,7 @@ watch(
   margin: 2px 10px;
   padding: 0 14px !important;
   border-radius: 2px;
+  border-left: 3px solid transparent;
   font-size: 14px;
   font-weight: 500;
   letter-spacing: 0.01em;
@@ -88,7 +88,12 @@ watch(
 
 .sidebar-menu :deep(.el-sub-menu__title:hover) {
   color: var(--color-sidebar-text);
-  background: var(--color-menu-hover);
+  background: var(--color-chrome);
+  border-left-color: var(--color-menu-group-hover-border);
+}
+
+.sidebar-menu :deep(.el-sub-menu__title:hover .sidebar-menu__icon) {
+  color: var(--color-sidebar-text);
 }
 
 .sidebar-menu :deep(.el-sub-menu__title:focus-visible),
@@ -99,6 +104,7 @@ watch(
 
 .sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
   color: var(--color-menu-active);
+  border-left-color: var(--color-menu-group-hover-border);
 }
 
 .sidebar-menu :deep(.el-sub-menu__icon-arrow) {
@@ -120,41 +126,29 @@ watch(
 .sidebar-menu :deep(.el-menu-item) {
   height: 42px;
   margin: 1px 10px;
-  padding: 0 14px 0 42px !important;
+  padding: 0 40px !important;
   border-radius: 2px;
+  border-left: 3px solid var(--color-chrome);
   font-size: 13px;
   color: var(--color-sidebar-muted);
 }
 
-.sidebar-menu :deep(.el-menu-item:hover) {
+.sidebar-menu :deep(.el-menu-item:hover),
+.sidebar-menu :deep(.el-menu-item.is-active) {
   color: var(--color-sidebar-text);
+  background: var(--color-menu-active-bg);
+  border-left-color: var(--color-menu-active);
 }
 
-.sidebar-menu :deep(.el-menu-item.is-active) {
-  color: var(--color-sidebar-muted);
-  background: var(--color-menu-active-bg);
-  box-shadow: inset 2px 0 0 var(--color-primary);
+.sidebar-menu :deep(.el-menu-item:hover) .sidebar-menu__label,
+.sidebar-menu :deep(.el-menu-item.is-active) .sidebar-menu__label {
+  color: var(--color-menu-active);
 }
 
 .sidebar-menu__icon {
   margin-right: 10px;
   font-size: 18px;
   color: var(--color-sidebar-muted);
-}
-
-.sidebar-menu__marker {
-  position: absolute;
-  left: 24px;
-  width: 5px;
-  height: 5px;
-  background: currentColor;
-  border-radius: 1px;
-  opacity: 0.55;
-}
-
-.sidebar-menu :deep(.el-menu-item.is-active) .sidebar-menu__marker {
-  background: var(--color-menu-active);
-  opacity: 1;
 }
 
 .sidebar-menu__label {

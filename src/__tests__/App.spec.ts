@@ -130,6 +130,7 @@ describe('App', () => {
     expect(wrapper.get('h2').text()).toBe('视觉效果')
     expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(3)
     expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(2)
+    expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
 

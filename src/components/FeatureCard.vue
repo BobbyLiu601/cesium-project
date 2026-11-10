@@ -30,6 +30,7 @@ const emit = defineEmits<{
 
 <style scoped>
 .feature-card {
+  position: relative;
   width: 100%;
   padding: 0;
   overflow: hidden;
@@ -42,13 +43,16 @@ const emit = defineEmits<{
   border-radius: 2px;
   box-shadow: 0 0 3px rgb(150 150 150 / 50%);
   transition:
-    border-color 160ms ease,
-    box-shadow 160ms ease;
+    transform 400ms ease,
+    border-color 400ms ease,
+    box-shadow 400ms ease;
 }
 
 .feature-card:hover {
   border-color: #b7bdc1;
-  box-shadow: 0 2px 8px rgb(80 88 95 / 18%);
+  box-shadow: 1px 1px 6px rgb(150 150 150 / 60%);
+  transform: scale(1.1) translateZ(0);
+  z-index: 100;
 }
 
 .feature-card:focus-visible {
@@ -76,11 +80,6 @@ const emit = defineEmits<{
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 240ms ease;
-}
-
-.feature-card:hover .feature-card__media img {
-  transform: scale(1.02);
 }
 
 .feature-card__title {

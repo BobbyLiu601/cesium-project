@@ -15,8 +15,9 @@
   --color-sidebar-text: #e8eef6;
   --color-sidebar-muted: #aebccc;
   --color-menu-hover: rgb(255 255 255 / 8%);
-  --color-menu-active-bg: rgb(255 255 255 / 9%);
+  --color-menu-active-bg: rgb(255 72 62 / 4%);
   --color-menu-active: #e04c40;
+  --color-menu-group-hover-border: rgb(0 0 0 / 10%);
   --color-chrome-focus: rgb(255 255 255 / 65%);
   --color-brand-blue: #45a6ff;
   --color-brand-yellow: #ffd43b;

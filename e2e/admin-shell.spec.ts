@@ -100,8 +100,9 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
     )
     const activeGroupIcon = activeGroup?.querySelector<HTMLElement>('.sidebar-menu__icon')
     const activeItem = element.querySelector<HTMLElement>('.el-menu-item.is-active')
+    const activeItemLabel = activeItem?.querySelector<HTMLElement>('.sidebar-menu__label')
 
-    if (!activeGroup || !activeGroupIcon || !activeItem) {
+    if (!activeGroup || !activeGroupIcon || !activeItem || !activeItemLabel) {
       throw new Error('未找到菜单高亮元素')
     }
 
@@ -109,6 +110,7 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
       activeGroupColor: getComputedStyle(activeGroup).color,
       activeGroupIconColor: getComputedStyle(activeGroupIcon).color,
       activeItemColor: getComputedStyle(activeItem).color,
+      activeItemLabelColor: getComputedStyle(activeItemLabel).color,
     }
   })
 
@@ -123,7 +125,19 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   expect(brandStyle.backgroundClip).toBe('text')
   expect(menuHighlight.activeGroupColor).toBe('rgb(224, 76, 64)')
   expect(menuHighlight.activeGroupIconColor).toBe('rgb(224, 76, 64)')
-  expect(menuHighlight.activeItemColor).toBe('rgb(174, 188, 204)')
+  expect(menuHighlight.activeItemColor).toBe('rgb(232, 238, 246)')
+  expect(menuHighlight.activeItemLabelColor).toBe('rgb(224, 76, 64)')
+  await expect(page.locator('.sidebar-menu__marker')).toHaveCount(0)
+
+  const hoveredMenuItem = sidebar.getByRole('menuitem', { name: '高程' })
+  await hoveredMenuItem.hover()
+  await expect(hoveredMenuItem).toHaveCSS('background-color', 'rgba(255, 72, 62, 0.04)')
+  await expect(hoveredMenuItem).toHaveCSS('border-left-color', 'rgb(224, 76, 64)')
+  await expect(hoveredMenuItem.locator('.sidebar-menu__label')).toHaveCSS(
+    'color',
+    'rgb(224, 76, 64)',
+  )
+
   await expect(header.getByRole('menuitem')).toHaveCount(0)
   await expect(heading.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
 
@@ -182,6 +196,25 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   expect(layout.cardShadow).not.toBe('none')
   expect(layout.cardMediaAspectRatio).toBeCloseTo(4 / 3, 2)
   expect(layout.headingTop).toBeLessThan(layout.mediaTop)
+
+  const hoveredCard = page.getByRole('button', { name: '打开三维地球' })
+  await hoveredCard.hover()
+  await expect
+    .poll(() =>
+      hoveredCard.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return {
+          transform: style.transform,
+          zIndex: style.zIndex,
+          boxShadow: style.boxShadow,
+        }
+      }),
+    )
+    .toEqual({
+      transform: 'matrix(1.1, 0, 0, 1.1, 0, 0)',
+      zIndex: '100',
+      boxShadow: 'rgba(150, 150, 150, 0.6) 1px 1px 6px 0px',
+    })
 })
 
 test('通过卡片图片或文字打开三维地球，并可全屏、退出全屏和关闭', async ({ page }) => {
