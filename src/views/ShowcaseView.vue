@@ -1,93 +1,155 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 
 import { disposeActiveSession } from '@/components/cesiumGlobeSession'
-import ElevationDialog from '@/components/ElevationDialog.vue'
 import FeatureCard from '@/components/FeatureCard.vue'
+import FeatureDialog from '@/components/FeatureDialog.vue'
 import PageHeading from '@/components/PageHeading.vue'
 import RadarDialog from '@/components/RadarDialog.vue'
-import ThreeDimensionalEarthDialog from '@/components/ThreeDimensionalEarthDialog.vue'
-import { featureSections, type FeatureSection } from '@/data/features'
+import {
+  effectsSection,
+  getFeatureById,
+  layerSections,
+  type FeatureItem,
+  type FeatureSection,
+} from '@/data/layers'
+
+const route = useRoute()
+const router = useRouter()
+const radarDialogVisible = ref(false)
+const lastClosedFeatureId = ref('')
+
+const activeFeature = computed(() => {
+  const featureId = typeof route.meta.featureId === 'string' ? route.meta.featureId : undefined
+  return getFeatureById(featureId)
+})
 
 const gridTestIds: Record<FeatureSection['id'], string> = {
-  'basic-config': 'feature-grid',
+  imagery: 'feature-grid',
+  terrain: 'terrain-grid',
+  vector: 'vector-grid',
   effects: 'effect-grid',
 }
 
-const earthDialogVisible = ref(false)
-const elevationDialogVisible = ref(false)
-const radarDialogVisible = ref(false)
+async function openFeature(feature: FeatureItem) {
+  if (feature.kind === 'radar') {
+    disposeActiveSession()
+    radarDialogVisible.value = true
+    return
+  }
 
-function closeAllDialogs() {
-  earthDialogVisible.value = false
-  elevationDialogVisible.value = false
-  radarDialogVisible.value = false
+  await router.push({ name: feature.routeName })
 }
 
-function openFeature(featureId: string) {
-  closeAllDialogs()
-  disposeActiveSession()
-
-  if (featureId === 'three-dimensional-earth') {
-    earthDialogVisible.value = true
+async function closeFeatureDialog() {
+  const feature = activeFeature.value
+  if (!feature) {
     return
   }
 
-  if (featureId === 'elevation') {
-    elevationDialogVisible.value = true
-    return
-  }
+  lastClosedFeatureId.value = feature.id
+  await router.replace({ name: 'layers', hash: `#${feature.id}` })
+  await nextTick()
+  await new Promise<void>((resolve) => {
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => resolve())
+      return
+    }
 
-  if (featureId === 'radar') {
-    radarDialogVisible.value = true
-  }
+    setTimeout(resolve, 0)
+  })
+  await restoreFeatureFocus(feature.id)
 }
 
 async function restoreFeatureFocus(featureId: string) {
   await nextTick()
-  if (earthDialogVisible.value || elevationDialogVisible.value || radarDialogVisible.value) {
+  if (activeFeature.value || radarDialogVisible.value || !featureId) {
     return
   }
 
   document.querySelector<HTMLButtonElement>(`[data-feature-id="${featureId}"]`)?.focus()
 }
+
+watch(
+  () => route.fullPath,
+  () => {
+    if (!activeFeature.value) {
+      lastClosedFeatureId.value = ''
+    }
+  },
+)
 </script>
 
 <template>
   <div class="showcase" data-testid="showcase-view">
-    <section
-      v-for="(section, index) in featureSections"
-      :id="section.id"
-      :key="section.id"
-      class="showcase__section"
-      :aria-labelledby="`${section.id}-heading`"
-    >
+    <section id="layers" class="showcase__section" aria-labelledby="layers-heading">
       <PageHeading
-        :heading-id="`${section.id}-heading`"
-        :icon="section.icon"
-        :level="index === 0 ? 1 : 2"
-        :title="section.title"
+        heading-id="layers-heading"
+        :icon="layerSections[0]!.icon"
+        :level="1"
+        title="1、图层"
+      />
+
+      <div
+        v-for="section in layerSections"
+        :id="section.id"
+        :key="section.id"
+        class="showcase__group"
+        :data-section-id="section.id"
+      >
+        <div class="showcase__group-heading">
+          <h2 :id="`${section.id}-heading`" class="showcase__group-title">
+            {{ section.code }}、{{ section.title }}
+          </h2>
+          <span class="showcase__group-count">{{ section.items.length }} 项</span>
+        </div>
+
+        <div class="showcase__body">
+          <div class="feature-grid" :data-testid="gridTestIds[section.id]">
+            <FeatureCard
+              v-for="feature in section.items"
+              :id="feature.id"
+              :key="feature.id"
+              :feature="feature"
+              :data-nav-anchor="feature.id"
+              @activate="openFeature(feature)"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="effects" class="showcase__section" aria-labelledby="effects-heading">
+      <PageHeading
+        heading-id="effects-heading"
+        :icon="effectsSection.icon"
+        :level="2"
+        :title="effectsSection.title"
       />
 
       <div class="showcase__body">
-        <div class="feature-grid" :data-testid="gridTestIds[section.id]">
+        <div class="feature-grid" :data-testid="gridTestIds.effects">
           <FeatureCard
-            v-for="feature in section.items"
+            v-for="feature in effectsSection.items"
             :id="feature.id"
             :key="feature.id"
             :feature="feature"
             :data-nav-anchor="feature.id"
-            @activate="openFeature(feature.id)"
+            @activate="openFeature(feature)"
           />
         </div>
       </div>
     </section>
 
-    <ThreeDimensionalEarthDialog
-      v-model="earthDialogVisible"
-      @closed="restoreFeatureFocus('three-dimensional-earth')"
+    <FeatureDialog
+      v-if="activeFeature && activeFeature.kind !== 'radar'"
+      :key="activeFeature.id"
+      :feature="activeFeature"
+      :model-value="true"
+      @update:model-value="closeFeatureDialog"
+      @closed="restoreFeatureFocus(lastClosedFeatureId || activeFeature?.id || '')"
     />
-    <ElevationDialog v-model="elevationDialogVisible" @closed="restoreFeatureFocus('elevation')" />
     <RadarDialog v-model="radarDialogVisible" @closed="restoreFeatureFocus('radar')" />
   </div>
 </template>
@@ -104,9 +166,45 @@ async function restoreFeatureFocus(featureId: string) {
   margin-top: 20px;
 }
 
+.showcase__group {
+  padding: 0 20px;
+  scroll-margin-top: 20px;
+}
+
+.showcase__group + .showcase__group {
+  margin-top: 18px;
+}
+
+.showcase__group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+  padding: 0 20px;
+  background: transparent;
+}
+
+.showcase__group-title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #424a51;
+}
+
+.showcase__group-count {
+  flex: 0 0 auto;
+  padding: 2px 9px;
+  font-size: 12px;
+  color: #7b858e;
+  background: #eceff1;
+  border-radius: 999px;
+}
+
 .showcase__body {
   padding: 20px;
-  margin: 16px 20px 20px;
+  margin: 0;
   background: #f9f9f9;
   border-radius: 3px;
 }
@@ -144,9 +242,16 @@ async function restoreFeatureFocus(featureId: string) {
     margin-top: 16px;
   }
 
+  .showcase__group {
+    padding: 0 12px;
+  }
+
+  .showcase__group-heading {
+    padding: 0 8px;
+  }
+
   .showcase__body {
     padding: 12px;
-    margin: 12px;
   }
 }
 </style>

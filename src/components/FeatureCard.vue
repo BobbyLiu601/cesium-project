@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FeatureItem } from '@/data/features'
+import type { FeatureItem } from '@/data/layers'
 
 defineProps<{
   feature: FeatureItem
@@ -16,11 +16,11 @@ const emit = defineEmits<{
     class="feature-card"
     data-testid="feature-card"
     :data-feature-id="feature.id"
-    :aria-label="`打开${feature.name}`"
+    :aria-label="`打开${feature.displayName}`"
     @click="emit('activate')"
   >
     <span class="feature-card__heading">
-      <span class="feature-card__title">{{ feature.name }}</span>
+      <span class="feature-card__title">{{ feature.displayName }}</span>
     </span>
     <span class="feature-card__media">
       <img :src="feature.imageSrc" :alt="feature.imageAlt" loading="lazy" />

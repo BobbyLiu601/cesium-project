@@ -52,7 +52,7 @@ async function mountAt(path: string) {
 }
 
 async function openGlobe(wrapper: Awaited<ReturnType<typeof mountAt>>) {
-  await wrapper.get('[data-feature-id="three-dimensional-earth"]').trigger('click')
+  await wrapper.get('[data-feature-id="tianditu"]').trigger('click')
   await flushPromises()
   await vi.waitFor(() => {
     expect(viewerInstances).toHaveLength(1)
@@ -121,15 +121,16 @@ describe('App', () => {
     vi.restoreAllMocks()
   })
 
-  it('redirects the root route to the basic configuration page', async () => {
+  it('redirects the root route to the layer catalog', async () => {
     const wrapper = await mountAt('/')
 
-    expect(router.currentRoute.value.fullPath).toBe('/basic-config')
+    expect(router.currentRoute.value.fullPath).toBe('/layers')
     expect(wrapper.text()).toContain('三维效果展示')
-    expect(wrapper.get('h1').text()).toBe('基础配置')
-    expect(wrapper.get('h2').text()).toBe('视觉效果')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(3)
-    expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(2)
+    expect(wrapper.get('h1').text()).toBe('1、图层')
+    expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(19)
+    expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(2)
+    expect(wrapper.findAll('.el-sub-menu__icon-arrow').length).toBeGreaterThanOrEqual(2)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
@@ -137,24 +138,28 @@ describe('App', () => {
     wrapper.unmount()
   })
 
-  it('shows all feature cards as accessible buttons across both content sections', async () => {
-    const wrapper = await mountAt('/basic-config')
+  it('shows numbered layer groups and accessible feature cards', async () => {
+    const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(3)
-    expect(cards.map((card) => card.attributes('data-feature-id'))).toEqual([
-      'three-dimensional-earth',
-      'elevation',
-      'radar',
-    ])
-    expect(cards.map((card) => card.attributes('id'))).toEqual([
-      'three-dimensional-earth',
-      'elevation',
-      'radar',
-    ])
+    expect(cards).toHaveLength(19)
+    expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
+    expect(cards[1]?.attributes('data-feature-id')).toBe('elevation')
+    expect(cards[2]?.attributes('data-feature-id')).toBe('entity-point')
+    expect(cards[17]?.attributes('data-feature-id')).toBe('gif')
+    expect(cards[18]?.attributes('data-feature-id')).toBe('radar')
+    expect(cards.map((card) => card.attributes('id'))).toEqual(
+      cards.map((card) => card.attributes('data-feature-id')),
+    )
     expect(
       wrapper.get('[data-testid="feature-grid"]').findAll('[data-testid="feature-card"]'),
-    ).toHaveLength(2)
+    ).toHaveLength(1)
+    expect(
+      wrapper.get('[data-testid="terrain-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(1)
+    expect(
+      wrapper.get('[data-testid="vector-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(16)
     expect(
       wrapper.get('[data-testid="effect-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(1)
@@ -169,32 +174,38 @@ describe('App', () => {
       expect(card.get('img').attributes('src')).not.toMatch(/^https?:\/\//)
     }
 
-    expect(cards[0]?.attributes('aria-label')).toBe('打开三维地球')
-    expect(cards[0]?.text()).toContain('三维地球')
+    expect(cards[0]?.attributes('aria-label')).toBe('打开1.1.1、天地图')
+    expect(cards[0]?.text()).toContain('1.1.1、天地图')
     expect(cards[0]?.get('img').attributes('alt')).toBe('蓝色三维地球与环绕轨道示意图')
-    expect(cards[1]?.attributes('aria-label')).toBe('打开高程')
-    expect(cards[1]?.text()).toContain('高程')
+    expect(cards[1]?.attributes('aria-label')).toBe('打开1.2.1、高程')
+    expect(cards[1]?.text()).toContain('1.2.1、高程')
     expect(cards[1]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
-    expect(cards[2]?.attributes('aria-label')).toBe('打开雷达图')
-    expect(cards[2]?.text()).toContain('雷达图')
-    expect(cards[2]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
-    expect(wrapper.get('h1').text()).toBe('基础配置')
-    expect(wrapper.get('h2').text()).toBe('视觉效果')
+    expect(cards[2]?.attributes('aria-label')).toBe('打开1.3.1、entity点')
+    expect(cards[17]?.attributes('aria-label')).toBe('打开1.3.16、gif')
+    expect(cards[18]?.attributes('aria-label')).toBe('打开雷达图')
+    expect(cards[18]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
+    expect(wrapper.get('h1').text()).toBe('1、图层')
+    expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
     expect(
       wrapper.findAll('[data-testid="page-heading"]').map((heading) => heading.text()),
-    ).toEqual(['基础配置', '视觉效果'])
+    ).toEqual(['1、图层', '视觉效果'])
+    expect(wrapper.findAll('.showcase__group-title').map((heading) => heading.text())).toEqual([
+      '1.1、影像',
+      '1.2、地形',
+      '1.3、矢量',
+    ])
 
     wrapper.unmount()
   })
 
   it('opens a non-fullscreen globe dialog with both Tianditu WMTS layers', async () => {
-    const wrapper = await mountAt('/basic-config')
+    const wrapper = await mountAt('/layers')
     await openGlobe(wrapper)
 
     const dialog = wrapper.get('[role="dialog"]')
-    expect(dialog.text()).toContain('三维地球')
+    expect(dialog.text()).toContain('1.1.1、天地图')
     expect(dialog.classes()).not.toContain('is-fullscreen')
     const globe = wrapper.get('[data-testid="cesium-globe"]')
     expect(globe.attributes('data-cesium-state')).toBe('ready')
@@ -221,7 +232,7 @@ describe('App', () => {
     ])
     expect(headerButtons[0]?.text()).toBe('')
     expect(headerButtons[0]?.find('svg').exists()).toBe(true)
-    expect(wrapper.find('button[aria-label="关闭三维地球弹窗"]').exists()).toBe(false)
+    expect(wrapper.find('button[aria-label="关闭天地图弹窗"]').exists()).toBe(false)
 
     const token = encodeURIComponent('test-tianditu-token')
     expect(tileProviderInstances).toHaveLength(2)
@@ -235,7 +246,7 @@ describe('App', () => {
       expect(provider.options.subdomains).toEqual(['0', '1', '2', '3', '4', '5', '6', '7'])
     }
 
-    await wrapper.get('.three-earth-dialog button[aria-label="关闭此对话框"]').trigger('click')
+    await wrapper.get('.feature-dialog button[aria-label="关闭此对话框"]').trigger('click')
     await flushPromises()
     wrapper.unmount()
   })
@@ -246,10 +257,10 @@ describe('App', () => {
       resolveProvider = resolve
     })
 
-    const wrapper = await mountAt('/basic-config')
+    const wrapper = await mountAt('/layers')
     await openElevation(wrapper)
 
-    const dialog = wrapper.get('.elevation-dialog')
+    const dialog = wrapper.get('.feature-dialog--elevation')
     expect(dialog.text()).toContain('高程')
     expect(dialog.classes()).not.toContain('is-fullscreen')
     expect(wrapper.find('[data-testid="elevation-globe"]').exists()).toBe(true)
@@ -304,7 +315,7 @@ describe('App', () => {
     expect(requestRender).toHaveBeenCalled()
     expect(elevationTerrainProviderInstances).toEqual([provider])
 
-    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog--elevation .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
     expect(tileLoadProgressListeners).toHaveLength(0)
@@ -312,10 +323,40 @@ describe('App', () => {
     wrapper.unmount()
   })
 
+  it('opens a vector demo from its deep link and returns to the card anchor on close', async () => {
+    const wrapper = await mountAt('/layers/vector/1-3-1-entity-point')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.text()).toContain('1.3.1、entity点')
+    expect(wrapper.get('[data-testid="vector-demo-globe"]').attributes('data-scene-id')).toBe(
+      'entity-point',
+    )
+    expect(wrapper.get('[data-testid="vector-demo-globe"]').attributes('data-cesium-state')).toBe(
+      'ready',
+    )
+    expect(viewerInstances[0]?.entities.values).toHaveLength(3)
+    expect(wrapper.get('.vector-demo-globe__status').text()).toContain('Entity 点')
+
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/layers#entity-point')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-testid="vector-demo-globe"]').exists()).toBe(false)
+    expect(getActiveSession()).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
   it('keeps the normal globe and current camera when elevation loading fails', async () => {
     cesiumMockState.elevationProviderOutcome = 'failure'
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const wrapper = await mountAt('/basic-config')
+    const wrapper = await mountAt('/layers')
 
     await openElevation(wrapper)
 
@@ -324,10 +365,10 @@ describe('App', () => {
     expect(viewerInstances[0]?.camera.setView).not.toHaveBeenCalled()
     expect(viewerInstances[0]?.scene.globe.enableLighting).toBe(false)
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-    expect(wrapper.get('.elevation-dialog').text()).not.toContain('加载失败')
+    expect(wrapper.get('.feature-dialog--elevation').text()).not.toContain('加载失败')
     expect(consoleError).toHaveBeenCalled()
 
-    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog--elevation .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
 
@@ -340,10 +381,10 @@ describe('App', () => {
       resolveProvider = resolve
     })
 
-    const wrapper = await mountAt('/basic-config')
+    const wrapper = await mountAt('/layers')
     await openElevation(wrapper)
 
-    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog--elevation .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
 
@@ -362,7 +403,7 @@ describe('App', () => {
   })
 
   it('keeps at most one active viewer when another feature is opened', async () => {
-    const wrapper = await mountAt('/basic-config')
+    const wrapper = await mountAt('/layers')
     await openGlobe(wrapper)
     expect(getActiveSession()?.viewer).toBe(viewerInstances[0])
 
@@ -374,9 +415,9 @@ describe('App', () => {
 
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
     expect(getActiveSession()?.viewer).toBe(viewerInstances[1])
-    expect(wrapper.get('.elevation-dialog').text()).toContain('高程')
+    expect(wrapper.get('.feature-dialog--elevation').text()).toContain('高程')
 
-    await wrapper.get('.elevation-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog--elevation .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[1]?.destroy).toHaveBeenCalledOnce()
     expect(getActiveSession()).toBeUndefined()
@@ -396,7 +437,7 @@ describe('App', () => {
     expect(tileProviderInstances).toHaveLength(0)
     expect(consoleError).toHaveBeenCalled()
 
-    await wrapper.get('.three-earth-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
 
@@ -415,7 +456,7 @@ describe('App', () => {
     expect(getActiveSession()).toBeUndefined()
     expect(consoleError).toHaveBeenCalled()
 
-    await wrapper.get('.three-earth-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
     await flushPromises()
 
     wrapper.unmount()
@@ -426,7 +467,7 @@ describe('App', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const wrapper = await mountAt('/basic-config')
 
-    await wrapper.get('[data-feature-id="three-dimensional-earth"]').trigger('click')
+    await wrapper.get('[data-feature-id="tianditu"]').trigger('click')
     await flushPromises()
 
     const globe = wrapper.get('[data-testid="cesium-globe"]')
@@ -435,7 +476,7 @@ describe('App', () => {
     expect(getActiveSession()).toBeUndefined()
     expect(consoleError).toHaveBeenCalled()
 
-    await wrapper.get('.three-earth-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
     await flushPromises()
 
     wrapper.unmount()
@@ -455,7 +496,7 @@ describe('App', () => {
     await fullscreenButton.trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('.three-earth-dialog').classes()).toContain('is-fullscreen')
+    expect(wrapper.get('.feature-dialog').classes()).toContain('is-fullscreen')
     expect(viewerInstances).toHaveLength(1)
 
     const exitFullscreenButton = wrapper.get('button[aria-label="退出全屏"]')
@@ -463,10 +504,10 @@ describe('App', () => {
     await exitFullscreenButton.trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('.three-earth-dialog').classes()).not.toContain('is-fullscreen')
+    expect(wrapper.get('.feature-dialog').classes()).not.toContain('is-fullscreen')
     expect(viewerInstances).toHaveLength(1)
 
-    await wrapper.get('.three-earth-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
     await flushPromises()
 
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
@@ -479,7 +520,7 @@ describe('App', () => {
     })
     expect(viewerInstances[1]?.destroy).not.toHaveBeenCalled()
 
-    await wrapper.get('.three-earth-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[1]?.destroy).toHaveBeenCalledOnce()
 
@@ -487,14 +528,14 @@ describe('App', () => {
   })
 
   it('keeps the menu selection in sync with the current route', async () => {
-    const wrapper = await mountAt('/basic-config')
+    const wrapper = await mountAt('/layers')
     const earthMenuItem = wrapper
       .findAll('[role="menuitem"]')
-      .find((item) => item.text() === '三维地球')
+      .find((item) => item.text() === '1.1.1、天地图')
 
     expect(earthMenuItem?.attributes('aria-current')).toBe('location')
 
-    await router.push('/basic-config#radar')
+    await router.push('/layers#radar')
     await flushPromises()
 
     const radarMenuItem = wrapper
@@ -518,13 +559,13 @@ describe('App', () => {
     const wrapper = await mountAt('/effects')
     const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '雷达图')
 
-    expect(router.currentRoute.value.fullPath).toBe('/basic-config#radar')
+    expect(router.currentRoute.value.fullPath).toBe('/layers#radar')
     expect(menuItem?.attributes('aria-current')).toBe('location')
     expect(wrapper.find('[data-testid="showcase-view"]').exists()).toBe(true)
-    expect(wrapper.get('h2').text()).toBe('视觉效果')
+    expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
 
     const cards = wrapper.findAll('[data-testid="feature-card"]')
-    expect(cards).toHaveLength(3)
+    expect(cards).toHaveLength(19)
     const radarCard = cards.find((card) => card.attributes('data-feature-id') === 'radar')
     expect(radarCard?.attributes('aria-label')).toBe('打开雷达图')
     expect(radarCard?.text()).toContain('雷达图')
@@ -620,30 +661,32 @@ describe('App', () => {
 
     expect(router.currentRoute.value.fullPath).toBe('/unknown/page?source=test')
     expect(wrapper.text()).toContain('三维效果展示')
-    expect(wrapper.text()).toContain('基础配置')
+    expect(wrapper.text()).toContain('1、图层')
     expect(wrapper.get('h1').text()).toBe('页面不存在')
 
-    const returnLink = wrapper.get('a[href="/basic-config"]')
-    expect(returnLink.text()).toBe('返回基础配置')
+    const returnLink = wrapper.get('a[href="/layers"]')
+    expect(returnLink.text()).toBe('返回图层列表')
 
     await returnLink.trigger('click')
     await flushPromises()
 
-    expect(router.currentRoute.value.path).toBe('/basic-config')
-    expect(wrapper.get('[data-testid="feature-card"]').text()).toContain('三维地球')
+    expect(router.currentRoute.value.path).toBe('/layers')
+    expect(wrapper.get('[data-testid="feature-card"]').text()).toContain('1.1.1、天地图')
 
     wrapper.unmount()
   })
 
   it('navigates to an anchor from the sidebar menu on another route', async () => {
     const wrapper = await mountAt('/missing-route')
-    const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '三维地球')
+    const menuItem = wrapper
+      .findAll('[role="menuitem"]')
+      .find((item) => item.text() === '1.1.1、天地图')
 
     await menuItem?.trigger('click')
     await flushPromises()
 
-    expect(router.currentRoute.value.fullPath).toBe('/basic-config#three-dimensional-earth')
-    expect(wrapper.get('[data-testid="feature-card"]').text()).toContain('三维地球')
+    expect(router.currentRoute.value.fullPath).toBe('/layers#tianditu')
+    expect(wrapper.get('[data-testid="feature-card"]').text()).toContain('1.1.1、天地图')
 
     wrapper.unmount()
   })

@@ -11,25 +11,128 @@ export interface MockViewer {
     setView: ReturnType<typeof vi.fn<(options: unknown) => void>>
     lookAt: ReturnType<typeof vi.fn<(center: unknown, headingPitchRange: unknown) => void>>
     lookAtTransform: ReturnType<typeof vi.fn<(transform: unknown) => void>>
+    flyTo: ReturnType<typeof vi.fn<(options: unknown) => void>>
   }
   scene: {
     requestRender: ReturnType<typeof vi.fn<() => void>>
     backgroundColor: unknown
+    canvas: HTMLCanvasElement
+    pick: ReturnType<typeof vi.fn<(position: unknown) => unknown>>
+    preRender: MockEvent<() => void>
     primitives: {
       add: ReturnType<typeof vi.fn<(primitive: unknown) => unknown>>
       remove: ReturnType<typeof vi.fn<(primitive: unknown) => boolean>>
     }
     globe: {
       enableLighting: boolean
+      depthTestAgainstTerrain: boolean
       tileLoadProgressEvent: {
         addEventListener: ReturnType<typeof vi.fn<(callback: () => void) => () => void>>
       }
     }
     verticalExaggeration: number
   }
+  entities: MockEntityCollection
+  dataSources: {
+    add: ReturnType<typeof vi.fn<(dataSource: MockDataSource) => MockDataSource>>
+    remove: ReturnType<typeof vi.fn<(dataSource: MockDataSource) => boolean>>
+  }
+  clock: {
+    currentTime: unknown
+  }
+  flyTo: ReturnType<typeof vi.fn<(target: unknown) => Promise<boolean>>>
   resize: ReturnType<typeof vi.fn<() => void>>
   destroy: ReturnType<typeof vi.fn<() => void>>
   isDestroyed: ReturnType<typeof vi.fn<() => boolean>>
+}
+
+export interface MockEntity {
+  id: string
+  name?: string
+  position?: {
+    getValue: (time?: unknown) => unknown
+  }
+  properties?: Record<string, { getValue: (time?: unknown) => unknown }>
+  polygon?: Record<string, unknown>
+  polyline?: Record<string, unknown>
+  point?: Record<string, unknown>
+  label?: Record<string, unknown>
+  billboard?: Record<string, unknown>
+}
+
+export interface MockDataSource {
+  name: string
+  entities: MockEntityCollection
+}
+
+export class MockEvent<T extends (...args: never[]) => unknown> {
+  listeners = new Set<T>()
+
+  addEventListener = vi.fn<(listener: T) => () => void>((listener) => {
+    this.listeners.add(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
+  })
+
+  removeEventListener = vi.fn<(listener: T) => void>((listener) => {
+    this.listeners.delete(listener)
+  })
+
+  raiseEvent(...args: Parameters<T>) {
+    this.listeners.forEach((listener) => listener(...args))
+  }
+}
+
+export class MockEntityCollection {
+  values: MockEntity[] = []
+
+  add = vi.fn<(entity: Record<string, unknown> | MockEntity) => MockEntity>((entity) => {
+    const created =
+      entity instanceof Object && 'id' in entity && typeof entity.id === 'string'
+        ? (entity as MockEntity)
+        : ({ id: `entity-${this.values.length + 1}`, ...entity } as MockEntity)
+    this.values.push(created)
+    return created
+  })
+
+  remove = vi.fn<(entity: MockEntity) => boolean>((entity) => {
+    const index = this.values.indexOf(entity)
+    if (index < 0) {
+      return false
+    }
+    this.values.splice(index, 1)
+    return true
+  })
+
+  removeById = vi.fn<(id: string) => boolean>((id) => {
+    const index = this.values.findIndex((entity) => entity.id === id)
+    if (index < 0) {
+      return false
+    }
+    this.values.splice(index, 1)
+    return true
+  })
+
+  removeAll = vi.fn<() => void>(() => {
+    this.values.length = 0
+  })
+
+  getById = vi.fn<(id: string) => MockEntity | undefined>((id) =>
+    this.values.find((entity) => entity.id === id),
+  )
+
+  contains = vi.fn<(entity: MockEntity) => boolean>((entity) => this.values.includes(entity))
+
+  reset() {
+    this.values.length = 0
+    this.add.mockClear()
+    this.remove.mockClear()
+    this.removeById.mockClear()
+    this.removeAll.mockClear()
+    this.getById.mockClear()
+    this.contains.mockClear()
+  }
 }
 
 export interface MockTileProvider {
@@ -53,6 +156,7 @@ export const imageryLayerInstances: MockImageryLayer[] = []
 export const groundPrimitiveInstances: MockPrimitive[] = []
 export const primitiveInstances: MockPrimitive[] = []
 export const materialInstances: MockMaterial[] = []
+export const polylineDashMaterialInstances: unknown[] = []
 export const scenePrimitiveAdds: unknown[] = []
 export const scenePrimitiveRemoves: unknown[] = []
 export const elevationProviderRequests: Array<{
@@ -61,6 +165,11 @@ export const elevationProviderRequests: Array<{
 }> = []
 export const elevationTerrainProviderInstances: MockElevationTerrainProvider[] = []
 export const tileLoadProgressListeners: Array<() => void> = []
+export const entityCollectionInstances: MockEntityCollection[] = []
+export const dataSourceInstances: MockDataSource[] = []
+export const billboardCollectionInstances: BillboardCollection[] = []
+export const screenSpaceEventHandlerInstances: ScreenSpaceEventHandler[] = []
+export const terrainSampleRequests: unknown[][] = []
 export const cesiumMockState = {
   failNextViewer: false,
   failNextImageryLayer: false,
@@ -68,6 +177,7 @@ export const cesiumMockState = {
   groundTerrainHeightsOutcome: 'success' as 'success' | 'failure',
   elevationProviderOutcome: 'success' as 'success' | 'failure',
   elevationProviderPromise: undefined as Promise<MockElevationTerrainProvider> | undefined,
+  geoJsonOutcome: 'success' as 'success' | 'failure',
 }
 
 export class Viewer implements MockViewer {
@@ -91,11 +201,34 @@ export class Viewer implements MockViewer {
     setView: vi.fn<(options: unknown) => void>(),
     lookAt: vi.fn<(center: unknown, headingPitchRange: unknown) => void>(),
     lookAtTransform: vi.fn<(transform: unknown) => void>(),
+    flyTo: vi.fn<(options: unknown) => void>(),
+  }
+
+  entities = new MockEntityCollection()
+  dataSources = {
+    add: vi.fn<(dataSource: MockDataSource) => MockDataSource>((dataSource) => {
+      dataSourceInstances.push(dataSource)
+      return dataSource
+    }),
+    remove: vi.fn<(dataSource: MockDataSource) => boolean>((dataSource) => {
+      const index = dataSourceInstances.indexOf(dataSource)
+      if (index >= 0) {
+        dataSourceInstances.splice(index, 1)
+        return true
+      }
+      return false
+    }),
+  }
+  clock = {
+    currentTime: {},
   }
 
   scene = {
     requestRender: vi.fn<() => void>(),
     backgroundColor: undefined as unknown,
+    canvas: document.createElement('canvas'),
+    pick: vi.fn<(position: unknown) => unknown>(() => undefined),
+    preRender: new MockEvent<() => void>(),
     primitives: {
       add: vi.fn<(primitive: unknown) => unknown>((primitive) => {
         scenePrimitiveAdds.push(primitive)
@@ -108,6 +241,7 @@ export class Viewer implements MockViewer {
     },
     globe: {
       enableLighting: false,
+      depthTestAgainstTerrain: false,
       tileLoadProgressEvent: {
         addEventListener: vi.fn<(callback: () => void) => () => void>((callback) => {
           tileLoadProgressListeners.push(callback)
@@ -125,6 +259,7 @@ export class Viewer implements MockViewer {
   }
 
   resize = vi.fn<() => void>()
+  flyTo = vi.fn<(target: unknown) => Promise<boolean>>(() => Promise.resolve(true))
   destroy = vi.fn<() => void>(() => {
     this.destroyed = true
   })
@@ -142,6 +277,178 @@ export class Viewer implements MockViewer {
     this.terrainProvider = options.terrainProvider
     viewerInstances.push(this)
   }
+}
+
+export class PolygonGeometry {
+  static fromPositions(options: Record<string, unknown>) {
+    return { type: 'PolygonGeometry', options }
+  }
+}
+
+export class PolylineGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class RectangleGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class CircleGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class BoxGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class CylinderGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class WallGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class CorridorGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class PolylineVolumeGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class PerInstanceColorAppearance {
+  constructor(public options?: Record<string, unknown>) {}
+}
+
+export class PolylineColorAppearance {
+  constructor(public options?: Record<string, unknown>) {}
+}
+
+export class PolylineMaterialAppearance {
+  constructor(public options?: Record<string, unknown>) {}
+}
+
+export class ColorGeometryInstanceAttribute {
+  static fromColor(color: unknown) {
+    return { color }
+  }
+}
+
+export class ConstantProperty {
+  constructor(public value: unknown) {}
+}
+
+export class CallbackProperty {
+  constructor(
+    public callback: () => unknown,
+    public isConstant: boolean,
+  ) {}
+
+  getValue() {
+    return this.callback()
+  }
+}
+
+export class ColorMaterialProperty {
+  constructor(public color: unknown) {}
+}
+
+export class PolylineDashMaterialProperty {
+  constructor(public options?: Record<string, unknown>) {
+    polylineDashMaterialInstances.push(this)
+  }
+}
+
+export class NearFarScalar {
+  constructor(
+    public near: number,
+    public nearValue: number,
+    public far: number,
+    public farValue: number,
+  ) {}
+}
+
+export class BillboardCollection {
+  items: Record<string, unknown>[] = []
+
+  constructor(public options?: Record<string, unknown>) {
+    billboardCollectionInstances.push(this)
+  }
+
+  add(options: Record<string, unknown>) {
+    this.items.push(options)
+    return options
+  }
+}
+
+export class CustomDataSource implements MockDataSource {
+  entities = new MockEntityCollection()
+
+  constructor(public name: string) {
+    entityCollectionInstances.push(this.entities)
+  }
+}
+
+export class GeoJsonDataSource extends CustomDataSource {
+  static load(data: unknown, options?: Record<string, unknown>) {
+    if (cesiumMockState.geoJsonOutcome === 'failure') {
+      return Promise.reject(new Error('mock geojson failure'))
+    }
+
+    const source = new GeoJsonDataSource('geojson-demo')
+    const features =
+      (data as { features?: Array<{ geometry?: { type?: string }; properties?: object }> })
+        .features ?? []
+    for (const [index, feature] of features.entries()) {
+      const properties = feature.properties ?? {}
+      const entity: MockEntity = {
+        id: `geojson-${index + 1}`,
+        properties: Object.fromEntries(
+          Object.entries(properties).map(([key, value]) => [key, { getValue: () => value }]),
+        ),
+      }
+      if (feature.geometry?.type === 'Polygon') {
+        entity.polygon = {}
+      } else if (feature.geometry?.type === 'LineString') {
+        entity.polyline = {}
+      }
+      source.entities.add(entity)
+    }
+    source.options = options
+    return Promise.resolve(source)
+  }
+
+  options?: Record<string, unknown>
+}
+
+export class ScreenSpaceEventHandler {
+  actions = new Map<unknown, (event: unknown) => void>()
+
+  constructor(public element: HTMLElement) {
+    screenSpaceEventHandlerInstances.push(this)
+  }
+
+  setInputAction(action: (event: unknown) => void, type: unknown) {
+    this.actions.set(type, action)
+  }
+
+  destroy = vi.fn<() => void>(() => {
+    this.actions.clear()
+  })
+}
+
+export class Cartographic {
+  static fromDegrees(longitude: number, latitude: number, height = 0) {
+    return { longitude, latitude, height }
+  }
+}
+
+export class Cartesian2 {
+  constructor(
+    public x: number,
+    public y: number,
+  ) {}
 }
 
 export class WebMapTileServiceImageryProvider implements MockTileProvider {
@@ -185,6 +492,16 @@ export class Material implements MockMaterial {
   ) {
     this.uniforms = options.fabric.uniforms
     materialInstances.push(this)
+  }
+
+  static fromType(type: string, uniforms: Record<string, unknown>) {
+    return new Material({
+      fabric: {
+        type,
+        uniforms,
+        source: '',
+      },
+    })
   }
 }
 
@@ -241,6 +558,19 @@ export class Color {
     public blue: number,
     public alpha: number,
   ) {}
+
+  static YELLOW = new Color(1, 1, 0, 1)
+  static CYAN = new Color(0, 1, 1, 1)
+  static ORANGE = new Color(1, 0.65, 0, 1)
+  static LIME = new Color(0, 1, 0, 1)
+  static RED = new Color(1, 0, 0, 1)
+  static DODGERBLUE = new Color(0.12, 0.56, 1, 1)
+  static WHITE = new Color(1, 1, 1, 1)
+  static MAGENTA = new Color(1, 0, 1, 1)
+
+  static fromCssColorString(value: string) {
+    return new Color(0.5, 0.5, 0.5, value.length > 8 ? 0.7 : 1)
+  }
 }
 
 export class HeadingPitchRange {
@@ -290,6 +620,28 @@ export class Cartesian3 {
   static fromDegrees(longitude: number, latitude: number, height?: number) {
     return { longitude, latitude, height }
   }
+
+  static fromDegreesArray(values: number[]) {
+    const positions = []
+    for (let index = 0; index < values.length; index += 2) {
+      positions.push(Cartesian3.fromDegrees(values[index]!, values[index + 1]!))
+    }
+    return positions
+  }
+
+  static fromDegreesArrayHeights(values: number[]) {
+    const positions = []
+    for (let index = 0; index < values.length; index += 3) {
+      positions.push(Cartesian3.fromDegrees(values[index]!, values[index + 1]!, values[index + 2]!))
+    }
+    return positions
+  }
+
+  constructor(
+    public x: number,
+    public y: number,
+    public z: number,
+  ) {}
 }
 
 export class Rectangle {
@@ -306,6 +658,29 @@ export const Math = {
   },
 }
 
+export const HeightReference = {
+  CLAMP_TO_GROUND: 1,
+}
+
+export const VerticalOrigin = {
+  BOTTOM: 1,
+}
+
+export const ScreenSpaceEventType = {
+  LEFT_CLICK: 1,
+}
+
+export const SceneTransforms = {
+  worldToWindowCoordinates: vi.fn<() => { x: number; y: number }>(() => ({ x: 160, y: 120 })),
+}
+
+export const sampleTerrainMostDetailed = vi.fn<
+  (_provider: unknown, positions: unknown[]) => Promise<{ height: number }[]>
+>((_provider, positions) => {
+  terrainSampleRequests.push(positions)
+  return Promise.resolve(positions.map(() => ({ height: 130 })))
+})
+
 export function resetCesiumMock() {
   viewerInstances.length = 0
   tileProviderInstances.length = 0
@@ -313,18 +688,27 @@ export function resetCesiumMock() {
   groundPrimitiveInstances.length = 0
   primitiveInstances.length = 0
   materialInstances.length = 0
+  polylineDashMaterialInstances.length = 0
   scenePrimitiveAdds.length = 0
   scenePrimitiveRemoves.length = 0
   elevationProviderRequests.length = 0
   elevationTerrainProviderInstances.length = 0
   tileLoadProgressListeners.length = 0
+  entityCollectionInstances.length = 0
+  dataSourceInstances.length = 0
+  billboardCollectionInstances.length = 0
+  screenSpaceEventHandlerInstances.length = 0
+  terrainSampleRequests.length = 0
   cesiumMockState.failNextViewer = false
   cesiumMockState.failNextImageryLayer = false
   cesiumMockState.groundMaterialsSupported = true
   cesiumMockState.groundTerrainHeightsOutcome = 'success'
   cesiumMockState.elevationProviderOutcome = 'success'
   cesiumMockState.elevationProviderPromise = undefined
+  cesiumMockState.geoJsonOutcome = 'success'
   GroundPrimitive.supportsMaterials.mockClear()
   GroundPrimitive.initializeTerrainHeights.mockClear()
   Transforms.eastNorthUpToFixedFrame.mockClear()
+  SceneTransforms.worldToWindowCoordinates.mockClear()
+  sampleTerrainMostDetailed.mockClear()
 }

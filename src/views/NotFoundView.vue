@@ -10,9 +10,9 @@ const route = useRoute()
     <h1>页面不存在</h1>
     <p class="not-found__message">
       无法找到地址 <code>{{ route.fullPath }}</code
-      >。请检查地址或返回基础配置。
+      >。请检查地址或返回图层列表。
     </p>
-    <RouterLink class="not-found__link" :to="{ name: 'basic-config' }"> 返回基础配置 </RouterLink>
+    <RouterLink class="not-found__link" :to="{ name: 'layers' }"> 返回图层列表 </RouterLink>
   </section>
 </template>
 

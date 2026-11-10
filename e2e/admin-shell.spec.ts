@@ -9,7 +9,7 @@ async function expectCesiumReady(globe: Locator) {
 }
 
 async function expectSubmenuArrowsPointDown(menu: Locator) {
-  const arrows = menu.locator('.el-sub-menu__icon-arrow')
+  const arrows = menu.locator('.sidebar-menu__group > .el-sub-menu__title .el-sub-menu__icon-arrow')
   await expect(arrows).toHaveCount(2)
   await expect
     .poll(() =>
@@ -35,7 +35,7 @@ test.beforeEach(async ({ page }) => {
   await page.route(/https:\/\/elevation3d\.arcgis\.com\//, (route) => route.abort())
 })
 
-test('根路径进入基础配置并显示后台管理壳', async ({ page }) => {
+test('根路径进入图层目录并显示后台管理壳', async ({ page }) => {
   const cesiumRequests: string[] = []
   page.on('request', (request) => {
     if (request.url().includes('CesiumGlobe') || request.url().includes('/cesium/')) {
@@ -45,24 +45,53 @@ test('根路径进入基础配置并显示后台管理壳', async ({ page }) => 
 
   await page.goto('/')
 
-  await expect(page).toHaveURL(/\/basic-config$/)
+  await expect(page).toHaveURL(/\/layers$/)
   await expect(page.getByText('三维效果展示', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: '1、图层' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '1.1、影像' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '1.2、地形' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '1.3、矢量' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '视觉效果' })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: '三维地球' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '1.1.1、天地图' })).toHaveAttribute(
     'aria-current',
     'location',
   )
   await expectSubmenuArrowsPointDown(page.locator('.admin-sidebar'))
-  await expect(page.getByRole('button', { name: '打开三维地球' })).toContainText('三维地球')
-  await expect(page.getByRole('button', { name: '打开高程' })).toContainText('高程')
+  await expect(page.getByRole('button', { name: '打开1.1.1、天地图' })).toContainText(
+    '1.1.1、天地图',
+  )
+  await expect(page.getByRole('button', { name: '打开1.2.1、高程' })).toContainText('1.2.1、高程')
+  await expect(page.getByRole('button', { name: '打开1.3.1、entity点' })).toContainText(
+    '1.3.1、entity点',
+  )
+  await expect(page.getByRole('button', { name: '打开1.3.16、gif' })).toContainText('1.3.16、gif')
   await expect(page.getByRole('button', { name: '打开雷达图' })).toContainText('雷达图')
-  await expect(page.getByTestId('feature-card')).toHaveCount(3)
+  await expect(page.getByTestId('feature-card')).toHaveCount(19)
   expect(
     await page
       .getByTestId('feature-card')
       .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-feature-id'))),
-  ).toEqual(['three-dimensional-earth', 'elevation', 'radar'])
+  ).toEqual([
+    'tianditu',
+    'elevation',
+    'entity-point',
+    'entity-line',
+    'entity-polygon',
+    'billboard',
+    'billboard-collection',
+    'popup',
+    'geojson',
+    'primitive',
+    'all-primitive',
+    'entity-collection',
+    'entity-operation',
+    'html-overlay',
+    'click-popup',
+    'road',
+    'svg',
+    'gif',
+    'radar',
+  ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
     0,
@@ -73,7 +102,7 @@ test('根路径进入基础配置并显示后台管理壳', async ({ page }) => 
 
 test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
-  await page.goto('/basic-config')
+  await page.goto('/layers')
 
   const header = page.getByRole('banner')
   const sidebar = page.getByRole('navigation', { name: '侧边导航' })
@@ -129,7 +158,7 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   expect(menuHighlight.activeItemLabelColor).toBe('rgb(224, 76, 64)')
   await expect(page.locator('.sidebar-menu__marker')).toHaveCount(0)
 
-  const hoveredMenuItem = sidebar.getByRole('menuitem', { name: '高程' })
+  const hoveredMenuItem = sidebar.getByRole('menuitem', { name: '1.2.1、高程' })
   await hoveredMenuItem.hover()
   await expect(hoveredMenuItem).toHaveCSS('background-color', 'rgba(255, 72, 62, 0.04)')
   await expect(hoveredMenuItem).toHaveCSS('border-left-color', 'rgb(224, 76, 64)')
@@ -139,7 +168,7 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   )
 
   await expect(header.getByRole('menuitem')).toHaveCount(0)
-  await expect(heading.getByRole('heading', { level: 1, name: '基础配置' })).toBeVisible()
+  await expect(heading.getByRole('heading', { level: 1, name: '1、图层' })).toBeVisible()
 
   const layout = await page.evaluate(() => {
     const headerElement = document.querySelector('header')
@@ -148,7 +177,7 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
     const pageHeadingElement = document.querySelector('.page-heading')
     const pageHeadingTitle = document.querySelector('.page-heading__title')
     const bodyPanel = document.querySelector('.showcase__body')
-    const cardElement = document.querySelector('[data-feature-id="three-dimensional-earth"]')
+    const cardElement = document.querySelector('[data-feature-id="tianditu"]')
     const cardHeading = cardElement?.querySelector('.feature-card__heading')
     const cardMedia = cardElement?.querySelector('.feature-card__media')
 
@@ -197,7 +226,7 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
   expect(layout.cardMediaAspectRatio).toBeCloseTo(4 / 3, 2)
   expect(layout.headingTop).toBeLessThan(layout.mediaTop)
 
-  const hoveredCard = page.getByRole('button', { name: '打开三维地球' })
+  const hoveredCard = page.getByRole('button', { name: '打开1.1.1、天地图' })
   await hoveredCard.hover()
   await expect
     .poll(() =>
@@ -217,14 +246,14 @@ test('桌面端后台壳采用 Cesium Examples 视觉布局', async ({ page }) =
     })
 })
 
-test('通过卡片图片或文字打开三维地球，并可全屏、退出全屏和关闭', async ({ page }) => {
-  await page.goto('/basic-config')
+test('通过卡片图片或文字打开天地图，并可全屏、退出全屏和关闭', async ({ page }) => {
+  await page.goto('/layers')
 
-  const card = page.getByRole('button', { name: '打开三维地球' })
+  const card = page.getByRole('button', { name: '打开1.1.1、天地图' })
   await card.locator('img').click()
 
-  const dialog = page.getByRole('dialog', { name: '三维地球' })
-  const dialogPanel = page.locator('.three-earth-dialog')
+  const dialog = page.getByRole('dialog', { name: '1.1.1、天地图' })
+  const dialogPanel = page.locator('.feature-dialog--tianditu')
   const fullscreenButton = dialog.getByRole('button', { name: '全屏' })
   const closeButton = dialog.getByRole('button', { name: '关闭此对话框' })
   await expect(dialog).toBeVisible()
@@ -235,11 +264,11 @@ test('通过卡片图片或文字打开三维地球，并可全屏、退出全�
   await expect(dialog.getByTestId('cesium-credit-container')).toBeHidden()
   await expect(dialog.locator('.cesium-viewer-bottom')).toBeHidden()
   await expect(closeButton).toHaveCount(1)
-  await expect(dialog.getByRole('button', { name: '关闭三维地球弹窗' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: '关闭天地图弹窗' })).toHaveCount(0)
   expect(await fullscreenButton.innerText()).toBe('')
   await expect(fullscreenButton.locator('svg')).toBeVisible()
 
-  const titleBox = await dialog.locator('.three-earth-dialog__title').boundingBox()
+  const titleBox = await dialog.locator('.feature-dialog__title').boundingBox()
   const fullscreenBox = await fullscreenButton.boundingBox()
   const closeBox = await closeButton.boundingBox()
 
@@ -270,14 +299,14 @@ test('通过卡片图片或文字打开三维地球，并可全屏、退出全�
   await expect(dialog).toBeHidden()
   await expect(card).toBeFocused()
 
-  await card.getByText('三维地球', { exact: true }).click()
+  await card.getByText('1.1.1、天地图', { exact: true }).click()
   await expect(dialog).toBeVisible()
   await expectCesiumReady(dialog.getByTestId('cesium-globe'))
   expect(await dialog.evaluate((element) => element.isConnected)).toBe(true)
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
 })
 
-test('Cesium 异步加载失败时弹窗仍可关闭且不显示用户可见错误', async ({ page }) => {
+test('Cesium 异步加载失败时弹窗显示降级状态且仍可关闭', async ({ page }) => {
   const consoleErrors: string[] = []
   page.on('console', (message) => {
     if (message.type() === 'error') {
@@ -286,29 +315,54 @@ test('Cesium 异步加载失败时弹窗仍可关闭且不显示用户可见错�
   })
   await page.route('**/CesiumGlobe.vue*', (route) => route.abort())
 
-  await page.goto('/basic-config')
-  await page.getByRole('button', { name: '打开三维地球' }).click()
+  await page.goto('/layers')
+  await page.getByRole('button', { name: '打开1.1.1、天地图' }).click()
 
-  const dialog = page.getByRole('dialog', { name: '三维地球' })
-  const mapRegion = dialog.locator('.el-dialog__body')
+  const dialog = page.getByRole('dialog', { name: '1.1.1、天地图' })
+  const mapRegion = dialog.locator('.feature-dialog__stage')
   await expect(dialog).toBeVisible()
   await expect(mapRegion).toBeVisible()
   expect(await mapRegion.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
     'rgb(7, 17, 31)',
   )
-  await expect(page.getByRole('alert')).toHaveCount(0)
-  await expect(dialog).not.toContainText('加载失败')
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await expect(dialog).toContainText('示例场景加载失败')
 
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(dialog).toBeHidden()
   expect(consoleErrors.length).toBeGreaterThan(0)
 })
 
-test('通过 Enter 或空格打开三维地球弹窗', async ({ page }) => {
-  await page.goto('/basic-config')
+test('矢量示例深链直接打开 entity点 并可执行交互和关闭', async ({ page }) => {
+  await page.goto('/layers/vector/1-3-1-entity-point')
 
-  const card = page.getByRole('button', { name: '打开三维地球' })
-  const dialog = page.getByRole('dialog', { name: '三维地球' })
+  const dialog = page.getByRole('dialog', { name: '1.3.1、entity点' })
+  const dialogPanel = page.locator('.feature-dialog--vector')
+  const globe = dialog.getByTestId('vector-demo-globe')
+  await expect(dialog).toBeVisible()
+  await expect(globe).toHaveAttribute('data-scene-id', 'entity-point')
+  await expectCesiumReady(globe)
+  await expect(globe.locator('canvas')).toBeVisible()
+  await expect(globe.getByText('已展示贴地、空中和高远三种 Entity 点')).toBeVisible()
+
+  await dialog.getByRole('button', { name: '添加自动高度点' }).click()
+  await expect(globe.getByText(/已按地形高度/)).toBeVisible()
+
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(dialogPanel).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+
+  await expect(dialog).toBeHidden()
+  await expect(page).toHaveURL(/\/layers#entity-point$/)
+  await expect(page.getByRole('button', { name: '打开1.3.1、entity点' })).toBeFocused()
+})
+
+test('通过 Enter 或空格打开天地图弹窗', async ({ page }) => {
+  await page.goto('/layers')
+
+  const card = page.getByRole('button', { name: '打开1.1.1、天地图' })
+  const dialog = page.getByRole('dialog', { name: '1.1.1、天地图' })
 
   await card.focus()
   await card.press('Enter')
@@ -325,13 +379,13 @@ test('通过 Enter 或空格打开三维地球弹窗', async ({ page }) => {
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
 })
 
-test('窄屏下三维地球弹窗保持在视口内并可切换全屏', async ({ page }) => {
+test('窄屏下天地图弹窗保持在视口内并可切换全屏', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto('/basic-config')
+  await page.goto('/layers')
 
-  await page.getByRole('button', { name: '打开三维地球' }).click()
-  const dialog = page.getByRole('dialog', { name: '三维地球' })
-  const dialogPanel = page.locator('.three-earth-dialog')
+  await page.getByRole('button', { name: '打开1.1.1、天地图' }).click()
+  const dialog = page.getByRole('dialog', { name: '1.1.1、天地图' })
+  const dialogPanel = page.locator('.feature-dialog--tianditu')
   await expect(dialog).toBeVisible()
   await expectCesiumReady(dialog.getByTestId('cesium-globe'))
 
@@ -346,7 +400,7 @@ test('窄屏下三维地球弹窗保持在视口内并可切换全屏', async ({
 
 test('桌面端内容区独立滚动，顶部栏保持固定', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 240 })
-  await page.goto('/basic-config')
+  await page.goto('/layers')
 
   const header = page.getByRole('banner')
   const sidebar = page.getByRole('navigation', { name: '侧边导航' })
@@ -374,7 +428,7 @@ test('桌面端内容区独立滚动，顶部栏保持固定', async ({ page }) 
 for (const viewport of responsiveViewports) {
   test(`${viewport.name}视口下功能卡片宽度符合响应式网格`, async ({ page }) => {
     await page.setViewportSize(viewport)
-    await page.goto('/basic-config')
+    await page.goto('/layers')
 
     const measurements = await page.getByTestId('feature-grid').evaluate((grid) => {
       const card = grid.querySelector('[data-testid="feature-card"]')
@@ -408,7 +462,7 @@ for (const viewport of responsiveViewports) {
 
 test('移动端可通过按钮和键盘打开抽屉，并选择菜单关闭', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto('/basic-config')
+  await page.goto('/layers')
 
   const openButton = page.getByRole('button', { name: '打开导航菜单' })
   await expect(openButton).toBeVisible()
@@ -419,20 +473,20 @@ test('移动端可通过按钮和键盘打开抽屉，并选择菜单关闭', as
 
   const drawer = page.getByRole('dialog', { name: '后台导航' })
   await expect(drawer).toBeVisible()
-  await expect(drawer.getByText('基础配置', { exact: true })).toBeVisible()
+  await expect(drawer.getByText('1、图层', { exact: true })).toBeVisible()
   await expectSubmenuArrowsPointDown(drawer)
 
-  const menuItem = drawer.getByRole('menuitem', { name: '三维地球' })
+  const menuItem = drawer.getByRole('menuitem', { name: '1.1.1、天地图' })
   await menuItem.focus()
   await menuItem.press('Enter')
 
   await expect(drawer).toBeHidden()
-  await expect(page).toHaveURL(/\/basic-config#three-dimensional-earth$/)
+  await expect(page).toHaveURL(/\/layers#tianditu$/)
 })
 
 test('移动端点击抽屉遮罩后自动关闭', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 })
-  await page.goto('/basic-config')
+  await page.goto('/layers')
 
   await page.getByRole('button', { name: '打开导航菜单' }).click()
   const drawer = page.getByRole('dialog', { name: '后台导航' })
@@ -443,28 +497,28 @@ test('移动端点击抽屉遮罩后自动关闭', async ({ page }) => {
   await expect(drawer).toBeHidden()
 })
 
-test('未知地址保留原 URL，并在后台管理壳内返回基础配置', async ({ page }) => {
+test('未知地址保留原 URL，并在后台管理壳内返回图层目录', async ({ page }) => {
   await page.goto('/missing/page?source=playwright')
 
   await expect(page).toHaveURL('/missing/page?source=playwright')
   await expect(page.getByRole('heading', { level: 1, name: '页面不存在' })).toBeVisible()
   await expect(page.getByText('三维效果展示', { exact: true })).toBeVisible()
-  await expect(page.getByRole('menuitem', { name: '基础配置' })).toBeVisible()
+  await expect(page.getByRole('menuitem', { name: '1、图层' })).toBeVisible()
 
-  await page.getByRole('link', { name: '返回基础配置' }).click()
+  await page.getByRole('link', { name: '返回图层列表' }).click()
 
-  await expect(page).toHaveURL(/\/basic-config$/)
-  await expect(page.getByRole('button', { name: '打开三维地球' })).toBeVisible()
+  await expect(page).toHaveURL(/\/layers$/)
+  await expect(page.getByRole('button', { name: '打开1.1.1、天地图' })).toBeVisible()
 })
 
 test('从高程卡片打开独立场景，加载失败时仍可操作、全屏和关闭', async ({ page }) => {
-  await page.goto('/basic-config')
+  await page.goto('/layers')
 
-  const card = page.getByRole('button', { name: '打开高程' })
+  const card = page.getByRole('button', { name: '打开1.2.1、高程' })
   await card.locator('img').click()
 
-  const dialog = page.getByRole('dialog', { name: '高程' })
-  const dialogPanel = page.locator('.elevation-dialog')
+  const dialog = page.getByRole('dialog', { name: '1.2.1、高程' })
+  const dialogPanel = page.locator('.feature-dialog--elevation')
   await expect(dialog).toBeVisible()
   const globe = dialog.getByTestId('elevation-globe')
   await expectCesiumReady(globe)
@@ -485,12 +539,12 @@ test('从高程卡片打开独立场景，加载失败时仍可操作、全屏�
 })
 
 test('视觉效果菜单通过向下箭头分组并锚定雷达图内容', async ({ page }) => {
-  await page.goto('/basic-config')
+  await page.goto('/layers')
 
   const effectsMenuItem = page.getByRole('menuitem', { name: '雷达图' })
   await effectsMenuItem.click()
 
-  await expect(page).toHaveURL(/\/basic-config#radar$/)
+  await expect(page).toHaveURL(/\/layers#radar$/)
   await expect(effectsMenuItem).toHaveAttribute('aria-current', 'location')
   const card = page.getByRole('button', { name: '打开雷达图' })
   await expect(card).toContainText('雷达图')

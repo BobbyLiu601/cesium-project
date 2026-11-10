@@ -3,7 +3,7 @@ import { ArrowDown } from '@element-plus/icons-vue'
 import { ElIcon, ElMenu, ElMenuItem, ElSubMenu } from 'element-plus'
 import { nextTick, ref, watch } from 'vue'
 
-import { featureSections } from '@/data/features'
+import { menuGroups } from '@/data/layers'
 
 const props = defineProps<{
   activeAnchor: string
@@ -13,7 +13,10 @@ const emit = defineEmits<{
   select: [anchor: string]
 }>()
 
-const openedSections = featureSections.map((section) => section.id)
+const openedSections = [
+  ...menuGroups.map((group) => group.id),
+  ...menuGroups.flatMap((group) => group.sections.map((section) => section.id)),
+]
 const menuRef = ref<{ updateActiveIndex: (index: string) => void } | null>(null)
 
 watch(
@@ -36,31 +39,64 @@ watch(
     aria-label="后台菜单"
   >
     <ElSubMenu
-      v-for="section in featureSections"
-      :key="section.id"
-      :index="section.id"
-      class="sidebar-menu__section"
+      v-for="group in menuGroups"
+      :key="group.id"
+      :index="group.id"
+      class="sidebar-menu__group"
       :expand-close-icon="ArrowDown"
       :expand-open-icon="ArrowDown"
     >
       <template #title>
         <ElIcon class="sidebar-menu__icon" aria-hidden="true">
-          <component :is="section.icon" />
+          <component :is="group.icon" />
         </ElIcon>
-        <span class="sidebar-menu__label">{{ section.title }}</span>
+        <span class="sidebar-menu__label">
+          {{ group.code ? `${group.code}、${group.title}` : group.title }}
+        </span>
       </template>
 
-      <ElMenuItem
-        v-for="item in section.items"
-        :key="item.id"
-        :index="item.id"
-        :aria-current="activeAnchor === item.id ? 'location' : undefined"
-        @click="emit('select', item.id)"
-        @keydown.enter.prevent="emit('select', item.id)"
-        @keydown.space.prevent="emit('select', item.id)"
-      >
-        <span class="sidebar-menu__label">{{ item.name }}</span>
-      </ElMenuItem>
+      <template v-if="group.id === 'layers'">
+        <ElSubMenu
+          v-for="section in group.sections"
+          :key="section.id"
+          :index="section.id"
+          class="sidebar-menu__section"
+          :expand-close-icon="ArrowDown"
+          :expand-open-icon="ArrowDown"
+        >
+          <template #title>
+            <span class="sidebar-menu__label">{{ section.code }}、{{ section.title }}</span>
+          </template>
+
+          <ElMenuItem
+            v-for="item in section.items"
+            :key="item.id"
+            :index="item.id"
+            class="sidebar-menu__feature"
+            :aria-current="activeAnchor === item.id ? 'location' : undefined"
+            @click="emit('select', item.id)"
+            @keydown.enter.prevent="emit('select', item.id)"
+            @keydown.space.prevent="emit('select', item.id)"
+          >
+            <span class="sidebar-menu__label">{{ item.displayName }}</span>
+          </ElMenuItem>
+        </ElSubMenu>
+      </template>
+
+      <template v-else>
+        <ElMenuItem
+          v-for="item in group.sections.flatMap((section) => section.items)"
+          :key="item.id"
+          :index="item.id"
+          class="sidebar-menu__feature"
+          :aria-current="activeAnchor === item.id ? 'location' : undefined"
+          @click="emit('select', item.id)"
+          @keydown.enter.prevent="emit('select', item.id)"
+          @keydown.space.prevent="emit('select', item.id)"
+        >
+          <span class="sidebar-menu__label">{{ item.displayName }}</span>
+        </ElMenuItem>
+      </template>
     </ElSubMenu>
   </ElMenu>
 </template>
@@ -131,6 +167,24 @@ watch(
   border-left: 3px solid var(--color-chrome);
   font-size: 13px;
   color: var(--color-sidebar-muted);
+}
+
+.sidebar-menu :deep(.el-sub-menu .el-sub-menu__title) {
+  height: 40px;
+  padding-left: 36px !important;
+  font-size: 13px;
+}
+
+.sidebar-menu :deep(.sidebar-menu__feature) {
+  padding-left: 54px !important;
+}
+
+.sidebar-menu__group {
+  margin-bottom: 16px;
+}
+
+.sidebar-menu__section :deep(.el-sub-menu__title) {
+  padding-left: 42px !important;
 }
 
 .sidebar-menu :deep(.el-menu-item:hover),

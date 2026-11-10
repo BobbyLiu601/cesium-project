@@ -4,7 +4,7 @@ import { ElButton, ElDrawer } from 'element-plus'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import SidebarMenu from '@/components/SidebarMenu.vue'
-import { featureAnchors } from '@/data/features'
+import { featureAnchors } from '@/data/layers'
 
 const route = useRoute()
 const router = useRouter()
@@ -12,9 +12,14 @@ const drawerVisible = ref(false)
 const activeAnchor = ref('')
 const contentElement = ref<HTMLElement | null>(null)
 const defaultAnchor = featureAnchors[0] ?? ''
-const showcaseRouteName = 'basic-config'
+const showcaseRouteName = 'layers'
 
 function getRouteAnchor() {
+  const routeFeatureId = typeof route.meta.featureId === 'string' ? route.meta.featureId : ''
+  if (featureAnchors.includes(routeFeatureId)) {
+    return routeFeatureId
+  }
+
   const hash = route.hash.replace(/^#/, '')
   return featureAnchors.includes(hash) ? hash : ''
 }
@@ -53,7 +58,7 @@ async function handleMenuSelect(anchor: string) {
 watch(
   () => route.fullPath,
   async () => {
-    if (route.name !== showcaseRouteName) {
+    if (route.name !== showcaseRouteName && !route.meta.featureId) {
       activeAnchor.value = ''
       return
     }
@@ -61,7 +66,7 @@ watch(
     const routeAnchor = getRouteAnchor()
     activeAnchor.value = routeAnchor || defaultAnchor
 
-    if (routeAnchor) {
+    if (routeAnchor && route.name === showcaseRouteName) {
       await scrollToAnchor(routeAnchor)
     }
   },
