@@ -11,7 +11,7 @@ export interface MockViewer {
     setView: ReturnType<typeof vi.fn<(options: unknown) => void>>
     viewBoundingSphere: ReturnType<typeof vi.fn<(sphere: unknown, orientation: unknown) => void>>
     lookAt: ReturnType<typeof vi.fn<(center: unknown, headingPitchRange: unknown) => void>>
-    lookAtTransform: ReturnType<typeof vi.fn<(transform: unknown) => void>>
+    lookAtTransform: ReturnType<typeof vi.fn<(transform: unknown, offset?: unknown) => void>>
     flyTo: ReturnType<typeof vi.fn<(options: unknown) => void>>
   }
   scene: {
@@ -185,6 +185,11 @@ export interface MockElevationTerrainProvider {
   options?: Record<string, unknown>
 }
 
+export interface MockCesiumTerrainProvider {
+  url: string
+  options?: Record<string, unknown>
+}
+
 export const viewerInstances: MockViewer[] = []
 export const tileProviderInstances: MockTileProvider[] = []
 export const imageryLayerInstances: MockImageryLayer[] = []
@@ -199,6 +204,11 @@ export const elevationProviderRequests: Array<{
   options?: Record<string, unknown>
 }> = []
 export const elevationTerrainProviderInstances: MockElevationTerrainProvider[] = []
+export const cesiumTerrainProviderRequests: Array<{
+  url: string
+  options?: Record<string, unknown>
+}> = []
+export const cesiumTerrainProviderInstances: MockCesiumTerrainProvider[] = []
 export const tileLoadProgressListeners: Array<() => void> = []
 export const entityCollectionInstances: MockEntityCollection[] = []
 export const dataSourceInstances: MockDataSource[] = []
@@ -213,6 +223,7 @@ export const cesiumMockState = {
   groundTerrainHeightsOutcome: 'success' as 'success' | 'failure',
   elevationProviderOutcome: 'success' as 'success' | 'failure',
   elevationProviderPromise: undefined as Promise<MockElevationTerrainProvider> | undefined,
+  cesiumTerrainProviderOutcome: 'success' as 'success' | 'failure',
   geoJsonOutcome: 'success' as 'success' | 'failure',
 }
 
@@ -237,7 +248,7 @@ export class Viewer implements MockViewer {
     setView: vi.fn<(options: unknown) => void>(),
     viewBoundingSphere: vi.fn<(sphere: unknown, orientation: unknown) => void>(),
     lookAt: vi.fn<(center: unknown, headingPitchRange: unknown) => void>(),
-    lookAtTransform: vi.fn<(transform: unknown) => void>(),
+    lookAtTransform: vi.fn<(transform: unknown, offset?: unknown) => void>(),
     flyTo: vi.fn<(options: unknown) => void>(),
   }
 
@@ -678,6 +689,25 @@ export class WebMercatorTilingScheme {
 
 export class EllipsoidTerrainProvider {}
 
+export class CesiumTerrainProvider implements MockCesiumTerrainProvider {
+  constructor(
+    public url: string,
+    public options?: Record<string, unknown>,
+  ) {
+    cesiumTerrainProviderInstances.push(this)
+  }
+
+  static fromUrl(url: string, options?: Record<string, unknown>) {
+    cesiumTerrainProviderRequests.push({ url, options })
+
+    if (cesiumMockState.cesiumTerrainProviderOutcome === 'failure') {
+      return Promise.reject(new Error('mock Cesium terrain provider failure'))
+    }
+
+    return Promise.resolve(new CesiumTerrainProvider(url, options))
+  }
+}
+
 export interface MockPrimitive {
   options: Record<string, unknown>
 }
@@ -971,6 +1001,8 @@ export function resetCesiumMock() {
   scenePrimitiveRemoves.length = 0
   elevationProviderRequests.length = 0
   elevationTerrainProviderInstances.length = 0
+  cesiumTerrainProviderRequests.length = 0
+  cesiumTerrainProviderInstances.length = 0
   tileLoadProgressListeners.length = 0
   entityCollectionInstances.length = 0
   dataSourceInstances.length = 0
@@ -984,6 +1016,7 @@ export function resetCesiumMock() {
   cesiumMockState.groundTerrainHeightsOutcome = 'success'
   cesiumMockState.elevationProviderOutcome = 'success'
   cesiumMockState.elevationProviderPromise = undefined
+  cesiumMockState.cesiumTerrainProviderOutcome = 'success'
   cesiumMockState.geoJsonOutcome = 'success'
   GroundPrimitive.supportsMaterials.mockClear()
   GroundPrimitive.initializeTerrainHeights.mockClear()

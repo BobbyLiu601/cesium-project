@@ -1,9 +1,13 @@
 import type { Viewer } from 'cesium'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { createModelScene } from '../demos/modelScene'
 import type { ModelSceneId } from '../data/layers'
 import {
+  CesiumTerrainProvider,
+  cesiumMockState,
+  cesiumTerrainProviderInstances,
+  cesiumTerrainProviderRequests,
   EllipsoidTerrainProvider,
   resetCesiumMock,
   Viewer as ViewerMock,
@@ -17,6 +21,40 @@ const referenceElevations = [
   1815, 1827, 1849, 1866, 1866, 1899, 1880, 1926, 1948, 1910, 1983, 2036, 2036, 2038, 2071, 2063,
   2026, 2048, 2056, 2075, 2015, 2022, 2021, 1965,
 ]
+const cesiumAirScale = 18
+const cesiumAirBounds = {
+  min: [-12.8683, -2.296, -13.3969],
+  max: [12.8683, 5.4641, 8.0047],
+} as const
+
+function maxCameraAngleToModel(offset: { x: number; y: number; z: number }) {
+  const offsetLength = Math.hypot(offset.x, offset.y, offset.z)
+  let maxAngle = 0
+
+  for (const x of [cesiumAirBounds.min[0], cesiumAirBounds.max[0]]) {
+    for (const y of [cesiumAirBounds.min[1], cesiumAirBounds.max[1]]) {
+      for (const z of [cesiumAirBounds.min[2], cesiumAirBounds.max[2]]) {
+        const modelX = x * cesiumAirScale
+        const modelY = y * cesiumAirScale
+        const modelZ = z * cesiumAirScale
+        const viewX = modelX - offset.x
+        const viewY = modelY - offset.y
+        const viewZ = modelZ - offset.z
+        const viewLength = Math.hypot(viewX, viewY, viewZ)
+        const cosine = Math.max(
+          -1,
+          Math.min(
+            1,
+            -(viewX * offset.x + viewY * offset.y + viewZ * offset.z) / (viewLength * offsetLength),
+          ),
+        )
+        maxAngle = Math.max(maxAngle, Math.acos(cosine))
+      }
+    }
+  }
+
+  return maxAngle
+}
 
 function createViewer() {
   return new ViewerMock(document.createElement('div'), {
@@ -27,6 +65,10 @@ function createViewer() {
 describe('model scene builders', () => {
   beforeEach(() => {
     resetCesiumMock()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it.each(sceneIds)(
@@ -83,6 +125,14 @@ describe('model scene builders', () => {
     mockViewer.camera.lookAtTransform.mockClear()
     mockViewer.scene.preUpdate.raiseEvent()
     expect(mockViewer.camera.lookAtTransform).toHaveBeenCalledOnce()
+    const followOffset = mockViewer.camera.lookAtTransform.mock.calls[0]?.[1] as {
+      x: number
+      y: number
+      z: number
+    }
+    expect(followOffset.x).toBeLessThan(cesiumAirBounds.min[0] * cesiumAirScale)
+    expect(followOffset.z).toBeGreaterThan(cesiumAirBounds.max[2] * cesiumAirScale)
+    expect(maxCameraAngleToModel(followOffset)).toBeLessThan((25 * Math.PI) / 180)
 
     await toggleFollow?.run()
     expect(statuses[statuses.length - 1]).toContain('已关闭视角跟随')
@@ -91,6 +141,49 @@ describe('model scene builders', () => {
     scene.dispose()
     expect(mockViewer.entities.values).toHaveLength(0)
     expect(mockViewer.scene.preUpdate.listeners.size).toBe(0)
+  })
+
+  it('loads the reference terrain service for the wind turbine area', async () => {
+    const viewer = createViewer()
+    const statuses: string[] = []
+    await createModelScene(viewer, document.createElement('div'), 'wind-turbine', (message) =>
+      statuses.push(message),
+    )
+    const mockViewer = viewerInstances[0]!
+
+    expect(cesiumTerrainProviderRequests).toEqual([
+      { url: 'https://data.mars3d.cn/terrain', options: undefined },
+    ])
+    expect(cesiumTerrainProviderInstances).toHaveLength(1)
+    expect(mockViewer.terrainProvider).toBe(cesiumTerrainProviderInstances[0])
+    expect(mockViewer.terrainProvider).toBeInstanceOf(CesiumTerrainProvider)
+    expect(mockViewer.scene.globe.depthTestAgainstTerrain).toBe(true)
+    expect(statuses[statuses.length - 1]).toContain('已加载参考站高程地形')
+  })
+
+  it('keeps the wind turbine scene usable when reference terrain loading fails', async () => {
+    cesiumMockState.cesiumTerrainProviderOutcome = 'failure'
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const viewer = createViewer()
+    const statuses: string[] = []
+
+    await createModelScene(viewer, document.createElement('div'), 'wind-turbine', (message) =>
+      statuses.push(message),
+    )
+    const mockViewer = viewerInstances[0]!
+    const turbines = mockViewer.entities.values.filter((entity) =>
+      entity.id.startsWith('wind-turbine-'),
+    )
+
+    expect(mockViewer.terrainProvider).toBeInstanceOf(EllipsoidTerrainProvider)
+    expect(mockViewer.scene.globe.depthTestAgainstTerrain).toBe(false)
+    expect(turbines).toHaveLength(24)
+    expect(statuses[statuses.length - 1]).toContain('回退椭球地形')
+    expect(statuses[statuses.length - 1]).toContain('高程')
+    expect(consoleError).toHaveBeenCalledWith(
+      '参考站高程地形加载失败，已回退椭球地形。',
+      expect.any(Error),
+    )
   })
 
   it('requires frames while wind animations play and stops the ticker on dispose', async () => {

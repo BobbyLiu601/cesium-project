@@ -17,6 +17,17 @@ export interface ModelScene {
 
 type StatusReporter = (message: string) => void
 
+const INTERPOLATION_MODEL_SCALE = 18
+// CesiumAir 未缩放包围盒约为 x [-12.87, 12.87]、z [-13.40, 8.00]。
+// 缩放后模型长约 463，相机必须退到机尾之外并抬高，才能覆盖整机。
+const INTERPOLATION_FOLLOW_OFFSET = new Cesium.Cartesian3(
+  -50 * INTERPOLATION_MODEL_SCALE,
+  0,
+  25 * INTERPOLATION_MODEL_SCALE,
+)
+const WIND_TURBINE_TERRAIN_URL = 'https://data.mars3d.cn/terrain'
+const TERRAIN_LOAD_TIMEOUT_MS = 12_000
+
 // 坐标与高程取自参考站「2.4.8、风力发电机」示例。
 const windTurbineReferencePositions = [
   { longitude: 112.227630577, latitude: 39.0613382363999, height: 1815 },
@@ -103,6 +114,34 @@ function createAnimationTicker(viewer: Cesium.Viewer) {
   return () => viewer.scene.preUpdate.removeEventListener(renderAnimatedFrame)
 }
 
+async function loadWindTurbineTerrain(viewer: Cesium.Viewer) {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+  try {
+    const terrainProvider = await Promise.race([
+      Cesium.CesiumTerrainProvider.fromUrl(WIND_TURBINE_TERRAIN_URL),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('参考站高程地形加载超时')),
+          TERRAIN_LOAD_TIMEOUT_MS,
+        )
+      }),
+    ])
+    viewer.terrainProvider = terrainProvider
+    viewer.scene.globe.depthTestAgainstTerrain = true
+    return true
+  } catch (error) {
+    console.error('参考站高程地形加载失败，已回退椭球地形。', error)
+    viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider()
+    viewer.scene.globe.depthTestAgainstTerrain = false
+    return false
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+    }
+  }
+}
+
 function createInterpolationScene(viewer: Cesium.Viewer, setStatus: StatusReporter): ModelScene {
   const start = Cesium.JulianDate.now()
   const stop = Cesium.JulianDate.addSeconds(start, 40, new Cesium.JulianDate())
@@ -160,7 +199,7 @@ function createInterpolationScene(viewer: Cesium.Viewer, setStatus: StatusReport
     orientation: new Cesium.VelocityOrientationProperty(sampledPosition),
     model: {
       uri: cesiumAirUrl,
-      scale: 18,
+      scale: INTERPOLATION_MODEL_SCALE,
       minimumPixelSize: 24,
       runAnimations: true,
     },
@@ -187,7 +226,7 @@ function createInterpolationScene(viewer: Cesium.Viewer, setStatus: StatusReport
       Cesium.Matrix3.fromQuaternion(modelOrientation),
       modelPosition,
     )
-    viewer.camera.lookAtTransform(transform, new Cesium.Cartesian3(-36, 0, 14))
+    viewer.camera.lookAtTransform(transform, INTERPOLATION_FOLLOW_OFFSET)
     return true
   }
   const followCamera = () => {
@@ -209,7 +248,7 @@ function createInterpolationScene(viewer: Cesium.Viewer, setStatus: StatusReport
           cameraFollowEnabled = !cameraFollowEnabled
           if (cameraFollowEnabled) {
             applyCameraFollow()
-            setStatus('已开启视角跟随，相机将随插值运动模型移动')
+            setStatus('已开启视角跟随（机外构图），相机将随插值运动模型移动')
           } else {
             viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY)
             framePositions(viewer, routePositions, 2.2)
@@ -271,7 +310,11 @@ function createInterpolationScene(viewer: Cesium.Viewer, setStatus: StatusReport
   }
 }
 
-function createWindTurbineScene(viewer: Cesium.Viewer, setStatus: StatusReporter): ModelScene {
+async function createWindTurbineScene(
+  viewer: Cesium.Viewer,
+  setStatus: StatusReporter,
+): Promise<ModelScene> {
+  const terrainLoaded = await loadWindTurbineTerrain(viewer)
   const entities = windTurbineReferencePositions.map(({ longitude, latitude, height }, index) => {
     const { position, orientation } = positionAndOrientation(longitude, latitude, height, 135)
     return viewer.entities.add({
@@ -298,7 +341,11 @@ function createWindTurbineScene(viewer: Cesium.Viewer, setStatus: StatusReporter
   })
   viewer.clock.shouldAnimate = true
   const stopAnimationTicker = createAnimationTicker(viewer)
-  setStatus('已按参考站数据加载 24 台本地风力发电机，模型位置均带高程（1815 至 2075 米）')
+  setStatus(
+    terrainLoaded
+      ? '已加载参考站高程地形，并放置 24 台本地风力发电机，模型高程为 1815 至 2075 米'
+      : '参考站高程地形加载失败，已回退椭球地形；24 台本地风力发电机仍按带高程的参考位置显示',
+  )
 
   return {
     actions: [
@@ -327,12 +374,12 @@ function createWindTurbineScene(viewer: Cesium.Viewer, setStatus: StatusReporter
   }
 }
 
-export function createModelScene(
+export async function createModelScene(
   viewer: Cesium.Viewer,
   host: HTMLElement,
   sceneId: ModelSceneId,
   setStatus: StatusReporter,
-): ModelScene {
+): Promise<ModelScene> {
   void host
   setModelSceneDefaults(viewer)
 
