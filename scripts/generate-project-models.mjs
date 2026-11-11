@@ -175,34 +175,6 @@ function material(name, color) {
   }
 }
 
-function createCityModel() {
-  const nodes = [
-    { index: 0, name: 'Ground', mesh: 0, translation: [0, -2, 0], scale: [260, 4, 260] },
-    { index: 1, name: 'Tower_A', mesh: 0, translation: [-70, 46, -35], scale: [34, 96, 34] },
-    { index: 2, name: 'Tower_B', mesh: 0, translation: [-20, 68, -20], scale: [44, 140, 44] },
-    { index: 3, name: 'Tower_C', mesh: 1, translation: [35, 54, 0], scale: [32, 112, 32] },
-    { index: 4, name: 'Tower_D', mesh: 1, translation: [88, 39, 24], scale: [40, 82, 40] },
-    { index: 5, name: 'Tower_E', mesh: 2, translation: [-95, 29, 70], scale: [30, 62, 30] },
-    { index: 6, name: 'Tower_F', mesh: 2, translation: [-30, 44, 80], scale: [46, 92, 38] },
-    { index: 7, name: 'Tower_G', mesh: 1, translation: [48, 31, 84], scale: [28, 66, 28] },
-    { index: 8, name: 'Tower_H', mesh: 0, translation: [105, 57, 88], scale: [36, 118, 36] },
-    { index: 9, name: 'Tower_I', mesh: 2, translation: [-120, 22, -110], scale: [42, 48, 42] },
-    { index: 10, name: 'Tower_J', mesh: 1, translation: [0, 35, -120], scale: [50, 74, 32] },
-    { index: 11, name: 'Tower_K', mesh: 0, translation: [120, 27, -82], scale: [28, 58, 28] },
-  ]
-
-  return createGlb({
-    nodes,
-    meshes: [{ material: 0 }, { material: 1 }, { material: 2 }],
-    materials: [
-      material('CityBlueGlass', [0.33, 0.56, 0.72, 1]),
-      material('CityWarmGlass', [0.72, 0.66, 0.54, 1]),
-      material('CityLightGlass', [0.68, 0.76, 0.8, 1]),
-    ],
-    copyright: 'Project-created procedural city asset; no third-party model data.',
-  })
-}
-
 function createWindTurbineModel() {
   const quaternion = (degrees) => {
     const half = (degrees * Math.PI) / 360
@@ -243,18 +215,5 @@ function createWindTurbineModel() {
   })
 }
 
-function createMassModel() {
-  return createGlb({
-    nodes: [{ index: 0, name: 'MassMarker', mesh: 0, root: true }],
-    meshes: [{ material: 0 }],
-    materials: [material('MassMarkerBlue', [0.2, 0.55, 0.88, 1])],
-    copyright: 'Project-created low-poly mass marker asset; no third-party model data.',
-  })
-}
-
 await mkdir(outputDirectory, { recursive: true })
-await Promise.all([
-  writeFile(resolve(outputDirectory, 'city-block.glb'), createCityModel()),
-  writeFile(resolve(outputDirectory, 'wind-turbine.glb'), createWindTurbineModel()),
-  writeFile(resolve(outputDirectory, 'mass-model.glb'), createMassModel()),
-])
+await writeFile(resolve(outputDirectory, 'wind-turbine.glb'), createWindTurbineModel())

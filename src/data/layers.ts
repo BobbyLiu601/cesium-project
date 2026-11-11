@@ -5,13 +5,7 @@ import amapImage from '@/assets/amap-cover.jpg'
 import elevationImage from '@/assets/elevation-cover.jpg'
 import radarEffectCover from '@/assets/radar-effect-cover.jpg'
 import tiandituImage from '@/assets/tianditu-cover.jpg'
-import manualModelCover from '@/assets/model-covers/manual-model.jpg'
-import massModelsCover from '@/assets/model-covers/mass-models.jpg'
 import modelInterpolationCover from '@/assets/model-covers/model-interpolation.jpg'
-import modelMotionCover from '@/assets/model-covers/model-motion.jpg'
-import loadModelCover from '@/assets/model-covers/load-model.jpg'
-import pickChildNodeCover from '@/assets/model-covers/pick-child-node.jpg'
-import primitiveModelCover from '@/assets/model-covers/primitive-model.jpg'
 import windTurbineCover from '@/assets/model-covers/wind-turbine.jpg'
 import allPrimitiveCover from '@/assets/vector-covers/all-primitive.jpg'
 import billboardCover from '@/assets/vector-covers/billboard.jpg'
@@ -48,15 +42,7 @@ export type VectorSceneId =
   | 'svg'
   | 'gif'
 
-export type ModelSceneId =
-  | 'load-model'
-  | 'primitive-model'
-  | 'mass-models'
-  | 'model-motion'
-  | 'model-interpolation'
-  | 'pick-child-node'
-  | 'manual-model'
-  | 'wind-turbine'
+export type ModelSceneId = 'model-interpolation' | 'wind-turbine'
 
 export type FeatureKind = 'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'radar'
 
@@ -348,92 +334,26 @@ export const modelSection: FeatureSection = {
   icon: Box,
   items: [
     defineFeature({
-      id: 'load-model',
-      code: '1.4.1',
-      name: '加载模型',
-      imageSrc: loadModelCover,
-      imageAlt: 'Entity 加载带动画飞机模型示例封面',
-      kind: 'model',
-      modelSceneId: 'load-model',
-      routeName: 'layer-model-load-model',
-      routePath: '/layers/model/1-4-1-load-model',
-    }),
-    defineFeature({
-      id: 'primitive-model',
-      code: '1.4.2',
-      name: 'primitive加载模型',
-      imageSrc: primitiveModelCover,
-      imageAlt: 'Primitive 加载带动画人物模型示例封面',
-      kind: 'model',
-      modelSceneId: 'primitive-model',
-      routeName: 'layer-model-primitive-model',
-      routePath: '/layers/model/1-4-2-primitive-model',
-    }),
-    defineFeature({
-      id: 'mass-models',
-      code: '1.4.3',
-      name: 'primitive加载大量模型',
-      imageSrc: massModelsCover,
-      imageAlt: 'Primitive 批量加载大量模型示例封面',
-      kind: 'model',
-      modelSceneId: 'mass-models',
-      routeName: 'layer-model-mass-models',
-      routePath: '/layers/model/1-4-3-primitive-mass-models',
-    }),
-    defineFeature({
-      id: 'model-motion',
-      code: '1.4.4',
-      name: '模型运动',
-      imageSrc: modelMotionCover,
-      imageAlt: '模型沿路径运动并显示轨迹示例封面',
-      kind: 'model',
-      modelSceneId: 'model-motion',
-      routeName: 'layer-model-model-motion',
-      routePath: '/layers/model/1-4-4-model-motion',
-    }),
-    defineFeature({
       id: 'model-interpolation',
-      code: '1.4.5',
+      code: '1.4.1',
       name: '模型插值运动',
       imageSrc: modelInterpolationCover,
-      imageAlt: '模型按采样点插值运动示例封面',
+      imageAlt: '模型按采样点插值运动并显示完整轨迹示例封面',
       kind: 'model',
       modelSceneId: 'model-interpolation',
-      routeName: 'layer-model-model-interpolation',
-      routePath: '/layers/model/1-4-5-model-interpolation-motion',
-    }),
-    defineFeature({
-      id: 'pick-child-node',
-      code: '1.4.6',
-      name: '点击获取子节点',
-      imageSrc: pickChildNodeCover,
-      imageAlt: '点击模型获取子节点名称示例封面',
-      kind: 'model',
-      modelSceneId: 'pick-child-node',
-      routeName: 'layer-model-pick-child-node',
-      routePath: '/layers/model/1-4-6-pick-child-node',
-    }),
-    defineFeature({
-      id: 'manual-model',
-      code: '1.4.7',
-      name: '人工模型',
-      imageSrc: manualModelCover,
-      imageAlt: '上海城市人工模型示例封面',
-      kind: 'model',
-      modelSceneId: 'manual-model',
-      routeName: 'layer-model-manual-model',
-      routePath: '/layers/model/1-4-7-manual-model',
+      routeName: 'layer-model-interpolation-motion',
+      routePath: '/layers/model/1-4-1-model-interpolation-motion',
     }),
     defineFeature({
       id: 'wind-turbine',
-      code: '1.4.8',
+      code: '1.4.2',
       name: '风力发电机',
       imageSrc: windTurbineCover,
-      imageAlt: '多台风力发电机旋转动画示例封面',
+      imageAlt: '按参考站高程数据布置的多台风力发电机示例封面',
       kind: 'model',
       modelSceneId: 'wind-turbine',
       routeName: 'layer-model-wind-turbine',
-      routePath: '/layers/model/1-4-8-wind-turbine',
+      routePath: '/layers/model/1-4-2-wind-turbine',
     }),
   ],
 }

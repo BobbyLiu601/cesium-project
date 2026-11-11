@@ -5,25 +5,17 @@ import { createModelScene } from '../demos/modelScene'
 import type { ModelSceneId } from '../data/layers'
 import {
   EllipsoidTerrainProvider,
-  modelInstances,
   resetCesiumMock,
-  screenSpaceEventHandlerInstances,
-  ScreenSpaceEventType,
   Viewer as ViewerMock,
   viewerInstances,
 } from './mocks/cesium'
 
 vi.mock('cesium', async () => import('./mocks/cesium'))
 
-const sceneIds: ModelSceneId[] = [
-  'load-model',
-  'primitive-model',
-  'mass-models',
-  'model-motion',
-  'model-interpolation',
-  'pick-child-node',
-  'manual-model',
-  'wind-turbine',
+const sceneIds: ModelSceneId[] = ['model-interpolation', 'wind-turbine']
+const referenceElevations = [
+  1815, 1827, 1849, 1866, 1866, 1899, 1880, 1926, 1948, 1910, 1983, 2036, 2036, 2038, 2071, 2063,
+  2026, 2048, 2056, 2075, 2015, 2022, 2021, 1965,
 ]
 
 function createViewer() {
@@ -55,94 +47,58 @@ describe('model scene builders', () => {
     },
   )
 
-  it('loads the desktop mass-model count and removes every primitive on dispose', async () => {
+  it('draws the full interpolation route and toggles camera follow', async () => {
     const viewer = createViewer()
     const statuses: string[] = []
     const scene = await createModelScene(
       viewer,
       document.createElement('div'),
-      'mass-models',
+      'model-interpolation',
       (message) => statuses.push(message),
     )
-
-    expect(modelInstances).toHaveLength(1_000)
-    expect(statuses[statuses.length - 1]).toContain('1,000')
-    expect(statuses[statuses.length - 1]).toContain('桌面端')
-    expect(viewerInstances[0]?.camera.viewBoundingSphere).toHaveBeenCalledOnce()
-
-    scene.dispose()
-    expect(viewerInstances[0]?.scene.primitives.remove).toHaveBeenCalledTimes(1_000)
-  })
-
-  it('falls back to 300 mass models on a narrow viewport', async () => {
-    const originalWidth = window.innerWidth
-    Object.defineProperty(window, 'innerWidth', {
-      configurable: true,
-      value: 375,
-    })
-
-    try {
-      const statuses: string[] = []
-      await createModelScene(
-        createViewer(),
-        document.createElement('div'),
-        'mass-models',
-        (message) => statuses.push(message),
-      )
-
-      expect(modelInstances).toHaveLength(300)
-      expect(statuses[statuses.length - 1]).toContain('300')
-      expect(statuses[statuses.length - 1]).toContain('移动端降载')
-    } finally {
-      Object.defineProperty(window, 'innerWidth', {
-        configurable: true,
-        value: originalWidth,
-      })
-    }
-  })
-
-  it('keeps direct motion and interpolation motion as distinct demonstrations', async () => {
-    const motionStatuses: string[] = []
-    const motionViewer = createViewer()
-    const motionScene = await createModelScene(
-      motionViewer,
-      document.createElement('div'),
-      'model-motion',
-      (message) => motionStatuses.push(message),
+    const mockViewer = viewerInstances[0]!
+    const route = mockViewer.entities.values.find(
+      (entity) => entity.id === 'model-interpolation-route',
+    )
+    const model = mockViewer.entities.values.find(
+      (entity) => entity.id === 'model-interpolation-demo',
     )
 
-    expect(motionStatuses[motionStatuses.length - 1]).toContain('第一人称')
-    expect(motionViewer.clock.shouldAnimate).toBe(true)
-    expect(motionScene.actions.map((action) => action.id)).toContain('toggle-first-person')
-    expect(motionScene.actions.map((action) => action.id)).not.toContain('start-interpolation')
-    motionScene.dispose()
-
-    const interpolationStatuses: string[] = []
-    const interpolationViewer = createViewer()
-    const interpolationScene = await createModelScene(
-      interpolationViewer,
-      document.createElement('div'),
-      'model-interpolation',
-      (message) => interpolationStatuses.push(message),
-    )
-
-    expect(interpolationStatuses[interpolationStatuses.length - 1]).toContain('插值')
-    expect(interpolationViewer.clock.shouldAnimate).toBe(false)
-    expect(interpolationScene.actions.map((action) => action.id)).toEqual([
+    expect(route?.polyline).toMatchObject({ show: true, width: 5 })
+    expect(route?.polyline?.positions as unknown[]).toHaveLength(5)
+    expect(model?.model?.uri).toContain('cesium-air.glb')
+    expect(statuses[statuses.length - 1]).toContain('完整运动轨迹')
+    expect(scene.actions.map((action) => action.id)).toEqual([
+      'toggle-camera-follow',
       'start-interpolation',
       'pause-interpolation',
       'resume-interpolation',
       'reset-interpolation',
     ])
-    interpolationScene.dispose()
+
+    const toggleFollow = scene.actions.find((action) => action.id === 'toggle-camera-follow')
+    await toggleFollow?.run()
+    expect(statuses[statuses.length - 1]).toContain('已开启视角跟随')
+
+    mockViewer.camera.lookAtTransform.mockClear()
+    mockViewer.scene.preUpdate.raiseEvent()
+    expect(mockViewer.camera.lookAtTransform).toHaveBeenCalledOnce()
+
+    await toggleFollow?.run()
+    expect(statuses[statuses.length - 1]).toContain('已关闭视角跟随')
+    expect(mockViewer.camera.viewBoundingSphere).toHaveBeenCalled()
+
+    scene.dispose()
+    expect(mockViewer.entities.values).toHaveLength(0)
+    expect(mockViewer.scene.preUpdate.listeners.size).toBe(0)
   })
 
-  it('requests frames while model animations are playing and stops after dispose', async () => {
+  it('requires frames while wind animations play and stops the ticker on dispose', async () => {
     const viewer = createViewer()
     const scene = await createModelScene(
       viewer,
       document.createElement('div'),
-      'load-model',
+      'wind-turbine',
       () => {},
     )
     const mockViewer = viewerInstances[0]!
@@ -152,71 +108,65 @@ describe('model scene builders', () => {
     mockViewer.scene.preUpdate.raiseEvent()
     expect(mockViewer.scene.requestRender).toHaveBeenCalledOnce()
 
-    viewer.clock.shouldAnimate = false
+    await scene.actions[0]?.run()
+    expect(viewer.clock.shouldAnimate).toBe(false)
+    mockViewer.scene.requestRender.mockClear()
     mockViewer.scene.preUpdate.raiseEvent()
-    expect(mockViewer.scene.requestRender).toHaveBeenCalledOnce()
+    expect(mockViewer.scene.requestRender).not.toHaveBeenCalled()
 
     scene.dispose()
     expect(viewer.clock.shouldAnimate).toBe(false)
     expect(mockViewer.scene.preUpdate.listeners.size).toBe(0)
+    expect(mockViewer.entities.values).toHaveLength(0)
   })
 
-  it('reports the picked child node name without blocking dialogs', async () => {
-    const statuses: string[] = []
+  it('places all reference wind turbines at their source elevations', async () => {
     const viewer = createViewer()
-    const scene = await createModelScene(
-      viewer,
-      document.createElement('div'),
-      'pick-child-node',
-      (message) => statuses.push(message),
+    const statuses: string[] = []
+    await createModelScene(viewer, document.createElement('div'), 'wind-turbine', (message) =>
+      statuses.push(message),
     )
     const mockViewer = viewerInstances[0]!
-    mockViewer.scene.pick.mockReturnValue({ detail: { node: { _name: 'Prop__2_' } } })
+    const turbines = mockViewer.entities.values.filter((entity) =>
+      entity.id.startsWith('wind-turbine-'),
+    )
+    const positions = turbines.map(
+      (entity) =>
+        entity.position?.getValue() as {
+          longitude: number
+          latitude: number
+          height: number
+        },
+    )
 
-    screenSpaceEventHandlerInstances[0]?.actions.get(ScreenSpaceEventType.LEFT_CLICK)?.({
-      position: { x: 120, y: 240 },
+    expect(turbines).toHaveLength(24)
+    expect(positions[0]).toEqual({
+      longitude: 112.227630577,
+      latitude: 39.0613382363999,
+      height: 1815,
     })
-
-    expect(statuses[statuses.length - 1]).toBe('已选择模型子节点：Prop__2_')
-    scene.dispose()
-    expect(screenSpaceEventHandlerInstances[0]?.destroy).toHaveBeenCalledOnce()
-  })
-
-  it('uses local licensed or project-generated model assets in every primitive path', async () => {
-    const loadViewer = createViewer()
-    await createModelScene(loadViewer, document.createElement('div'), 'load-model', () => {})
-    expect(viewerInstances[0]?.entities.values[0]?.model?.uri).toContain('cesium-air.glb')
-
-    resetCesiumMock()
-    const primitiveViewer = createViewer()
-    await createModelScene(
-      primitiveViewer,
-      document.createElement('div'),
-      'primitive-model',
-      () => {},
-    )
-    expect(modelInstances[0]?.options.url).toContain('cesium-man.glb')
-
-    resetCesiumMock()
-    const cityViewer = createViewer()
-    await createModelScene(cityViewer, document.createElement('div'), 'manual-model', () => {})
-    expect(viewerInstances[0]?.entities.values[0]?.model?.uri).toContain('city-block.glb')
-
-    resetCesiumMock()
-    const windViewer = createViewer()
-    const windScene = await createModelScene(
-      windViewer,
-      document.createElement('div'),
-      'wind-turbine',
-      () => {},
-    )
-    const turbines = viewerInstances[0]?.entities.values ?? []
-    expect(turbines).toHaveLength(5)
+    expect(positions[positions.length - 1]).toEqual({
+      longitude: 112.230322327,
+      latitude: 39.0281575923999,
+      height: 1965,
+    })
+    expect(positions.map((position) => position.height)).toEqual(referenceElevations)
     expect(turbines.every((entity) => entity.model?.uri?.includes('wind-turbine.glb'))).toBe(true)
     expect(turbines.every((entity) => entity.model?.runAnimations)).toBe(true)
+    expect(statuses[statuses.length - 1]).toContain('24 台本地风力发电机')
+    expect(statuses[statuses.length - 1]).toContain('高程')
 
-    await windScene.actions[0]?.run()
-    expect(windViewer.clock.shouldAnimate).toBe(false)
-    expect(turbines.every((entity) => entity.model?.runAnimations === false)).toBe(true)
+    const view = mockViewer.camera.setView.mock.calls[0]?.[0] as {
+      destination: { longitude: number; latitude: number; height: number }
+      orientation: { heading: number; pitch: number; roll: number }
+    }
+    expect(view.destination).toEqual({
+      longitude: 112.245269,
+      latitude: 39.066518,
+      height: 2913,
+    })
+    expect(view.orientation.heading).toBeCloseTo((226 * Math.PI) / 180)
+    expect(view.orientation.pitch).toBeCloseTo((-21 * Math.PI) / 180)
+    expect(view.orientation.roll).toBe(0)
   })
 })
