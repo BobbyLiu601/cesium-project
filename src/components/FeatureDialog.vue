@@ -42,9 +42,17 @@ const dialogVisible = computed({
   },
 })
 
-const sceneProps = computed(() =>
-  props.feature.kind === 'vector' ? { sceneId: props.feature.sceneId } : {},
-)
+const sceneProps = computed(() => {
+  if (props.feature.kind === 'vector') {
+    return { sceneId: props.feature.sceneId }
+  }
+
+  if (props.feature.kind === 'amap') {
+    return { imagery: 'amap' as const }
+  }
+
+  return {}
+})
 
 async function loadScene() {
   if (sceneReady.value || loadFailed.value) {

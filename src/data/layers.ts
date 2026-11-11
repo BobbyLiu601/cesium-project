@@ -1,6 +1,7 @@
 import { Film, FolderOpened, Location, MagicStick, MapLocation } from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 
+import amapImage from '@/assets/amap-cover.jpg'
 import elevationImage from '@/assets/elevation-cover.jpg'
 import radarEffectCover from '@/assets/radar-effect-cover.jpg'
 import tiandituImage from '@/assets/tianditu-cover.jpg'
@@ -39,7 +40,7 @@ export type VectorSceneId =
   | 'svg'
   | 'gif'
 
-export type FeatureKind = 'tianditu' | 'elevation' | 'vector' | 'radar'
+export type FeatureKind = 'tianditu' | 'amap' | 'elevation' | 'vector' | 'radar'
 
 export interface FeatureItem {
   id: string
@@ -104,6 +105,16 @@ export const layerSections: FeatureSection[] = [
         kind: 'tianditu',
         routeName: 'layer-imagery-tianditu',
         routePath: '/layers/imagery/1-1-1-tianditu',
+      }),
+      defineFeature({
+        id: 'amap',
+        code: '1.1.2',
+        name: '高德地图',
+        imageSrc: amapImage,
+        imageAlt: '高德地图标准矢量三维地球实际效果截图',
+        kind: 'amap',
+        routeName: 'layer-imagery-amap',
+        routePath: '/layers/imagery/1-1-2-amap',
       }),
     ],
   },
@@ -375,4 +386,8 @@ export function getNavigationAnchorForContent(anchor: string) {
   }
 
   return effectsSection.items.some((feature) => feature.id === anchor) ? anchor : ''
+}
+
+export function getMenuGroupIdForAnchor(anchor: string): MenuGroup['id'] {
+  return effectsSection.items.some((feature) => feature.id === anchor) ? 'effects' : 'layers'
 }

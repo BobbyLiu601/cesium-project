@@ -6,6 +6,7 @@ import { createPinia } from 'pinia'
 
 import App from '../App.vue'
 import { disposeActiveSession, getActiveSession } from '../components/cesiumGlobeSession'
+import { AmapTilingScheme } from '../config/amap'
 import router from '../router'
 import {
   ArcGISTiledElevationTerrainProvider,
@@ -128,7 +129,7 @@ describe('App', () => {
     expect(wrapper.text()).toContain('三维效果展示')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(19)
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(20)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(2)
     expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(3)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
@@ -144,18 +145,19 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(19)
+    expect(cards).toHaveLength(20)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
-    expect(cards[1]?.attributes('data-feature-id')).toBe('elevation')
-    expect(cards[2]?.attributes('data-feature-id')).toBe('entity-point')
-    expect(cards[17]?.attributes('data-feature-id')).toBe('gif')
-    expect(cards[18]?.attributes('data-feature-id')).toBe('radar')
+    expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
+    expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
+    expect(cards[3]?.attributes('data-feature-id')).toBe('entity-point')
+    expect(cards[18]?.attributes('data-feature-id')).toBe('gif')
+    expect(cards[19]?.attributes('data-feature-id')).toBe('radar')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
     expect(
       wrapper.get('[data-testid="feature-grid"]').findAll('[data-testid="feature-card"]'),
-    ).toHaveLength(1)
+    ).toHaveLength(2)
     expect(
       wrapper.get('[data-testid="terrain-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(1)
@@ -179,13 +181,16 @@ describe('App', () => {
     expect(cards[0]?.attributes('aria-label')).toBe('打开1.1.1、天地图')
     expect(cards[0]?.text()).toContain('1.1.1、天地图')
     expect(cards[0]?.get('img').attributes('alt')).toBe('天地图卫星影像三维地球实际效果截图')
-    expect(cards[1]?.attributes('aria-label')).toBe('打开1.2.1、高程')
-    expect(cards[1]?.text()).toContain('1.2.1、高程')
-    expect(cards[1]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
-    expect(cards[2]?.attributes('aria-label')).toBe('打开1.3.1、entity点')
-    expect(cards[17]?.attributes('aria-label')).toBe('打开1.3.16、gif')
-    expect(cards[18]?.attributes('aria-label')).toBe('打开雷达图')
-    expect(cards[18]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
+    expect(cards[1]?.attributes('aria-label')).toBe('打开1.1.2、高德地图')
+    expect(cards[1]?.text()).toContain('1.1.2、高德地图')
+    expect(cards[1]?.get('img').attributes('alt')).toBe('高德地图标准矢量三维地球实际效果截图')
+    expect(cards[2]?.attributes('aria-label')).toBe('打开1.2.1、高程')
+    expect(cards[2]?.text()).toContain('1.2.1、高程')
+    expect(cards[2]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
+    expect(cards[3]?.attributes('aria-label')).toBe('打开1.3.1、entity点')
+    expect(cards[18]?.attributes('aria-label')).toBe('打开1.3.16、gif')
+    expect(cards[19]?.attributes('aria-label')).toBe('打开雷达图')
+    expect(cards[19]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
@@ -250,6 +255,47 @@ describe('App', () => {
 
     await wrapper.get('.feature-dialog button[aria-label="关闭此对话框"]').trigger('click')
     await flushPromises()
+    wrapper.unmount()
+  })
+
+  it('opens the AMap electric layer in Cesium with WGS84 tile alignment metadata', async () => {
+    const wrapper = await mountAt('/layers')
+
+    await wrapper.get('[data-feature-id="amap"]').trigger('click')
+    await flushPromises()
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const dialog = wrapper.get('.feature-dialog--amap')
+    const globe = dialog.get('[data-testid="cesium-globe"]')
+    expect(dialog.text()).toContain('1.1.2、高德地图')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.attributes('data-imagery-source')).toBe('amap')
+    expect(dialog.get('[data-testid="amap-attribution"]').text()).toBe('© 高德地图')
+
+    expect(tileProviderInstances).toHaveLength(1)
+    const provider = tileProviderInstances[0]
+    expect(provider?.options).toMatchObject({
+      url: expect.stringContaining('webrd{s}.is.autonavi.com/appmaptile'),
+      maximumLevel: 18,
+      subdomains: ['01', '02', '03', '04'],
+      credit: '高德地图',
+      enablePickFeatures: false,
+    })
+    expect(provider?.options.tilingScheme).toBeInstanceOf(AmapTilingScheme)
+    expect(provider?.options.url).toContain('style=8')
+    expect(provider?.options.url).not.toContain('key=')
+    expect(viewerInstances[0]?.camera.setView).toHaveBeenCalledWith({
+      destination: { longitude: 116.397, latitude: 39.909, height: 60_000 },
+      orientation: {
+        heading: 0,
+        pitch: -Math.PI / 2,
+        roll: 0,
+      },
+    })
+
     wrapper.unmount()
   })
 
@@ -557,6 +603,70 @@ describe('App', () => {
     wrapper.unmount()
   })
 
+  it('updates the selected section and accordion group while content scrolls', async () => {
+    const wrapper = await mountAt('/layers')
+    const content = wrapper.get('main').element
+    const positions = {
+      imagery: -260,
+      terrain: -160,
+      vector: -60,
+      radar: 40,
+    }
+
+    vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({
+      top: 0,
+    } as DOMRect)
+    const spies = Object.fromEntries(
+      Object.keys(positions).map((anchor) => [
+        anchor,
+        vi
+          .spyOn(
+            wrapper.get(`[data-navigation-anchor="${anchor}"]`).element,
+            'getBoundingClientRect',
+          )
+          .mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect),
+      ]),
+    )
+
+    await wrapper.get('main').trigger('scroll')
+    frameCallbacks.splice(0).forEach((callback) => callback(0))
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('[role="menuitem"]')
+        .find((item) => item.attributes('aria-current') === 'location')
+        ?.text(),
+    ).toBe('1.3、矢量')
+    expect(wrapper.findAll('.el-sub-menu')[0]?.classes()).toContain('is-opened')
+    expect(wrapper.findAll('.el-sub-menu')[1]?.classes()).not.toContain('is-opened')
+    expect(router.currentRoute.value.fullPath).toBe('/layers')
+
+    positions.imagery = -360
+    positions.terrain = -260
+    positions.vector = -160
+    positions.radar = -60
+    for (const [anchor, spy] of Object.entries(spies)) {
+      spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
+    }
+
+    await wrapper.get('main').trigger('scroll')
+    frameCallbacks.splice(0).forEach((callback) => callback(0))
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('[role="menuitem"]')
+        .find((item) => item.attributes('aria-current') === 'location')
+        ?.text(),
+    ).toBe('雷达图')
+    expect(wrapper.findAll('.el-sub-menu')[0]?.classes()).not.toContain('is-opened')
+    expect(wrapper.findAll('.el-sub-menu')[1]?.classes()).toContain('is-opened')
+    expect(router.currentRoute.value.fullPath).toBe('/layers')
+
+    wrapper.unmount()
+  })
+
   it('redirects the effects route to the radar anchor while showing all content', async () => {
     const wrapper = await mountAt('/effects')
     const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '雷达图')
@@ -567,7 +677,7 @@ describe('App', () => {
     expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
 
     const cards = wrapper.findAll('[data-testid="feature-card"]')
-    expect(cards).toHaveLength(19)
+    expect(cards).toHaveLength(20)
     const radarCard = cards.find((card) => card.attributes('data-feature-id') === 'radar')
     expect(radarCard?.attributes('aria-label')).toBe('打开雷达图')
     expect(radarCard?.text()).toContain('雷达图')

@@ -48,6 +48,16 @@ const responsiveViewports = [
 test.beforeEach(async ({ page }) => {
   await page.route(/https:\/\/t\d\.tianditu\.gov\.cn\//, (route) => route.abort())
   await page.route(/https:\/\/elevation3d\.arcgis\.com\//, (route) => route.abort())
+  await page.route(/https:\/\/webrd\d+\.is\.autonavi\.com\//, (route) =>
+    route.fulfill({
+      body: Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+        'base64',
+      ),
+      contentType: 'image/png',
+      status: 200,
+    }),
+  )
 })
 
 test('根路径进入图层目录并显示后台管理壳', async ({ page }) => {
@@ -79,19 +89,26 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(
     page.getByRole('button', { name: '打开1.1.1、天地图' }).locator('img'),
   ).toHaveAttribute('src', /tianditu-cover/)
+  await expect(page.getByRole('button', { name: '打开1.1.2、高德地图' })).toContainText(
+    '1.1.2、高德地图',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开1.1.2、高德地图' }).locator('img'),
+  ).toHaveAttribute('src', /amap-cover/)
   await expect(page.getByRole('button', { name: '打开1.2.1、高程' })).toContainText('1.2.1、高程')
   await expect(page.getByRole('button', { name: '打开1.3.1、entity点' })).toContainText(
     '1.3.1、entity点',
   )
   await expect(page.getByRole('button', { name: '打开1.3.16、gif' })).toContainText('1.3.16、gif')
   await expect(page.getByRole('button', { name: '打开雷达图' })).toContainText('雷达图')
-  await expect(page.getByTestId('feature-card')).toHaveCount(19)
+  await expect(page.getByTestId('feature-card')).toHaveCount(20)
   expect(
     await page
       .getByTestId('feature-card')
       .evaluateAll((cards) => cards.map((card) => card.getAttribute('data-feature-id'))),
   ).toEqual([
     'tianditu',
+    'amap',
     'elevation',
     'entity-point',
     'entity-line',
@@ -323,6 +340,35 @@ test('通过卡片图片或文字打开天地图，并可全屏、退出全屏�
   await expectCesiumReady(dialog.getByTestId('cesium-globe'))
   expect(await dialog.evaluate((element) => element.isConnected)).toBe(true)
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+})
+
+test('1.1.2 高德地图使用 Cesium 标准矢量底图并显示来源标识', async ({ page }) => {
+  const tileRequests: string[] = []
+  page.on('request', (request) => {
+    if (request.url().includes('.is.autonavi.com/appmaptile')) {
+      tileRequests.push(request.url())
+    }
+  })
+
+  await page.goto('/layers/imagery/1-1-2-amap')
+
+  const dialog = page.getByRole('dialog', { name: '1.1.2、高德地图' })
+  const globe = dialog.getByTestId('cesium-globe')
+  await expect(dialog).toBeVisible()
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-imagery-source', 'amap')
+  await expect(globe.locator('canvas')).toBeVisible()
+  await expect(globe.getByTestId('amap-attribution')).toHaveText('© 高德地图')
+  await expect.poll(() => tileRequests.some((url) => url.includes('style=8'))).toBe(true)
+
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(page.locator('.feature-dialog--amap')).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+
+  await expect(dialog).toBeHidden()
+  await expect(page).toHaveURL(/\/layers#amap$/)
+  await expect(page.getByRole('button', { name: '打开1.1.2、高德地图' })).toBeFocused()
 })
 
 test('Cesium 异步加载失败时弹窗显示降级状态且仍可关闭', async ({ page }) => {
@@ -578,6 +624,50 @@ test('桌面端内容区独立滚动，顶部栏保持固定', async ({ page }) 
   expect(await content.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
 })
 
+test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 600 })
+  await page.goto('/layers')
+
+  const content = page.getByRole('main')
+  const sidebar = page.locator('.admin-sidebar')
+  const layersGroup = sidebar.locator('.sidebar-menu__group').nth(0)
+  const effectsGroup = sidebar.locator('.sidebar-menu__group').nth(1)
+
+  await expect(layersGroup).toHaveClass(/is-opened/)
+  await expect(effectsGroup).not.toHaveClass(/is-opened/)
+
+  await content.evaluate((element) => {
+    const target = document.querySelector<HTMLElement>('[data-navigation-anchor="vector"]')
+    if (!target) {
+      throw new Error('未找到矢量区块')
+    }
+    element.scrollTop += target.getBoundingClientRect().top - element.getBoundingClientRect().top
+  })
+
+  await expect(page.getByRole('menuitem', { name: '1.3、矢量' })).toHaveAttribute(
+    'aria-current',
+    'location',
+  )
+  await expect(page).toHaveURL(/\/layers$/)
+  await expect(layersGroup).toHaveClass(/is-opened/)
+
+  await content.evaluate((element) => {
+    element.scrollTop = element.scrollHeight
+  })
+
+  await expect(page.getByRole('menuitem', { name: '雷达图' })).toHaveAttribute(
+    'aria-current',
+    'location',
+  )
+  await expect(page).toHaveURL(/\/layers$/)
+  await expect(layersGroup).not.toHaveClass(/is-opened/)
+  await expect(effectsGroup).toHaveClass(/is-opened/)
+
+  await sidebar.locator('.sidebar-menu__group').nth(0).locator('.el-sub-menu__title').click()
+  await expect(layersGroup).toHaveClass(/is-opened/)
+  await expect(effectsGroup).not.toHaveClass(/is-opened/)
+})
+
 for (const viewport of responsiveViewports) {
   test(`${viewport.name}视口下功能卡片宽度符合响应式网格`, async ({ page }) => {
     await page.setViewportSize(viewport)
@@ -694,6 +784,11 @@ test('从高程卡片打开独立场景，加载失败时仍可操作、全屏�
 test('视觉效果菜单通过向下箭头分组并锚定雷达图内容', async ({ page }) => {
   await page.goto('/layers')
 
+  await page
+    .locator('.admin-sidebar .sidebar-menu__group')
+    .nth(1)
+    .locator('.el-sub-menu__title')
+    .click()
   const effectsMenuItem = page.getByRole('menuitem', { name: '雷达图' })
   await effectsMenuItem.click()
 

@@ -1,18 +1,31 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ElButton, ElDrawer } from 'element-plus'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 
 import SidebarMenu from '@/components/SidebarMenu.vue'
-import { contentAnchors, getNavigationAnchorForContent, layerSections } from '@/data/layers'
+import {
+  contentAnchors,
+  getMenuGroupIdForAnchor,
+  getNavigationAnchorForContent,
+  layerSections,
+  type MenuGroup,
+} from '@/data/layers'
 
 const route = useRoute()
 const router = useRouter()
 const drawerVisible = ref(false)
 const activeAnchor = ref('')
+const openedGroupId = ref<MenuGroup['id']>('layers')
 const contentElement = ref<HTMLElement | null>(null)
 const defaultAnchor = layerSections[0]?.id ?? ''
 const showcaseRouteName = 'layers'
+const scrollThreshold = 24
+const scrollLockDuration = 900
+
+let scrollFrame: number | undefined
+let scrollUnlockTimer: number | undefined
+let programmaticAnchor = ''
 
 function getRouteAnchor() {
   const routeFeatureId = typeof route.meta.featureId === 'string' ? route.meta.featureId : ''
@@ -35,7 +48,13 @@ async function scrollToAnchor(anchor: string) {
     const targetTop =
       content.scrollTop + target.getBoundingClientRect().top - content.getBoundingClientRect().top
 
+    programmaticAnchor = anchor
+    window.clearTimeout(scrollUnlockTimer)
     content.scrollTo?.({ top: Math.max(0, targetTop - 20), behavior: 'smooth' })
+    scrollUnlockTimer = window.setTimeout(() => {
+      programmaticAnchor = ''
+      updateActiveAnchorFromScroll()
+    }, scrollLockDuration)
     return
   }
 
@@ -44,7 +63,7 @@ async function scrollToAnchor(anchor: string) {
 
 async function handleMenuSelect(anchor: string) {
   drawerVisible.value = false
-  activeAnchor.value = getNavigationAnchorForContent(anchor) || anchor
+  setActiveAnchor(getNavigationAnchorForContent(anchor) || anchor, true)
   const hash = `#${anchor}`
 
   if (route.name !== showcaseRouteName || route.hash !== hash) {
@@ -53,6 +72,56 @@ async function handleMenuSelect(anchor: string) {
   }
 
   await scrollToAnchor(anchor)
+}
+
+function setActiveAnchor(anchor: string, syncGroup = false) {
+  if (!anchor) {
+    return
+  }
+
+  const changed = activeAnchor.value !== anchor
+  activeAnchor.value = anchor
+  if (syncGroup && (changed || openedGroupId.value !== getMenuGroupIdForAnchor(anchor))) {
+    openedGroupId.value = getMenuGroupIdForAnchor(anchor)
+  }
+}
+
+function updateActiveAnchorFromScroll() {
+  const content = contentElement.value
+  if (!content || programmaticAnchor) {
+    return
+  }
+
+  const anchors = [...content.querySelectorAll<HTMLElement>('[data-navigation-anchor]')]
+  if (!anchors.length) {
+    return
+  }
+
+  const threshold = content.getBoundingClientRect().top + scrollThreshold
+  let currentAnchor = anchors[0]?.dataset.navigationAnchor ?? defaultAnchor
+  for (const element of anchors) {
+    if (element.getBoundingClientRect().top <= threshold) {
+      currentAnchor = element.dataset.navigationAnchor ?? currentAnchor
+    }
+  }
+
+  setActiveAnchor(currentAnchor, true)
+}
+
+function handleContentScroll() {
+  if (programmaticAnchor || scrollFrame !== undefined) {
+    return
+  }
+
+  scrollFrame = window.requestAnimationFrame(() => {
+    scrollFrame = undefined
+    updateActiveAnchorFromScroll()
+  })
+}
+
+function openMobileDrawer() {
+  openedGroupId.value = getMenuGroupIdForAnchor(activeAnchor.value)
+  drawerVisible.value = true
 }
 
 watch(
@@ -64,8 +133,10 @@ watch(
     }
 
     const routeAnchor = getRouteAnchor()
-    activeAnchor.value =
-      getNavigationAnchorForContent(routeAnchor) || (routeAnchor ? routeAnchor : defaultAnchor)
+    setActiveAnchor(
+      getNavigationAnchorForContent(routeAnchor) || (routeAnchor ? routeAnchor : defaultAnchor),
+      true,
+    )
 
     if (routeAnchor && route.name === showcaseRouteName) {
       await scrollToAnchor(routeAnchor)
@@ -73,17 +144,24 @@ watch(
   },
   { immediate: true },
 )
+
+onMounted(() => {
+  contentElement.value?.addEventListener('scroll', handleContentScroll, { passive: true })
+})
+
+onBeforeUnmount(() => {
+  contentElement.value?.removeEventListener('scroll', handleContentScroll)
+  if (scrollFrame !== undefined) {
+    window.cancelAnimationFrame(scrollFrame)
+  }
+  window.clearTimeout(scrollUnlockTimer)
+})
 </script>
 
 <template>
   <div class="admin-shell">
     <header class="admin-header">
-      <ElButton
-        class="mobile-menu-button"
-        aria-label="打开导航菜单"
-        text
-        @click="drawerVisible = true"
-      >
+      <ElButton class="mobile-menu-button" aria-label="打开导航菜单" text @click="openMobileDrawer">
         <span class="mobile-menu-button__icon" aria-hidden="true">
           <span></span>
           <span></span>
@@ -99,7 +177,12 @@ watch(
     <div class="admin-body">
       <aside class="admin-sidebar">
         <nav aria-label="侧边导航">
-          <SidebarMenu :active-anchor="activeAnchor" @select="handleMenuSelect" />
+          <SidebarMenu
+            :active-anchor="activeAnchor"
+            :opened-group="openedGroupId"
+            @select="handleMenuSelect"
+            @open-group="openedGroupId = $event"
+          />
         </nav>
       </aside>
 
@@ -117,8 +200,10 @@ watch(
     >
       <SidebarMenu
         :active-anchor="activeAnchor"
+        :opened-group="openedGroupId"
         aria-label="后台导航菜单"
         @select="handleMenuSelect"
+        @open-group="openedGroupId = $event"
       />
     </ElDrawer>
   </div>

@@ -3,18 +3,25 @@ import { ArrowDown } from '@element-plus/icons-vue'
 import { ElIcon, ElMenu, ElMenuItem, ElSubMenu } from 'element-plus'
 import { nextTick, ref, watch } from 'vue'
 
-import { formatMenuGroupTitle, menuGroups } from '@/data/layers'
+import { formatMenuGroupTitle, menuGroups, type MenuGroup } from '@/data/layers'
 
 const props = defineProps<{
   activeAnchor: string
+  openedGroup: MenuGroup['id']
 }>()
 
 const emit = defineEmits<{
   select: [anchor: string]
+  'open-group': [groupId: MenuGroup['id']]
 }>()
 
-const openedGroups = menuGroups.map((group) => group.id)
-const menuRef = ref<{ updateActiveIndex: (index: string) => void } | null>(null)
+interface SidebarMenuInstance {
+  updateActiveIndex: (index: string) => void
+  open: (index: string) => void
+  close: (index: string) => void
+}
+
+const menuRef = ref<SidebarMenuInstance | null>(null)
 
 watch(
   () => props.activeAnchor,
@@ -24,6 +31,39 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => props.openedGroup,
+  async (openedGroup) => {
+    await nextTick()
+    for (const group of menuGroups) {
+      if (group.id === openedGroup) {
+        menuRef.value?.open(group.id)
+      } else {
+        menuRef.value?.close(group.id)
+      }
+    }
+  },
+  { immediate: true },
+)
+
+function getGroupId(index: string) {
+  return menuGroups.find((group) => group.id === index)?.id
+}
+
+function handleOpen(index: string) {
+  const groupId = getGroupId(index)
+  if (groupId && groupId !== props.openedGroup) {
+    emit('open-group', groupId)
+  }
+}
+
+function handleClose(index: string) {
+  const groupId = getGroupId(index)
+  if (groupId && groupId === props.openedGroup) {
+    void nextTick(() => menuRef.value?.open(groupId))
+  }
+}
 </script>
 
 <template>
@@ -31,9 +71,11 @@ watch(
     ref="menuRef"
     class="sidebar-menu"
     :default-active="activeAnchor"
-    :default-openeds="openedGroups"
-    :unique-opened="false"
+    :default-openeds="[openedGroup]"
+    :unique-opened="true"
     aria-label="后台菜单"
+    @open="handleOpen"
+    @close="handleClose"
   >
     <ElSubMenu
       v-for="group in menuGroups"

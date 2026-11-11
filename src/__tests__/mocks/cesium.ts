@@ -457,8 +457,26 @@ export class ScreenSpaceEventHandler {
 }
 
 export class Cartographic {
+  longitude: number
+  latitude: number
+  height: number
+
+  constructor(longitude = 0, latitude = 0, height = 0) {
+    this.longitude = longitude
+    this.latitude = latitude
+    this.height = height
+  }
+
   static fromDegrees(longitude: number, latitude: number, height = 0) {
-    return { longitude, latitude, height }
+    return new Cartographic(
+      (longitude * globalThis.Math.PI) / 180,
+      (latitude * globalThis.Math.PI) / 180,
+      height,
+    )
+  }
+
+  static fromRadians(longitude: number, latitude: number, height = 0) {
+    return new Cartographic(longitude, latitude, height)
   }
 }
 
@@ -486,7 +504,58 @@ export class WebMapTileServiceImageryProvider implements MockTileProvider {
   }
 }
 
-export class WebMercatorTilingScheme {}
+export class UrlTemplateImageryProvider implements MockTileProvider {
+  constructor(public options: Record<string, unknown>) {
+    tileProviderInstances.push(this)
+  }
+}
+
+export class WebMercatorProjection {
+  constructor(public ellipsoid?: unknown) {}
+
+  project(position: { longitude: number; latitude: number; height?: number }) {
+    return new Cartesian3(position.longitude, position.latitude, position.height ?? 0)
+  }
+
+  unproject(position: { x: number; y: number; z?: number }) {
+    return new Cartographic(position.x, position.y, position.z ?? 0)
+  }
+}
+
+export class WebMercatorTilingScheme {
+  ellipsoid = {}
+  rectangle = {
+    west: -globalThis.Math.PI,
+    south: -globalThis.Math.PI / 2,
+    east: globalThis.Math.PI,
+    north: globalThis.Math.PI / 2,
+  }
+
+  getNumberOfXTilesAtLevel(level: number) {
+    return 2 ** (level + 1)
+  }
+
+  getNumberOfYTilesAtLevel(level: number) {
+    return 2 ** (level + 1)
+  }
+
+  rectangleToNativeRectangle(rectangle: Rectangle, result = new Rectangle()) {
+    result.west = rectangle.west
+    result.south = rectangle.south
+    result.east = rectangle.east
+    result.north = rectangle.north
+    return result
+  }
+
+  tileXYToNativeRectangle(x: number, y: number, level: number, result = new Rectangle()) {
+    const size = 2 / 2 ** (level + 1)
+    result.west = -1 + x * size
+    result.east = -1 + (x + 1) * size
+    result.north = 1 - y * size
+    result.south = 1 - (y + 1) * size
+    return result
+  }
+}
 
 export class EllipsoidTerrainProvider {}
 
@@ -675,8 +744,28 @@ export class Cartesian3 {
 
 export class Rectangle {
   static fromDegrees(west: number, south: number, east: number, north: number) {
-    return { west, south, east, north }
+    const toRadians = (value: number) => (value * globalThis.Math.PI) / 180
+    return new Rectangle(toRadians(west), toRadians(south), toRadians(east), toRadians(north))
   }
+
+  static contains(
+    rectangle: { west: number; south: number; east: number; north: number },
+    position: { longitude: number; latitude: number },
+  ) {
+    return (
+      position.longitude >= rectangle.west &&
+      position.longitude <= rectangle.east &&
+      position.latitude >= rectangle.south &&
+      position.latitude <= rectangle.north
+    )
+  }
+
+  constructor(
+    public west = 0,
+    public south = 0,
+    public east = 0,
+    public north = 0,
+  ) {}
 }
 
 export const Math = {
@@ -684,6 +773,9 @@ export const Math = {
   TWO_PI: globalThis.Math.PI * 2,
   toRadians(degrees: number) {
     return (degrees * globalThis.Math.PI) / 180
+  },
+  toDegrees(radians: number) {
+    return (radians * 180) / globalThis.Math.PI
   },
 }
 

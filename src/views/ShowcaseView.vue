@@ -103,6 +103,7 @@ watch(
         :key="section.id"
         class="showcase__group"
         :data-section-id="section.id"
+        :data-navigation-anchor="section.id"
       >
         <div class="showcase__group-heading">
           <h2 :id="`${section.id}-heading`" class="showcase__group-title">
@@ -126,7 +127,12 @@ watch(
       </div>
     </section>
 
-    <section id="effects" class="showcase__section" aria-labelledby="effects-heading">
+    <section
+      id="effects"
+      class="showcase__section"
+      aria-labelledby="effects-heading"
+      data-navigation-anchor="radar"
+    >
       <PageHeading
         heading-id="effects-heading"
         :icon="effectsSection.icon"
