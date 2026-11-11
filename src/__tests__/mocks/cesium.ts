@@ -19,6 +19,7 @@ export interface MockViewer {
     backgroundColor: unknown
     canvas: HTMLCanvasElement
     pick: ReturnType<typeof vi.fn<(position: unknown) => unknown>>
+    preUpdate: MockEvent<() => void>
     preRender: MockEvent<() => void>
     primitives: {
       add: ReturnType<typeof vi.fn<(primitive: unknown) => unknown>>
@@ -40,6 +41,11 @@ export interface MockViewer {
   }
   clock: {
     currentTime: unknown
+    startTime: unknown
+    stopTime: unknown
+    shouldAnimate: boolean
+    clockRange: unknown
+    multiplier: number
   }
   flyTo: ReturnType<typeof vi.fn<(target: unknown) => Promise<boolean>>>
   resize: ReturnType<typeof vi.fn<() => void>>
@@ -60,6 +66,18 @@ export interface MockEntity {
   point?: Record<string, unknown>
   label?: Record<string, unknown>
   billboard?: Record<string, unknown>
+  model?: {
+    uri?: string
+    scale?: number
+    runAnimations?: boolean
+    silhouetteSize?: number
+    silhouetteColor?: unknown
+  }
+  orientation?: {
+    getValue: (time?: unknown) => unknown
+  }
+  availability?: unknown
+  path?: Record<string, unknown>
 }
 
 export interface MockDataSource {
@@ -187,6 +205,7 @@ export const dataSourceInstances: MockDataSource[] = []
 export const billboardCollectionInstances: BillboardCollection[] = []
 export const screenSpaceEventHandlerInstances: ScreenSpaceEventHandler[] = []
 export const terrainSampleRequests: unknown[][] = []
+export const modelInstances: MockModel[] = []
 export const cesiumMockState = {
   failNextViewer: false,
   failNextImageryLayer: false,
@@ -239,6 +258,11 @@ export class Viewer implements MockViewer {
   }
   clock = {
     currentTime: {},
+    startTime: {},
+    stopTime: {},
+    shouldAnimate: false,
+    clockRange: undefined as unknown,
+    multiplier: 1,
   }
 
   scene = {
@@ -246,6 +270,7 @@ export class Viewer implements MockViewer {
     backgroundColor: undefined as unknown,
     canvas: document.createElement('canvas'),
     pick: vi.fn<(position: unknown) => unknown>(() => undefined),
+    preUpdate: new MockEvent<() => void>(),
     preRender: new MockEvent<() => void>(),
     primitives: {
       add: vi.fn<(primitive: unknown) => unknown>((primitive) => {
@@ -400,6 +425,45 @@ export class BillboardCollection {
   }
 }
 
+export class ModelAnimationCollection {
+  length = 0
+
+  addAll = vi.fn<(options?: Record<string, unknown>) => void>(() => {
+    this.length += 1
+  })
+
+  removeAll = vi.fn<() => void>(() => {
+    this.length = 0
+  })
+}
+
+export interface MockModel {
+  options: Record<string, unknown>
+  activeAnimations: ModelAnimationCollection
+  silhouetteSize: number
+  silhouetteColor?: unknown
+}
+
+export class Model implements MockModel {
+  activeAnimations = new ModelAnimationCollection()
+  silhouetteSize: number
+  silhouetteColor?: unknown
+
+  constructor(public options: Record<string, unknown>) {
+    this.silhouetteSize = Number(options.silhouetteSize ?? 0)
+    this.silhouetteColor = options.silhouetteColor
+    modelInstances.push(this)
+  }
+
+  static fromGltfAsync(options: Record<string, unknown>) {
+    return Promise.resolve(new Model(options))
+  }
+}
+
+export const ModelAnimationLoop = {
+  REPEAT: 2,
+}
+
 export class CustomDataSource implements MockDataSource {
   entities = new MockEntityCollection()
 
@@ -454,6 +518,61 @@ export class ScreenSpaceEventHandler {
   destroy = vi.fn<() => void>(() => {
     this.actions.clear()
   })
+}
+
+export class JulianDate {
+  constructor(
+    public dayNumber = 0,
+    public secondsOfDay = 0,
+  ) {}
+
+  clone() {
+    return new JulianDate(this.dayNumber, this.secondsOfDay)
+  }
+
+  static now() {
+    return new JulianDate(2_460_000, 0)
+  }
+
+  static addSeconds(date: JulianDate, seconds: number, result = new JulianDate()) {
+    result.dayNumber = date.dayNumber
+    result.secondsOfDay = date.secondsOfDay + seconds
+    return result
+  }
+}
+
+export class SampledPositionProperty {
+  samples: Array<{ time: unknown; position: unknown }> = []
+
+  addSample(time: unknown, position: unknown) {
+    this.samples.push({ time, position })
+  }
+
+  setInterpolationOptions = vi.fn<(options?: Record<string, unknown>) => void>()
+
+  getValue() {
+    return this.samples[0]?.position
+  }
+}
+
+export class VelocityOrientationProperty {
+  constructor(public position: unknown) {}
+
+  getValue() {
+    return {}
+  }
+}
+
+export class TimeInterval {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class TimeIntervalCollection {
+  constructor(public intervals: TimeInterval[]) {}
+}
+
+export class PolylineGlowMaterialProperty {
+  constructor(public options: Record<string, unknown>) {}
 }
 
 export class Cartographic {
@@ -679,16 +798,37 @@ export class HeadingPitchRange {
   ) {}
 }
 
+export class HeadingPitchRoll {
+  constructor(
+    public heading: number,
+    public pitch: number,
+    public roll: number,
+  ) {}
+}
+
 export const ClassificationType = {
   TERRAIN: 1,
 }
 
 export const Transforms = {
   eastNorthUpToFixedFrame: vi.fn<(origin: unknown) => unknown>(() => ({ type: 'enu' })),
+  headingPitchRollQuaternion: vi.fn<(origin: unknown, orientation: unknown) => unknown>(() => ({
+    type: 'quaternion',
+  })),
+  headingPitchRollToFixedFrame: vi.fn<(origin: unknown, orientation: unknown) => unknown>(() => ({
+    type: 'model-matrix',
+  })),
 }
 
 export const Matrix4 = {
   IDENTITY: {},
+  fromRotationTranslation: vi.fn<(rotation: unknown, translation: unknown) => unknown>(() => ({
+    type: 'rotation-translation',
+  })),
+}
+
+export const Matrix3 = {
+  fromQuaternion: vi.fn<(quaternion: unknown) => unknown>(() => ({ type: 'rotation' })),
 }
 
 export class ArcGISTiledElevationTerrainProvider implements MockElevationTerrainProvider {
@@ -787,6 +927,23 @@ export const VerticalOrigin = {
   BOTTOM: 1,
 }
 
+export const ColorBlendMode = {
+  MIX: 1,
+}
+
+export const ShadowMode = {
+  CAST_ONLY: 1,
+  ENABLED: 2,
+}
+
+export const ClockRange = {
+  LOOP_STOP: 1,
+}
+
+export const LagrangePolynomialApproximation = {
+  type: 'LagrangePolynomialApproximation',
+}
+
 export const ScreenSpaceEventType = {
   LEFT_CLICK: 1,
 }
@@ -820,6 +977,7 @@ export function resetCesiumMock() {
   billboardCollectionInstances.length = 0
   screenSpaceEventHandlerInstances.length = 0
   terrainSampleRequests.length = 0
+  modelInstances.length = 0
   cesiumMockState.failNextViewer = false
   cesiumMockState.failNextImageryLayer = false
   cesiumMockState.groundMaterialsSupported = true
@@ -830,6 +988,10 @@ export function resetCesiumMock() {
   GroundPrimitive.supportsMaterials.mockClear()
   GroundPrimitive.initializeTerrainHeights.mockClear()
   Transforms.eastNorthUpToFixedFrame.mockClear()
+  Transforms.headingPitchRollQuaternion.mockClear()
+  Transforms.headingPitchRollToFixedFrame.mockClear()
+  Matrix4.fromRotationTranslation.mockClear()
+  Matrix3.fromQuaternion.mockClear()
   SceneTransforms.worldToWindowCoordinates.mockClear()
   sampleTerrainMostDetailed.mockClear()
 }

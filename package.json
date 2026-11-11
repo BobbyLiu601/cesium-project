@@ -28,6 +28,7 @@
     "check:template": "node scripts/check-template-content.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "generate:models": "node scripts/generate-project-models.mjs",
     "prepare": "simple-git-hooks",
     "verify": "run-s lint:check format:check type-check test test:e2e check:secrets build-only check:bundle",
     "verify:pages": "run-s build:pages check:pages"

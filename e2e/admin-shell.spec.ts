@@ -76,6 +76,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '1.1、影像' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '1.2、地形' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '1.3、矢量' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '1.4、模型' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '视觉效果' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
@@ -100,8 +101,14 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     '1.3.1、entity点',
   )
   await expect(page.getByRole('button', { name: '打开1.3.16、gif' })).toContainText('1.3.16、gif')
+  await expect(page.getByRole('button', { name: '打开1.4.1、加载模型' })).toContainText(
+    '1.4.1、加载模型',
+  )
+  await expect(page.getByRole('button', { name: '打开1.4.8、风力发电机' })).toContainText(
+    '1.4.8、风力发电机',
+  )
   await expect(page.getByRole('button', { name: '打开雷达图' })).toContainText('雷达图')
-  await expect(page.getByTestId('feature-card')).toHaveCount(20)
+  await expect(page.getByTestId('feature-card')).toHaveCount(28)
   expect(
     await page
       .getByTestId('feature-card')
@@ -126,6 +133,14 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'road',
     'svg',
     'gif',
+    'load-model',
+    'primitive-model',
+    'mass-models',
+    'model-motion',
+    'model-interpolation',
+    'pick-child-node',
+    'manual-model',
+    'wind-turbine',
     'radar',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
@@ -423,6 +438,61 @@ test('矢量示例深链直接打开 entity点 并可执行交互和关闭', asy
   await expect(dialog).toBeHidden()
   await expect(page).toHaveURL(/\/layers#entity-point$/)
   await expect(page.getByRole('button', { name: '打开1.3.1、entity点' })).toBeFocused()
+})
+
+test('模型示例深链可打开、交互、全屏并返回对应卡片', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.goto('/layers/model/1-4-1-load-model')
+
+  let dialog = page.getByRole('dialog', { name: '1.4.1、加载模型' })
+  let globe = dialog.getByTestId('model-demo-globe')
+  await expect(dialog).toBeVisible()
+  await expect(globe).toHaveAttribute('data-scene-id', 'load-model')
+  await expectCesiumReady(globe)
+  await expect(globe.locator('canvas')).toBeVisible()
+  await expect(globe.getByText(/Entity 已加载本地飞机模型/)).toBeVisible()
+  await dialog.getByRole('button', { name: '暂停/播放动画' }).click()
+  await expect(globe.getByText(/模型内置动画已暂停/)).toBeVisible()
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(page.locator('.feature-dialog--model')).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(page).toHaveURL(/\/layers#load-model$/)
+  await expect(page.getByRole('button', { name: '打开1.4.1、加载模型' })).toBeFocused()
+
+  await page.goto('/layers/model/1-4-4-model-motion')
+  dialog = page.getByRole('dialog', { name: '1.4.4、模型运动' })
+  globe = dialog.getByTestId('model-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-scene-id', 'model-motion')
+  await expect(globe.getByText(/^模型正在沿采样路径运动/)).toBeVisible()
+  await dialog.getByRole('button', { name: '暂停/继续运动' }).click()
+  await expect(globe.getByText(/模型运动已暂停/)).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+
+  await page.goto('/layers/model/1-4-8-wind-turbine')
+  dialog = page.getByRole('dialog', { name: '1.4.8、风力发电机' })
+  globe = dialog.getByTestId('model-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-scene-id', 'wind-turbine')
+  await expect(globe.getByText(/已加载 5 台本地风力发电机/)).toBeVisible()
+})
+
+test('移动端大量模型自动降载为 300 个且弹窗保持在视口内', async ({ page }) => {
+  test.setTimeout(60_000)
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/layers/model/1-4-3-primitive-mass-models')
+
+  const dialog = page.getByRole('dialog', { name: '1.4.3、primitive加载大量模型' })
+  const globe = dialog.getByTestId('model-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe.getByText(/300 个 Primitive 模型/)).toBeVisible()
+  await expect(globe.getByText(/移动端降载/)).toBeVisible()
+
+  const box = await page.locator('.feature-dialog--model').boundingBox()
+  expect(box).not.toBeNull()
+  expect(box?.x).toBeGreaterThanOrEqual(0)
+  expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(375)
 })
 
 test('矢量示例修订项可稳定复现', async ({ page }) => {

@@ -129,9 +129,9 @@ describe('App', () => {
     expect(wrapper.text()).toContain('三维效果展示')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(20)
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(28)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(2)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(3)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(4)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
     expect(wrapper.findAll('.el-sub-menu__icon-arrow').length).toBeGreaterThanOrEqual(2)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
@@ -145,13 +145,15 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(20)
+    expect(cards).toHaveLength(28)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
     expect(cards[3]?.attributes('data-feature-id')).toBe('entity-point')
     expect(cards[18]?.attributes('data-feature-id')).toBe('gif')
-    expect(cards[19]?.attributes('data-feature-id')).toBe('radar')
+    expect(cards[19]?.attributes('data-feature-id')).toBe('load-model')
+    expect(cards[26]?.attributes('data-feature-id')).toBe('wind-turbine')
+    expect(cards[27]?.attributes('data-feature-id')).toBe('radar')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -164,6 +166,9 @@ describe('App', () => {
     expect(
       wrapper.get('[data-testid="vector-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(16)
+    expect(
+      wrapper.get('[data-testid="model-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(8)
     expect(
       wrapper.get('[data-testid="effect-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(1)
@@ -189,8 +194,10 @@ describe('App', () => {
     expect(cards[2]?.get('img').attributes('alt')).toBe('从化山地三维地形效果')
     expect(cards[3]?.attributes('aria-label')).toBe('打开1.3.1、entity点')
     expect(cards[18]?.attributes('aria-label')).toBe('打开1.3.16、gif')
-    expect(cards[19]?.attributes('aria-label')).toBe('打开雷达图')
-    expect(cards[19]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
+    expect(cards[19]?.attributes('aria-label')).toBe('打开1.4.1、加载模型')
+    expect(cards[26]?.attributes('aria-label')).toBe('打开1.4.8、风力发电机')
+    expect(cards[27]?.attributes('aria-label')).toBe('打开雷达图')
+    expect(cards[27]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
@@ -202,6 +209,7 @@ describe('App', () => {
       '1.1、影像',
       '1.2、地形',
       '1.3、矢量',
+      '1.4、模型',
     ])
 
     wrapper.unmount()
@@ -396,6 +404,36 @@ describe('App', () => {
     expect(router.currentRoute.value.fullPath).toBe('/layers#entity-point')
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
     expect(wrapper.find('[data-testid="vector-demo-globe"]').exists()).toBe(false)
+    expect(getActiveSession()).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('opens a model demo from its deep link and returns to the card anchor on close', async () => {
+    const wrapper = await mountAt('/layers/model/1-4-1-load-model')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const dialog = wrapper.get('[role="dialog"]')
+    expect(dialog.text()).toContain('1.4.1、加载模型')
+    expect(wrapper.get('[data-testid="model-demo-globe"]').attributes('data-scene-id')).toBe(
+      'load-model',
+    )
+    expect(wrapper.get('[data-testid="model-demo-globe"]').attributes('data-cesium-state')).toBe(
+      'ready',
+    )
+    expect(viewerInstances[0]?.entities.values[0]?.model?.uri).toContain('cesium-air.glb')
+    expect(wrapper.get('.model-demo-globe__status').text()).toContain('Entity 已加载')
+
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/layers#load-model')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-testid="model-demo-globe"]').exists()).toBe(false)
     expect(getActiveSession()).toBeUndefined()
 
     wrapper.unmount()
@@ -610,6 +648,7 @@ describe('App', () => {
       imagery: -260,
       terrain: -160,
       vector: -60,
+      model: 30,
       radar: 40,
     }
 
@@ -645,6 +684,7 @@ describe('App', () => {
     positions.imagery = -360
     positions.terrain = -260
     positions.vector = -160
+    positions.model = -100
     positions.radar = -60
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
@@ -677,7 +717,7 @@ describe('App', () => {
     expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
 
     const cards = wrapper.findAll('[data-testid="feature-card"]')
-    expect(cards).toHaveLength(20)
+    expect(cards).toHaveLength(28)
     const radarCard = cards.find((card) => card.attributes('data-feature-id') === 'radar')
     expect(radarCard?.attributes('aria-label')).toBe('打开雷达图')
     expect(radarCard?.text()).toContain('雷达图')

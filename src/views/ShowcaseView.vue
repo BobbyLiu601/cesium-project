@@ -31,6 +31,7 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   imagery: 'feature-grid',
   terrain: 'terrain-grid',
   vector: 'vector-grid',
+  model: 'model-grid',
   effects: 'effect-grid',
 }
 

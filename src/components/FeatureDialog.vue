@@ -47,6 +47,10 @@ const sceneProps = computed(() => {
     return { sceneId: props.feature.sceneId }
   }
 
+  if (props.feature.kind === 'model' && props.feature.modelSceneId) {
+    return { sceneId: props.feature.modelSceneId }
+  }
+
   if (props.feature.kind === 'amap') {
     return { imagery: 'amap' as const }
   }
@@ -64,9 +68,11 @@ async function loadScene() {
       const module =
         props.feature.kind === 'vector'
           ? await import('@/demos/VectorDemoGlobe.vue')
-          : props.feature.kind === 'elevation'
-            ? await import('@/components/ElevationGlobe.vue')
-            : await import('@/components/CesiumGlobe.vue')
+          : props.feature.kind === 'model'
+            ? await import('@/demos/ModelDemoGlobe.vue')
+            : props.feature.kind === 'elevation'
+              ? await import('@/components/ElevationGlobe.vue')
+              : await import('@/components/CesiumGlobe.vue')
 
       loadedSceneComponent = markRaw(module.default)
       sceneReady.value = true
