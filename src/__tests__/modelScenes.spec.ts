@@ -76,12 +76,7 @@ describe('model scene builders', () => {
     async (sceneId) => {
       const viewer = createViewer()
       const statuses: string[] = []
-      const scene = await createModelScene(
-        viewer,
-        document.createElement('div'),
-        sceneId,
-        (message) => statuses.push(message),
-      )
+      const scene = await createModelScene(viewer, sceneId, (message) => statuses.push(message))
 
       expect(scene.actions.length).toBeGreaterThan(0)
       expect(statuses[statuses.length - 1]).toBeTruthy()
@@ -92,11 +87,8 @@ describe('model scene builders', () => {
   it('draws the full interpolation route and toggles camera follow', async () => {
     const viewer = createViewer()
     const statuses: string[] = []
-    const scene = await createModelScene(
-      viewer,
-      document.createElement('div'),
-      'model-interpolation',
-      (message) => statuses.push(message),
+    const scene = await createModelScene(viewer, 'model-interpolation', (message) =>
+      statuses.push(message),
     )
     const mockViewer = viewerInstances[0]!
     const route = mockViewer.entities.values.find(
@@ -146,9 +138,7 @@ describe('model scene builders', () => {
   it('loads the reference terrain service for the wind turbine area', async () => {
     const viewer = createViewer()
     const statuses: string[] = []
-    await createModelScene(viewer, document.createElement('div'), 'wind-turbine', (message) =>
-      statuses.push(message),
-    )
+    await createModelScene(viewer, 'wind-turbine', (message) => statuses.push(message))
     const mockViewer = viewerInstances[0]!
 
     expect(cesiumTerrainProviderRequests).toEqual([
@@ -167,9 +157,7 @@ describe('model scene builders', () => {
     const viewer = createViewer()
     const statuses: string[] = []
 
-    await createModelScene(viewer, document.createElement('div'), 'wind-turbine', (message) =>
-      statuses.push(message),
-    )
+    await createModelScene(viewer, 'wind-turbine', (message) => statuses.push(message))
     const mockViewer = viewerInstances[0]!
     const turbines = mockViewer.entities.values.filter((entity) =>
       entity.id.startsWith('wind-turbine-'),
@@ -188,12 +176,7 @@ describe('model scene builders', () => {
 
   it('requires frames while wind animations play and stops the ticker on dispose', async () => {
     const viewer = createViewer()
-    const scene = await createModelScene(
-      viewer,
-      document.createElement('div'),
-      'wind-turbine',
-      () => {},
-    )
+    const scene = await createModelScene(viewer, 'wind-turbine', () => {})
     const mockViewer = viewerInstances[0]!
 
     expect(viewer.clock.shouldAnimate).toBe(true)
@@ -216,9 +199,7 @@ describe('model scene builders', () => {
   it('places all reference wind turbines at their source elevations', async () => {
     const viewer = createViewer()
     const statuses: string[] = []
-    await createModelScene(viewer, document.createElement('div'), 'wind-turbine', (message) =>
-      statuses.push(message),
-    )
+    await createModelScene(viewer, 'wind-turbine', (message) => statuses.push(message))
     const mockViewer = viewerInstances[0]!
     const turbines = mockViewer.entities.values.filter((entity) =>
       entity.id.startsWith('wind-turbine-'),

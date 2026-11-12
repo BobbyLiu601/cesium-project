@@ -17,14 +17,17 @@ export interface ModelScene {
 
 type StatusReporter = (message: string) => void
 
+export interface CreateModelSceneOptions {
+  signal?: AbortSignal
+}
+
 const INTERPOLATION_MODEL_SCALE = 18
-// CesiumAir 未缩放包围盒约为 x [-12.87, 12.87]、z [-13.40, 8.00]。
-// 缩放后模型长约 463，相机必须退到机尾之外并抬高，才能覆盖整机。
-const INTERPOLATION_FOLLOW_OFFSET = new Cesium.Cartesian3(
-  -50 * INTERPOLATION_MODEL_SCALE,
-  0,
-  25 * INTERPOLATION_MODEL_SCALE,
-)
+const INTERPOLATION_MODEL_BOUNDS = {
+  min: [-12.8683, -2.296, -13.3969],
+  max: [12.8683, 5.4641, 8.0047],
+} as const
+const DEFAULT_CAMERA_FOV = Math.PI / 3
+const FOLLOW_FRAME_MARGIN = 1.2
 const WIND_TURBINE_TERRAIN_URL = 'https://data.mars3d.cn/terrain'
 const TERRAIN_LOAD_TIMEOUT_MS = 12_000
 
@@ -59,6 +62,34 @@ const windTurbineReferencePositions = [
 function requestRender(viewer: Cesium.Viewer) {
   viewer.scene.requestRender()
 }
+
+function createAbortError() {
+  return new DOMException('模型场景加载已取消', 'AbortError')
+}
+
+function throwIfAborted(signal?: AbortSignal) {
+  if (signal?.aborted) {
+    throw createAbortError()
+  }
+}
+
+function createInterpolationFollowOffset() {
+  const halfExtents = INTERPOLATION_MODEL_BOUNDS.min.map((min, index) =>
+    Math.max(Math.abs(min), Math.abs(INTERPOLATION_MODEL_BOUNDS.max[index]!)),
+  )
+  const radius = Math.hypot(...halfExtents) * INTERPOLATION_MODEL_SCALE
+  const distance = (radius / Math.sin(DEFAULT_CAMERA_FOV / 2)) * FOLLOW_FRAME_MARGIN
+  const directionLength = Math.hypot(2, 1)
+
+  return new Cesium.Cartesian3(
+    (-2 / directionLength) * distance,
+    0,
+    (1 / directionLength) * distance,
+  )
+}
+
+// 相机沿机尾后上方后退，距离由模型包围盒和默认视场角计算。
+const INTERPOLATION_FOLLOW_OFFSET = createInterpolationFollowOffset()
 
 function headingPitchRoll(heading: number, pitch = 0, roll = 0) {
   return new Cesium.HeadingPitchRoll(
@@ -114,12 +145,21 @@ function createAnimationTicker(viewer: Cesium.Viewer) {
   return () => viewer.scene.preUpdate.removeEventListener(renderAnimatedFrame)
 }
 
-async function loadWindTurbineTerrain(viewer: Cesium.Viewer) {
+async function loadWindTurbineTerrain(viewer: Cesium.Viewer, signal?: AbortSignal) {
   let timeoutId: ReturnType<typeof setTimeout> | undefined
+  let abortHandler: (() => void) | undefined
 
   try {
+    throwIfAborted(signal)
     const terrainProvider = await Promise.race([
       Cesium.CesiumTerrainProvider.fromUrl(WIND_TURBINE_TERRAIN_URL),
+      new Promise<never>((_, reject) => {
+        if (!signal) {
+          return
+        }
+        abortHandler = () => reject(createAbortError())
+        signal.addEventListener('abort', abortHandler, { once: true })
+      }),
       new Promise<never>((_, reject) => {
         timeoutId = setTimeout(
           () => reject(new Error('参考站高程地形加载超时')),
@@ -131,6 +171,9 @@ async function loadWindTurbineTerrain(viewer: Cesium.Viewer) {
     viewer.scene.globe.depthTestAgainstTerrain = true
     return true
   } catch (error) {
+    if (signal?.aborted) {
+      throw createAbortError()
+    }
     console.error('参考站高程地形加载失败，已回退椭球地形。', error)
     viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider()
     viewer.scene.globe.depthTestAgainstTerrain = false
@@ -138,6 +181,9 @@ async function loadWindTurbineTerrain(viewer: Cesium.Viewer) {
   } finally {
     if (timeoutId !== undefined) {
       clearTimeout(timeoutId)
+    }
+    if (abortHandler) {
+      signal?.removeEventListener('abort', abortHandler)
     }
   }
 }
@@ -313,8 +359,10 @@ function createInterpolationScene(viewer: Cesium.Viewer, setStatus: StatusReport
 async function createWindTurbineScene(
   viewer: Cesium.Viewer,
   setStatus: StatusReporter,
+  signal?: AbortSignal,
 ): Promise<ModelScene> {
-  const terrainLoaded = await loadWindTurbineTerrain(viewer)
+  const terrainLoaded = await loadWindTurbineTerrain(viewer, signal)
+  throwIfAborted(signal)
   const entities = windTurbineReferencePositions.map(({ longitude, latitude, height }, index) => {
     const { position, orientation } = positionAndOrientation(longitude, latitude, height, 135)
     return viewer.entities.add({
@@ -376,17 +424,17 @@ async function createWindTurbineScene(
 
 export async function createModelScene(
   viewer: Cesium.Viewer,
-  host: HTMLElement,
   sceneId: ModelSceneId,
   setStatus: StatusReporter,
+  options: CreateModelSceneOptions = {},
 ): Promise<ModelScene> {
-  void host
+  throwIfAborted(options.signal)
   setModelSceneDefaults(viewer)
 
   switch (sceneId) {
     case 'model-interpolation':
       return createInterpolationScene(viewer, setStatus)
     case 'wind-turbine':
-      return createWindTurbineScene(viewer, setStatus)
+      return createWindTurbineScene(viewer, setStatus, options.signal)
   }
 }

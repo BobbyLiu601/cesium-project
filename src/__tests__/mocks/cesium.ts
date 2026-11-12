@@ -224,6 +224,7 @@ export const cesiumMockState = {
   elevationProviderOutcome: 'success' as 'success' | 'failure',
   elevationProviderPromise: undefined as Promise<MockElevationTerrainProvider> | undefined,
   cesiumTerrainProviderOutcome: 'success' as 'success' | 'failure',
+  cesiumTerrainProviderPromise: undefined as Promise<MockCesiumTerrainProvider> | undefined,
   geoJsonOutcome: 'success' as 'success' | 'failure',
 }
 
@@ -704,6 +705,10 @@ export class CesiumTerrainProvider implements MockCesiumTerrainProvider {
       return Promise.reject(new Error('mock Cesium terrain provider failure'))
     }
 
+    if (cesiumMockState.cesiumTerrainProviderPromise) {
+      return cesiumMockState.cesiumTerrainProviderPromise
+    }
+
     return Promise.resolve(new CesiumTerrainProvider(url, options))
   }
 }
@@ -1017,6 +1022,7 @@ export function resetCesiumMock() {
   cesiumMockState.elevationProviderOutcome = 'success'
   cesiumMockState.elevationProviderPromise = undefined
   cesiumMockState.cesiumTerrainProviderOutcome = 'success'
+  cesiumMockState.cesiumTerrainProviderPromise = undefined
   cesiumMockState.geoJsonOutcome = 'success'
   GroundPrimitive.supportsMaterials.mockClear()
   GroundPrimitive.initializeTerrainHeights.mockClear()

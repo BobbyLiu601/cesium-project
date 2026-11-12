@@ -1,199 +1,27 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import * as Cesium from 'cesium'
-import 'cesium/Build/Cesium/Widgets/widgets.css'
+import { ref } from 'vue'
 import { ElButton } from 'element-plus'
 
-import { createTiandituTileUrl, getTiandituToken, tiandituLayers } from '@/config/tianditu'
-import {
-  disposeActiveSession,
-  disposeGlobeSession,
-  getActiveSession,
-  setActiveSession,
-  type GlobeSession,
-} from '@/components/cesiumGlobeSession'
 import type { VectorSceneId } from '@/data/layers'
-import { createVectorScene, type VectorAction, type VectorScene } from '@/demos/vectorScene'
+import { createVectorScene } from '@/demos/vectorScene'
+import { useDemoGlobe } from '@/demos/useDemoGlobe'
 
 const props = defineProps<{
   sceneId: VectorSceneId
 }>()
 
 const container = ref<HTMLDivElement | null>(null)
-const sceneState = ref<'loading' | 'ready' | 'error'>('loading')
-const statusMessage = ref('正在准备 Cesium 场景…')
-const actions = ref<VectorAction[]>([])
-let session: GlobeSession | undefined
-let vectorScene: VectorScene | undefined
-let cancelled = false
-let renderTimers: ReturnType<typeof setTimeout>[] = []
-
-function clearScheduledRenders() {
-  renderTimers.forEach((timer) => clearTimeout(timer))
-  renderTimers = []
-}
-
-function scheduleSceneRenders(viewer: Cesium.Viewer) {
-  clearScheduledRenders()
-  renderTimers = [120, 350, 750, 1_400, 2_400].map((delay) =>
-    setTimeout(() => {
-      if (getActiveSession() === session) {
-        viewer.scene.requestRender()
-      }
-    }, delay),
-  )
-}
-
-function resize() {
-  session?.viewer.resize()
-  session?.viewer.scene.requestRender()
-}
-
-function setStatus(message: string) {
-  statusMessage.value = message
-}
-
-async function runAction(action: VectorAction) {
-  try {
-    await action.run()
-  } catch (error) {
-    console.error(`示例操作失败：${action.label}`, error)
-    setStatus(`${action.label}失败，请重试`)
-  }
-}
-
-async function createSession() {
-  if (!container.value) {
-    sceneState.value = 'error'
-    statusMessage.value = '未找到 Cesium 容器'
-    return
-  }
-
-  clearScheduledRenders()
-  disposeActiveSession()
-
-  let host: HTMLDivElement | undefined
-
-  try {
-    host = document.createElement('div')
-    host.className = 'vector-demo-globe__viewer'
-
-    const creditContainer = document.createElement('div')
-    creditContainer.className = 'vector-demo-globe__credits'
-    creditContainer.dataset.testid = 'vector-credit-container'
-    creditContainer.hidden = true
-    creditContainer.style.display = 'none'
-    host.append(creditContainer)
-
-    const viewer = new Cesium.Viewer(host, {
-      animation: false,
-      baseLayer: false,
-      baseLayerPicker: false,
-      creditContainer,
-      fullscreenButton: false,
-      geocoder: false,
-      homeButton: false,
-      infoBox: false,
-      navigationHelpButton: false,
-      requestRenderMode: true,
-      sceneModePicker: false,
-      selectionIndicator: false,
-      timeline: false,
-      terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-    })
-    const removeTileLoadProgressListener =
-      viewer.scene.globe.tileLoadProgressEvent.addEventListener(() => {
-        viewer.scene.requestRender()
-      })
-
-    session = {
-      cleanup: removeTileLoadProgressListener,
-      host,
-      viewer,
-    }
-    setActiveSession(session)
-
-    const token = getTiandituToken()
-    if (!token) {
-      console.error('未配置 VITE_TIANDITU_TOKEN，已跳过天地图图层。')
-    }
-
-    const layers = token ? tiandituLayers : []
-    for (const layer of layers) {
-      viewer.imageryLayers.addImageryProvider(
-        new Cesium.WebMapTileServiceImageryProvider({
-          url: createTiandituTileUrl(layer.id, token),
-          layer: layer.id,
-          style: 'default',
-          format: 'tiles',
-          tileMatrixSetID: 'w',
-          tilingScheme: new Cesium.WebMercatorTilingScheme(),
-          maximumLevel: 18,
-          subdomains: ['0', '1', '2', '3', '4', '5', '6', '7'],
-          credit: '天地图',
-          enablePickFeatures: false,
-        }),
-      )
-    }
-
-    container.value.replaceChildren(host)
-    viewer.resize()
-    vectorScene = await createVectorScene(viewer, host, props.sceneId, setStatus)
-
-    if (cancelled || getActiveSession() !== session) {
-      vectorScene.dispose()
-      vectorScene = undefined
-      return
-    }
-
-    actions.value = vectorScene.actions
-    session.cleanup = () => {
-      removeTileLoadProgressListener()
-      vectorScene?.dispose()
-      vectorScene = undefined
-    }
-
-    if (typeof ResizeObserver !== 'undefined') {
-      session.resizeObserver = new ResizeObserver(resize)
-      session.resizeObserver.observe(host)
-    }
-
-    viewer.resize()
-    viewer.scene.requestRender()
-    sceneState.value = 'ready'
-    scheduleSceneRenders(viewer)
-  } catch (error) {
-    vectorScene?.dispose()
-    vectorScene = undefined
-
-    if (session) {
-      disposeGlobeSession(session)
-      session = undefined
-    }
-
-    host?.remove()
-    console.error(`Cesium 矢量示例初始化失败：${props.sceneId}`, error)
-    sceneState.value = 'error'
-    statusMessage.value = '示例场景加载失败，请关闭后重试。'
-  }
-}
-
-onMounted(() => {
-  void createSession()
-})
-
-onBeforeUnmount(() => {
-  cancelled = true
-  clearScheduledRenders()
-  vectorScene?.dispose()
-  vectorScene = undefined
-
-  if (session) {
-    if (getActiveSession() === session) {
-      disposeGlobeSession(session)
-    }
-    session = undefined
-  }
+const { actions, resize, runAction, sceneState, statusMessage } = useDemoGlobe({
+  actionErrorLabel: '示例操作失败',
+  container,
+  creditTestId: 'vector-credit-container',
+  errorLabel: 'Cesium 矢量示例初始化失败',
+  errorStatus: '示例场景加载失败，请关闭后重试。',
+  initialStatus: '正在准备 Cesium 场景…',
+  loadScene: ({ viewer, host, setStatus }) =>
+    createVectorScene(viewer, host, props.sceneId, setStatus),
+  sceneId: props.sceneId,
+  scenePrefix: 'vector-demo-globe',
 })
 
 defineExpose({ resize })

@@ -11,6 +11,7 @@ import router from '../router'
 import {
   ArcGISTiledElevationTerrainProvider,
   cesiumMockState,
+  CesiumTerrainProvider,
   elevationProviderRequests,
   elevationTerrainProviderInstances,
   EllipsoidTerrainProvider,
@@ -439,6 +440,64 @@ describe('App', () => {
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
     expect(wrapper.find('[data-testid="model-demo-globe"]').exists()).toBe(false)
     expect(getActiveSession()).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('aborts a wind turbine scene that is closed while terrain is loading', async () => {
+    let resolveTerrain!: (provider: CesiumTerrainProvider) => void
+    cesiumMockState.cesiumTerrainProviderPromise = new Promise((resolve) => {
+      resolveTerrain = resolve
+    })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wrapper = await mountAt('/layers/model/1-4-2-wind-turbine')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    const viewer = viewerInstances[0]!
+    expect(viewer.entities.values).toHaveLength(0)
+
+    await wrapper.get('.feature-dialog .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    resolveTerrain(new CesiumTerrainProvider('https://data.mars3d.cn/terrain'))
+    await flushPromises()
+
+    expect(viewer.destroy).toHaveBeenCalledOnce()
+    expect(viewer.entities.add).not.toHaveBeenCalled()
+    expect(viewer.camera.setView).not.toHaveBeenCalled()
+    expect(viewer.terrainProvider).toBeInstanceOf(EllipsoidTerrainProvider)
+    expect(viewer.scene.globe.depthTestAgainstTerrain).toBe(false)
+    expect(consoleError).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="model-demo-globe"]').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('aborts a pending model scene when its active session is disposed', async () => {
+    let resolveTerrain!: (provider: CesiumTerrainProvider) => void
+    cesiumMockState.cesiumTerrainProviderPromise = new Promise((resolve) => {
+      resolveTerrain = resolve
+    })
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const wrapper = await mountAt('/layers/model/1-4-2-wind-turbine')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    const viewer = viewerInstances[0]!
+    disposeActiveSession()
+    await flushPromises()
+
+    resolveTerrain(new CesiumTerrainProvider('https://data.mars3d.cn/terrain'))
+    await flushPromises()
+
+    expect(viewer.entities.add).not.toHaveBeenCalled()
+    expect(viewer.camera.setView).not.toHaveBeenCalled()
+    expect(viewer.terrainProvider).toBeInstanceOf(EllipsoidTerrainProvider)
+    expect(viewer.scene.globe.depthTestAgainstTerrain).toBe(false)
+    expect(consoleError).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
