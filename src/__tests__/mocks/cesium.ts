@@ -340,6 +340,13 @@ export class PolygonGeometry {
   }
 }
 
+export class PolygonHierarchy {
+  constructor(
+    public positions: unknown[],
+    public holes: unknown[] = [],
+  ) {}
+}
+
 export class PolylineGeometry {
   constructor(public options: Record<string, unknown>) {}
 }
@@ -544,6 +551,13 @@ export class JulianDate {
 
   static now() {
     return new JulianDate(2_460_000, 0)
+  }
+
+  static fromDate(date: Date) {
+    const millisecondsPerDay = 86_400_000
+    const julianDayNumber = date.getTime() / millisecondsPerDay + 2_440_587.5
+    const dayNumber = globalThis.Math.floor(julianDayNumber)
+    return new JulianDate(dayNumber, (julianDayNumber - dayNumber) * 86_400)
   }
 
   static addSeconds(date: JulianDate, seconds: number, result = new JulianDate()) {

@@ -1,12 +1,22 @@
-import { Box, Film, FolderOpened, Location, MagicStick, MapLocation } from '@element-plus/icons-vue'
+import {
+  Box,
+  Film,
+  FolderOpened,
+  Location,
+  MapLocation,
+  TrendCharts,
+} from '@element-plus/icons-vue'
 import type { Component } from 'vue'
 
 import amapImage from '@/assets/amap-cover.jpg'
 import elevationImage from '@/assets/elevation-cover.jpg'
-import radarEffectCover from '@/assets/radar-effect-cover.jpg'
 import tiandituImage from '@/assets/tianditu-cover.jpg'
 import modelInterpolationCover from '@/assets/model-covers/model-interpolation.jpg'
 import windTurbineCover from '@/assets/model-covers/wind-turbine.jpg'
+import aspectAnalysisCover from '@/assets/spatial-covers/2-1-13-aspect-analysis.jpg'
+import inundationAnalysisCover from '@/assets/spatial-covers/2-1-3-inundation-analysis-simple.jpg'
+import sunlightAnalysisCover from '@/assets/spatial-covers/2-1-6-sunlight-analysis.jpg'
+import waterSurfaceCover from '@/assets/spatial-covers/2-1-10-water-surface.jpg'
 import allPrimitiveCover from '@/assets/vector-covers/all-primitive.jpg'
 import billboardCover from '@/assets/vector-covers/billboard.jpg'
 import billboardCollectionCover from '@/assets/vector-covers/billboard-collection.jpg'
@@ -44,7 +54,10 @@ export type VectorSceneId =
 
 export type ModelSceneId = 'model-interpolation' | 'wind-turbine'
 
-export type FeatureKind = 'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'radar'
+export type SpatialSceneId =
+  'inundation-analysis-simple' | 'sunlight-analysis' | 'water-surface' | 'aspect-analysis'
+
+export type FeatureKind = 'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial'
 
 export interface FeatureItem {
   id: string
@@ -56,15 +69,16 @@ export interface FeatureItem {
   imageSrc: string
   imageAlt: string
   kind: FeatureKind
-  /** 可独立深链的功能才配置路由；雷达图通过弹窗打开。 */
+  /** 可独立深链的功能才配置路由。 */
   routeName?: string
   routePath?: string
   sceneId?: VectorSceneId
   modelSceneId?: ModelSceneId
+  spatialSceneId?: SpatialSceneId
 }
 
 export interface FeatureSection {
-  id: 'imagery' | 'terrain' | 'vector' | 'model' | 'effects'
+  id: 'imagery' | 'terrain' | 'vector' | 'model' | 'spatial'
   code: string
   title: string
   icon: Component
@@ -72,7 +86,7 @@ export interface FeatureSection {
 }
 
 export interface MenuGroup {
-  id: 'layers' | 'effects'
+  id: 'layers' | 'spatial'
   code: string
   title: string
   icon: Component
@@ -360,19 +374,55 @@ export const modelSection: FeatureSection = {
 
 layerSections.push(modelSection)
 
-export const effectsSection: FeatureSection = {
-  id: 'effects',
-  code: '',
-  title: '视觉效果',
-  icon: MagicStick,
+export const spatialSection: FeatureSection = {
+  id: 'spatial',
+  code: '2.1',
+  title: '空间分析',
+  icon: TrendCharts,
   items: [
     defineFeature({
-      id: 'radar',
-      code: '',
-      name: '雷达图',
-      imageSrc: radarEffectCover,
-      imageAlt: '广州海珠区三维雷达扫描效果截图',
-      kind: 'radar',
+      id: 'inundation-analysis-simple',
+      code: '2.1.3',
+      name: '淹没分析（简易）',
+      imageSrc: inundationAnalysisCover,
+      imageAlt: '淹没分析（简易）参考示例封面',
+      kind: 'spatial',
+      spatialSceneId: 'inundation-analysis-simple',
+      routeName: 'spatial-analysis-inundation-simple',
+      routePath: '/spatial-analysis/2-1-3-inundation-analysis-simple',
+    }),
+    defineFeature({
+      id: 'sunlight-analysis',
+      code: '2.1.6',
+      name: '日照分析',
+      imageSrc: sunlightAnalysisCover,
+      imageAlt: '日照分析参考示例封面',
+      kind: 'spatial',
+      spatialSceneId: 'sunlight-analysis',
+      routeName: 'spatial-analysis-sunlight',
+      routePath: '/spatial-analysis/2-1-6-sunlight-analysis',
+    }),
+    defineFeature({
+      id: 'water-surface',
+      code: '2.1.10',
+      name: '水域面',
+      imageSrc: waterSurfaceCover,
+      imageAlt: '水域面参考示例封面',
+      kind: 'spatial',
+      spatialSceneId: 'water-surface',
+      routeName: 'spatial-analysis-water-surface',
+      routePath: '/spatial-analysis/2-1-10-water-surface',
+    }),
+    defineFeature({
+      id: 'aspect-analysis',
+      code: '2.1.13',
+      name: '坡向分析',
+      imageSrc: aspectAnalysisCover,
+      imageAlt: '坡向分析参考示例封面',
+      kind: 'spatial',
+      spatialSceneId: 'aspect-analysis',
+      routeName: 'spatial-analysis-aspect',
+      routePath: '/spatial-analysis/2-1-13-aspect-analysis',
     }),
   ],
 }
@@ -385,20 +435,20 @@ export const layersMenuGroup: MenuGroup = {
   sections: layerSections,
 }
 
-const effectsMenuGroup: MenuGroup = {
-  id: 'effects',
-  code: '',
-  title: '视觉效果',
-  icon: MagicStick,
-  sections: [effectsSection],
+const spatialMenuGroup: MenuGroup = {
+  id: 'spatial',
+  code: '2',
+  title: '空间分析',
+  icon: TrendCharts,
+  sections: [spatialSection],
 }
 
-export const menuGroups: MenuGroup[] = [layersMenuGroup, effectsMenuGroup]
+export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup]
 
-export const featureSections: FeatureSection[] = [...layerSections, effectsSection]
+export const featureSections: FeatureSection[] = [...layerSections, spatialSection]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)
-export const contentAnchors = [...featureAnchors, ...layerSections.map((section) => section.id)]
+export const contentAnchors = [...featureAnchors, ...featureSections.map((section) => section.id)]
 export const featuredRoutes = allFeatures.flatMap((feature) =>
   feature.routeName && feature.routePath
     ? [
@@ -416,16 +466,15 @@ export function getFeatureById(featureId: string | undefined) {
 }
 
 export function getNavigationAnchorForContent(anchor: string) {
-  const layerSection = layerSections.find(
+  const section = featureSections.find(
     (section) => section.id === anchor || section.items.some((feature) => feature.id === anchor),
   )
-  if (layerSection) {
-    return layerSection.id
-  }
-
-  return effectsSection.items.some((feature) => feature.id === anchor) ? anchor : ''
+  return section?.id ?? ''
 }
 
 export function getMenuGroupIdForAnchor(anchor: string): MenuGroup['id'] {
-  return effectsSection.items.some((feature) => feature.id === anchor) ? 'effects' : 'layers'
+  return spatialSection.id === anchor ||
+    spatialSection.items.some((feature) => feature.id === anchor)
+    ? 'spatial'
+    : 'layers'
 }

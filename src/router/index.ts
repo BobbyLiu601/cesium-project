@@ -28,13 +28,6 @@ const router = createRouter({
       },
     })),
     {
-      path: '/effects',
-      redirect: {
-        name: 'layers',
-        hash: '#radar',
-      },
-    },
-    {
       path: '/:pathMatch(.*)*',
       name: 'not-found',
       component: NotFoundView,

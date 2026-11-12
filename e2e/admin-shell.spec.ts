@@ -48,6 +48,7 @@ const responsiveViewports = [
 test.beforeEach(async ({ page }) => {
   await page.route(/https:\/\/t\d\.tianditu\.gov\.cn\//, (route) => route.abort())
   await page.route(/https:\/\/elevation3d\.arcgis\.com\//, (route) => route.abort())
+  await page.route(/https:\/\/data\.mars3d\.cn\/terrain\//, (route) => route.abort())
   await page.route(/https:\/\/webrd\d+\.is\.autonavi\.com\//, (route) =>
     route.fulfill({
       body: Buffer.from(
@@ -77,7 +78,8 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '1.2、地形' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '1.3、矢量' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '1.4、模型' })).toBeVisible()
-  await expect(page.getByRole('heading', { level: 2, name: '视觉效果' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '2、空间分析' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '2.1、空间分析' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -107,8 +109,20 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开1.4.2、风力发电机' })).toContainText(
     '1.4.2、风力发电机',
   )
-  await expect(page.getByRole('button', { name: '打开雷达图' })).toContainText('雷达图')
-  await expect(page.getByTestId('feature-card')).toHaveCount(22)
+  await expect(page.getByRole('button', { name: '打开2.1.3、淹没分析（简易）' })).toContainText(
+    '2.1.3、淹没分析（简易）',
+  )
+  await expect(page.getByRole('button', { name: '打开2.1.6、日照分析' })).toContainText(
+    '2.1.6、日照分析',
+  )
+  await expect(page.getByRole('button', { name: '打开2.1.10、水域面' })).toContainText(
+    '2.1.10、水域面',
+  )
+  await expect(page.getByRole('button', { name: '打开2.1.13、坡向分析' })).toContainText(
+    '2.1.13、坡向分析',
+  )
+  await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
+  await expect(page.getByTestId('feature-card')).toHaveCount(25)
   expect(
     await page
       .getByTestId('feature-card')
@@ -135,7 +149,10 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'gif',
     'model-interpolation',
     'wind-turbine',
-    'radar',
+    'inundation-analysis-simple',
+    'sunlight-analysis',
+    'water-surface',
+    'aspect-analysis',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -696,10 +713,10 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
   const content = page.getByRole('main')
   const sidebar = page.locator('.admin-sidebar')
   const layersGroup = sidebar.locator('.sidebar-menu__group').nth(0)
-  const effectsGroup = sidebar.locator('.sidebar-menu__group').nth(1)
+  const spatialGroup = sidebar.locator('.sidebar-menu__group').nth(1)
 
   await expect(layersGroup).toHaveClass(/is-opened/)
-  await expect(effectsGroup).not.toHaveClass(/is-opened/)
+  await expect(spatialGroup).not.toHaveClass(/is-opened/)
 
   await content.evaluate((element) => {
     const target = document.querySelector<HTMLElement>('[data-navigation-anchor="vector"]')
@@ -720,17 +737,17 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '雷达图' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '2.1、空间分析' })).toHaveAttribute(
     'aria-current',
     'location',
   )
   await expect(page).toHaveURL(/\/layers$/)
   await expect(layersGroup).not.toHaveClass(/is-opened/)
-  await expect(effectsGroup).toHaveClass(/is-opened/)
+  await expect(spatialGroup).toHaveClass(/is-opened/)
 
   await sidebar.locator('.sidebar-menu__group').nth(0).locator('.el-sub-menu__title').click()
   await expect(layersGroup).toHaveClass(/is-opened/)
-  await expect(effectsGroup).not.toHaveClass(/is-opened/)
+  await expect(spatialGroup).not.toHaveClass(/is-opened/)
 })
 
 for (const viewport of responsiveViewports) {
@@ -846,7 +863,7 @@ test('从高程卡片打开独立场景，加载失败时仍可操作、全屏�
   await expect(card).toBeFocused()
 })
 
-test('视觉效果菜单通过向下箭头分组并锚定雷达图内容', async ({ page }) => {
+test('空间分析菜单通过向下箭头分组并锚定坡向分析内容', async ({ page }) => {
   await page.goto('/layers')
 
   await page
@@ -854,14 +871,14 @@ test('视觉效果菜单通过向下箭头分组并锚定雷达图内容', async
     .nth(1)
     .locator('.el-sub-menu__title')
     .click()
-  const effectsMenuItem = page.getByRole('menuitem', { name: '雷达图' })
-  await effectsMenuItem.click()
+  const spatialMenuItem = page.getByRole('menuitem', { name: '2.1、空间分析' })
+  await spatialMenuItem.click()
 
-  await expect(page).toHaveURL(/\/layers#radar$/)
-  await expect(effectsMenuItem).toHaveAttribute('aria-current', 'location')
-  const card = page.getByRole('button', { name: '打开雷达图' })
-  await expect(card).toContainText('雷达图')
-  await expect(card.locator('img')).toHaveAttribute('alt', '广州海珠区三维雷达扫描效果截图')
+  await expect(page).toHaveURL(/\/layers#spatial$/)
+  await expect(spatialMenuItem).toHaveAttribute('aria-current', 'location')
+  const card = page.getByRole('button', { name: '打开2.1.13、坡向分析' })
+  await expect(card).toContainText('2.1.13、坡向分析')
+  await expect(card.locator('img')).toHaveAttribute('alt', '坡向分析参考示例封面')
   await expectSubmenuArrowsPointDown(page.locator('.admin-sidebar'))
 
   await expect
@@ -875,55 +892,79 @@ test('视觉效果菜单通过向下箭头分组并锚定雷达图内容', async
         return element.getBoundingClientRect().top - content.getBoundingClientRect().top
       }),
     )
-    .toBeLessThan(120)
+    .toBeLessThan(160)
 
   await card.click()
 
-  const dialog = page.getByRole('dialog', { name: '雷达图' })
-  const dialogPanel = page.locator('.radar-dialog')
-  const globe = dialog.getByTestId('radar-globe')
+  const dialog = page.getByRole('dialog', { name: '2.1.13、坡向分析' })
+  const globe = dialog.getByTestId('spatial-demo-globe')
+  const legend = globe.getByTestId('aspect-legend')
   await expect(dialog).toBeVisible()
-  await expect(dialogPanel).not.toHaveClass(/is-fullscreen/)
   await expectCesiumReady(globe)
-  await expect(globe).toBeVisible()
   await expect(globe.locator('canvas')).toBeVisible()
-  await expect(dialog.getByTestId('radar-credit-container')).toBeHidden()
-  await expect(dialog.locator('.cesium-viewer-bottom')).toBeHidden()
-  await expect(dialog.getByRole('alert')).toHaveCount(0)
-
-  await dialog.getByRole('button', { name: '全屏' }).click()
-  await expect(dialogPanel).toHaveClass(/is-fullscreen/)
-  await dialog.getByRole('button', { name: '退出全屏' }).click()
-  await expect(dialogPanel).not.toHaveClass(/is-fullscreen/)
+  await expect(legend).toBeVisible()
+  await expect(legend).toContainText('坡向')
+  await expect(globe.getByText(/已回退椭球地形/)).toBeVisible()
 
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(dialog).toBeHidden()
   await expect(card).toBeFocused()
 })
 
-test('雷达模块异步加载失败时弹窗仍可关闭且不显示用户可见错误', async ({ page }) => {
-  const consoleErrors: string[] = []
-  page.on('console', (message) => {
-    if (message.type() === 'error') {
-      consoleErrors.push(message.text())
-    }
-  })
-  await page.route('**/RadarGlobe.vue*', (route) => route.abort())
+test('四个空间分析深链均可打开、交互、全屏、关闭并返回对应卡片', async ({ page }) => {
+  test.setTimeout(60_000)
 
-  await page.goto('/effects')
-  await page.getByRole('button', { name: '打开雷达图' }).click()
-
-  const dialog = page.getByRole('dialog', { name: '雷达图' })
-  const mapRegion = dialog.locator('.el-dialog__body')
-  await expect(dialog).toBeVisible()
-  await expect(mapRegion).toBeVisible()
-  expect(await mapRegion.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
-    'rgb(4, 16, 29)',
-  )
-  await expect(page.getByRole('alert')).toHaveCount(0)
-  await expect(dialog).not.toContainText('加载失败')
-
+  await page.goto('/spatial-analysis/2-1-3-inundation-analysis-simple')
+  let dialog = page.getByRole('dialog', { name: '2.1.3、淹没分析（简易）' })
+  let globe = dialog.getByTestId('spatial-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-scene-id', 'inundation-analysis-simple')
+  await expect(globe.getByText(/1000 米/)).toBeVisible()
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(page.locator('.feature-dialog--spatial')).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(dialog).toBeHidden()
-  expect(consoleErrors.length).toBeGreaterThan(0)
+  await expect(page).toHaveURL(/\/layers#inundation-analysis-simple$/)
+  await expect(page.getByRole('button', { name: '打开2.1.3、淹没分析（简易）' })).toBeFocused()
+
+  await page.goto('/spatial-analysis/2-1-6-sunlight-analysis')
+  dialog = page.getByRole('dialog', { name: '2.1.6、日照分析' })
+  globe = dialog.getByTestId('spatial-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe.getByText(/36 栋本地低多边形建筑/)).toBeVisible()
+  await expect(globe.getByLabel('日照日期')).toBeVisible()
+  await expect(globe.getByLabel('开始时间')).toBeVisible()
+  await expect(globe.getByLabel('结束时间')).toBeVisible()
+  await dialog.getByRole('button', { name: '播放日照' }).click()
+  await expect(globe.getByText(/日照模拟播放中/)).toBeVisible()
+  await dialog.getByRole('button', { name: '暂停日照' }).click()
+  await expect(globe.getByText(/日照模拟已暂停/)).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+
+  await page.goto('/spatial-analysis/2-1-10-water-surface')
+  dialog = page.getByRole('dialog', { name: '2.1.10、水域面' })
+  globe = dialog.getByTestId('spatial-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe.getByText(/动态水域面/)).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+
+  await page.goto('/spatial-analysis/2-1-13-aspect-analysis')
+  dialog = page.getByRole('dialog', { name: '2.1.13、坡向分析' })
+  globe = dialog.getByTestId('spatial-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe.getByTestId('aspect-legend')).toBeVisible()
+  await expect(globe.getByText(/已回退椭球地形/)).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(page).toHaveURL(/\/layers#aspect-analysis$/)
+  await expect(page.getByRole('button', { name: '打开2.1.13、坡向分析' })).toBeFocused()
+})
+
+test('旧 /effects 地址保留原 URL 并显示 404 页面', async ({ page }) => {
+  await page.goto('/effects')
+
+  await expect(page).toHaveURL('/effects')
+  await expect(page.getByRole('heading', { level: 1, name: '页面不存在' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /雷达图/ })).toHaveCount(0)
+  await expect(page.getByRole('menuitem', { name: '2、空间分析' })).toBeVisible()
 })

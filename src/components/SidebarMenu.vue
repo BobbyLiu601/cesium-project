@@ -94,35 +94,18 @@ function handleClose(index: string) {
         </span>
       </template>
 
-      <template v-if="group.id === 'layers'">
-        <ElMenuItem
-          v-for="section in group.sections"
-          :key="section.id"
-          :index="section.id"
-          class="sidebar-menu__section-item"
-          :aria-current="activeAnchor === section.id ? 'location' : undefined"
-          @click="emit('select', section.id)"
-          @keydown.enter.prevent="emit('select', section.id)"
-          @keydown.space.prevent="emit('select', section.id)"
-        >
-          <span class="sidebar-menu__label">{{ section.code }}、{{ section.title }}</span>
-        </ElMenuItem>
-      </template>
-
-      <template v-else>
-        <ElMenuItem
-          v-for="item in group.sections.flatMap((section) => section.items)"
-          :key="item.id"
-          :index="item.id"
-          class="sidebar-menu__feature"
-          :aria-current="activeAnchor === item.id ? 'location' : undefined"
-          @click="emit('select', item.id)"
-          @keydown.enter.prevent="emit('select', item.id)"
-          @keydown.space.prevent="emit('select', item.id)"
-        >
-          <span class="sidebar-menu__label">{{ item.displayName }}</span>
-        </ElMenuItem>
-      </template>
+      <ElMenuItem
+        v-for="section in group.sections"
+        :key="section.id"
+        :index="section.id"
+        class="sidebar-menu__section-item"
+        :aria-current="activeAnchor === section.id ? 'location' : undefined"
+        @click="emit('select', section.id)"
+        @keydown.enter.prevent="emit('select', section.id)"
+        @keydown.space.prevent="emit('select', section.id)"
+      >
+        <span class="sidebar-menu__label">{{ section.code }}、{{ section.title }}</span>
+      </ElMenuItem>
     </ElSubMenu>
   </ElMenu>
 </template>

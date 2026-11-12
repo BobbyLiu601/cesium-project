@@ -2,24 +2,21 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
-import { disposeActiveSession } from '@/components/cesiumGlobeSession'
 import FeatureCard from '@/components/FeatureCard.vue'
 import FeatureDialog from '@/components/FeatureDialog.vue'
 import PageHeading from '@/components/PageHeading.vue'
-import RadarDialog from '@/components/RadarDialog.vue'
 import {
-  effectsSection,
   formatMenuGroupTitle,
   getFeatureById,
   layerSections,
   layersMenuGroup,
+  spatialSection,
   type FeatureItem,
   type FeatureSection,
 } from '@/data/layers'
 
 const route = useRoute()
 const router = useRouter()
-const radarDialogVisible = ref(false)
 const lastClosedFeatureId = ref('')
 
 const activeFeature = computed(() => {
@@ -32,16 +29,10 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   terrain: 'terrain-grid',
   vector: 'vector-grid',
   model: 'model-grid',
-  effects: 'effect-grid',
+  spatial: 'spatial-grid',
 }
 
 async function openFeature(feature: FeatureItem) {
-  if (feature.kind === 'radar') {
-    disposeActiveSession()
-    radarDialogVisible.value = true
-    return
-  }
-
   if (!feature.routeName) {
     return
   }
@@ -71,7 +62,7 @@ async function closeFeatureDialog() {
 
 async function restoreFeatureFocus(featureId: string) {
   await nextTick()
-  if (activeFeature.value || radarDialogVisible.value || !featureId) {
+  if (activeFeature.value || !featureId) {
     return
   }
 
@@ -129,41 +120,49 @@ watch(
     </section>
 
     <section
-      id="effects"
+      id="spatial"
       class="showcase__section"
-      aria-labelledby="effects-heading"
-      data-navigation-anchor="radar"
+      aria-labelledby="spatial-heading"
+      data-navigation-anchor="spatial"
     >
       <PageHeading
-        heading-id="effects-heading"
-        :icon="effectsSection.icon"
+        heading-id="spatial-heading"
+        :icon="spatialSection.icon"
         :level="2"
-        :title="effectsSection.title"
+        :title="formatMenuGroupTitle({ code: '2', title: spatialSection.title })"
       />
 
-      <div class="showcase__body">
-        <div class="feature-grid" :data-testid="gridTestIds.effects">
-          <FeatureCard
-            v-for="feature in effectsSection.items"
-            :id="feature.id"
-            :key="feature.id"
-            :feature="feature"
-            :data-nav-anchor="feature.id"
-            @activate="openFeature(feature)"
-          />
+      <div class="showcase__group" :data-section-id="spatialSection.id">
+        <div class="showcase__group-heading">
+          <h2 :id="`${spatialSection.id}-group-heading`" class="showcase__group-title">
+            {{ spatialSection.code }}、{{ spatialSection.title }}
+          </h2>
+          <span class="showcase__group-count">{{ spatialSection.items.length }} 项</span>
+        </div>
+
+        <div class="showcase__body">
+          <div class="feature-grid" :data-testid="gridTestIds.spatial">
+            <FeatureCard
+              v-for="feature in spatialSection.items"
+              :id="feature.id"
+              :key="feature.id"
+              :feature="feature"
+              :data-nav-anchor="feature.id"
+              @activate="openFeature(feature)"
+            />
+          </div>
         </div>
       </div>
     </section>
 
     <FeatureDialog
-      v-if="activeFeature && activeFeature.kind !== 'radar'"
+      v-if="activeFeature"
       :key="activeFeature.id"
       :feature="activeFeature"
       :model-value="true"
       @update:model-value="closeFeatureDialog"
       @closed="restoreFeatureFocus(lastClosedFeatureId || activeFeature?.id || '')"
     />
-    <RadarDialog v-model="radarDialogVisible" @closed="restoreFeatureFocus('radar')" />
   </div>
 </template>
 

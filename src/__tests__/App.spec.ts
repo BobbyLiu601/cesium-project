@@ -15,13 +15,8 @@ import {
   elevationProviderRequests,
   elevationTerrainProviderInstances,
   EllipsoidTerrainProvider,
-  groundPrimitiveInstances,
-  imageryLayerInstances,
-  materialInstances,
   primitiveInstances,
   resetCesiumMock,
-  scenePrimitiveAdds,
-  scenePrimitiveRemoves,
   tileLoadProgressListeners,
   tileProviderInstances,
   viewerInstances,
@@ -67,18 +62,6 @@ async function openElevation(wrapper: Awaited<ReturnType<typeof mountAt>>) {
   await flushPromises()
   await vi.waitFor(() => {
     expect(viewerInstances).toHaveLength(1)
-  })
-  await flushPromises()
-}
-
-async function openRadar(wrapper: Awaited<ReturnType<typeof mountAt>>) {
-  await wrapper.get('[data-feature-id="radar"]').trigger('click')
-  await flushPromises()
-  await vi.waitFor(() => {
-    expect(viewerInstances).toHaveLength(1)
-  })
-  await vi.waitFor(() => {
-    expect(primitiveInstances.length).toBeGreaterThan(0)
   })
   await flushPromises()
 }
@@ -129,10 +112,10 @@ describe('App', () => {
     expect(router.currentRoute.value.fullPath).toBe('/layers')
     expect(wrapper.text()).toContain('三维效果展示')
     expect(wrapper.get('h1').text()).toBe('1、图层')
-    expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(22)
+    expect(wrapper.get('#spatial-heading').text()).toBe('2、空间分析')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(25)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(2)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(4)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(5)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
     expect(wrapper.findAll('.el-sub-menu__icon-arrow').length).toBeGreaterThanOrEqual(2)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
@@ -146,7 +129,7 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(22)
+    expect(cards).toHaveLength(25)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
@@ -154,7 +137,10 @@ describe('App', () => {
     expect(cards[18]?.attributes('data-feature-id')).toBe('gif')
     expect(cards[19]?.attributes('data-feature-id')).toBe('model-interpolation')
     expect(cards[20]?.attributes('data-feature-id')).toBe('wind-turbine')
-    expect(cards[21]?.attributes('data-feature-id')).toBe('radar')
+    expect(cards[21]?.attributes('data-feature-id')).toBe('inundation-analysis-simple')
+    expect(cards[22]?.attributes('data-feature-id')).toBe('sunlight-analysis')
+    expect(cards[23]?.attributes('data-feature-id')).toBe('water-surface')
+    expect(cards[24]?.attributes('data-feature-id')).toBe('aspect-analysis')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -171,8 +157,8 @@ describe('App', () => {
       wrapper.get('[data-testid="model-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(2)
     expect(
-      wrapper.get('[data-testid="effect-grid"]').findAll('[data-testid="feature-card"]'),
-    ).toHaveLength(1)
+      wrapper.get('[data-testid="spatial-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(4)
 
     for (const card of cards) {
       expect(card.element.tagName).toBe('BUTTON')
@@ -197,20 +183,24 @@ describe('App', () => {
     expect(cards[18]?.attributes('aria-label')).toBe('打开1.3.16、gif')
     expect(cards[19]?.attributes('aria-label')).toBe('打开1.4.1、模型插值运动')
     expect(cards[20]?.attributes('aria-label')).toBe('打开1.4.2、风力发电机')
-    expect(cards[21]?.attributes('aria-label')).toBe('打开雷达图')
-    expect(cards[21]?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
+    expect(cards[21]?.attributes('aria-label')).toBe('打开2.1.3、淹没分析（简易）')
+    expect(cards[21]?.get('img').attributes('alt')).toBe('淹没分析（简易）参考示例封面')
+    expect(cards[22]?.attributes('aria-label')).toBe('打开2.1.6、日照分析')
+    expect(cards[23]?.attributes('aria-label')).toBe('打开2.1.10、水域面')
+    expect(cards[24]?.attributes('aria-label')).toBe('打开2.1.13、坡向分析')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
     expect(
       wrapper.findAll('[data-testid="page-heading"]').map((heading) => heading.text()),
-    ).toEqual(['1、图层', '视觉效果'])
+    ).toEqual(['1、图层', '2、空间分析'])
     expect(wrapper.findAll('.showcase__group-title').map((heading) => heading.text())).toEqual([
       '1.1、影像',
       '1.2、地形',
       '1.3、矢量',
       '1.4、模型',
+      '2.1、空间分析',
     ])
 
     wrapper.unmount()
@@ -684,14 +674,14 @@ describe('App', () => {
 
     expect(imageryMenuItem?.attributes('aria-current')).toBe('location')
 
-    await router.push('/layers#radar')
+    await router.push('/layers#spatial')
     await flushPromises()
 
-    const radarMenuItem = wrapper
+    const spatialMenuItem = wrapper
       .findAll('[role="menuitem"]')
-      .find((item) => item.text() === '雷达图')
+      .find((item) => item.text() === '2.1、空间分析')
 
-    expect(radarMenuItem?.attributes('aria-current')).toBe('location')
+    expect(spatialMenuItem?.attributes('aria-current')).toBe('location')
     expect(imageryMenuItem?.attributes('aria-current')).toBeUndefined()
 
     await router.push('/a-missing-page')
@@ -712,7 +702,7 @@ describe('App', () => {
       terrain: -160,
       vector: -60,
       model: 30,
-      radar: 40,
+      spatial: 40,
     }
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({
@@ -748,7 +738,7 @@ describe('App', () => {
     positions.terrain = -260
     positions.vector = -160
     positions.model = -100
-    positions.radar = -60
+    positions.spatial = -60
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -762,7 +752,7 @@ describe('App', () => {
         .findAll('[role="menuitem"]')
         .find((item) => item.attributes('aria-current') === 'location')
         ?.text(),
-    ).toBe('雷达图')
+    ).toBe('2.1、空间分析')
     expect(wrapper.findAll('.el-sub-menu')[0]?.classes()).not.toContain('is-opened')
     expect(wrapper.findAll('.el-sub-menu')[1]?.classes()).toContain('is-opened')
     expect(router.currentRoute.value.fullPath).toBe('/layers')
@@ -770,101 +760,135 @@ describe('App', () => {
     wrapper.unmount()
   })
 
-  it('redirects the effects route to the radar anchor while showing all content', async () => {
+  it('treats the removed effects route as an unknown address with the original URL preserved', async () => {
     const wrapper = await mountAt('/effects')
-    const menuItem = wrapper.findAll('[role="menuitem"]').find((item) => item.text() === '雷达图')
 
-    expect(router.currentRoute.value.fullPath).toBe('/layers#radar')
-    expect(menuItem?.attributes('aria-current')).toBe('location')
-    expect(wrapper.find('[data-testid="showcase-view"]').exists()).toBe(true)
-    expect(wrapper.get('#effects-heading').text()).toBe('视觉效果')
-
-    const cards = wrapper.findAll('[data-testid="feature-card"]')
-    expect(cards).toHaveLength(22)
-    const radarCard = cards.find((card) => card.attributes('data-feature-id') === 'radar')
-    expect(radarCard?.attributes('aria-label')).toBe('打开雷达图')
-    expect(radarCard?.text()).toContain('雷达图')
-    expect(radarCard?.get('img').attributes('src')).not.toMatch(/^https?:\/\//)
-    expect(radarCard?.get('img').attributes('alt')).toBe('广州海珠区三维雷达扫描效果截图')
+    expect(router.currentRoute.value.fullPath).toBe('/effects')
+    expect(wrapper.get('h1').text()).toBe('页面不存在')
+    expect(wrapper.find('[data-testid="showcase-view"]').exists()).toBe(false)
 
     wrapper.unmount()
   })
 
-  it('opens a live radar scene with a ground sweep and 3d dome', async () => {
-    const wrapper = await mountAt('/effects')
-    const now = vi.spyOn(performance, 'now').mockReturnValue(1_000)
+  it('opens the simple inundation demo from its deep link and returns to its card', async () => {
+    const wrapper = await mountAt('/spatial-analysis/2-1-3-inundation-analysis-simple')
 
-    await openRadar(wrapper)
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
 
-    const dialog = wrapper.get('.radar-dialog')
-    expect(dialog.text()).toContain('雷达图')
-    expect(dialog.classes()).not.toContain('is-fullscreen')
-    expect(wrapper.get('[data-testid="radar-globe"]').attributes('data-cesium-state')).toBe('ready')
-    expect(viewerInstances).toHaveLength(1)
-    expect(viewerInstances[0]?.camera.lookAt).toHaveBeenCalledOnce()
-    expect(viewerInstances[0]?.camera.lookAtTransform).toHaveBeenCalledOnce()
-    expect(imageryLayerInstances).toHaveLength(2)
-    expect(imageryLayerInstances[1]?.alpha).toBe(0.5)
+    const dialog = wrapper.get('.feature-dialog--spatial')
+    const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
+    expect(dialog.text()).toContain('2.1.3、淹没分析（简易）')
+    expect(globe.attributes('data-scene-id')).toBe('inundation-analysis-simple')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.text()).toContain('1000 米')
+    expect(viewerInstances[0]?.entities.values).toHaveLength(1)
+    expect(viewerInstances[0]?.entities.values[0]?.polygon?.extrudedHeight).toBeDefined()
 
-    expect(groundPrimitiveInstances).toHaveLength(1)
+    await wrapper.get('.feature-dialog--spatial .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/layers#inundation-analysis-simple')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-testid="spatial-demo-globe"]').exists()).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('opens the sunlight demo with date and time controls that drive the scene clock', async () => {
+    const wrapper = await mountAt('/spatial-analysis/2-1-6-sunlight-analysis')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.text()).toContain('36 栋本地低多边形建筑')
+    expect(globe.find('.spatial-demo-globe__sunlight-controls').exists()).toBe(true)
+    expect(globe.find('input[aria-label="日照日期"]').exists()).toBe(true)
+    expect(globe.find('input[aria-label="开始时间"]').exists()).toBe(true)
+    expect(globe.find('input[aria-label="结束时间"]').exists()).toBe(true)
+    expect(viewerInstances[0]?.scene.globe.enableLighting).toBe(true)
+
+    await globe.get('button').trigger('click')
+    await flushPromises()
+    expect(viewerInstances[0]?.clock.shouldAnimate).toBe(true)
+    expect(globe.text()).toContain('日照模拟播放中')
+
+    const buttons = globe.findAll('button')
+    await buttons[1]?.trigger('click')
+    await flushPromises()
+    expect(viewerInstances[0]?.clock.shouldAnimate).toBe(false)
+    expect(globe.text()).toContain('日照模拟已暂停')
+
+    wrapper.unmount()
+  })
+
+  it('opens the animated water surface demo and renders a water primitive', async () => {
+    const wrapper = await mountAt('/spatial-analysis/2-1-10-water-surface')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
+    expect(globe.attributes('data-scene-id')).toBe('water-surface')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.text()).toContain('动态水域面')
     expect(primitiveInstances).toHaveLength(1)
-    expect(scenePrimitiveAdds).toHaveLength(2)
-    expect(materialInstances.map((material) => material.options.fabric.type)).toEqual([
-      'RadarGroundSweep',
-      'RadarDomeSweep',
-    ])
-    expect(frameCallbacks).toHaveLength(1)
-
-    now.mockReturnValue(5_000)
-    frameCallbacks[0]?.(0)
-    expect(materialInstances[0]?.uniforms.time).toBeCloseTo(0.5)
-    expect(materialInstances[1]?.uniforms.time).toBeCloseTo(0.5)
-    expect(viewerInstances[0]?.scene.requestRender).toHaveBeenCalled()
-
-    await wrapper.get('.radar-dialog .el-dialog__headerbtn').trigger('click')
-    await flushPromises()
-
-    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
-    expect(scenePrimitiveRemoves).toHaveLength(2)
-    expect(cancelAnimationFrame).toHaveBeenCalled()
+    expect(viewerInstances[0]?.entities.values).toHaveLength(1)
 
     wrapper.unmount()
   })
 
-  it('silently falls back to a fixed-height radar disc when ground materials are unsupported', async () => {
-    cesiumMockState.groundMaterialsSupported = false
-    const wrapper = await mountAt('/effects')
+  it('opens the aspect analysis demo with color cells, arrows and a legend', async () => {
+    const wrapper = await mountAt('/spatial-analysis/2-1-13-aspect-analysis')
 
-    await openRadar(wrapper)
-
-    expect(groundPrimitiveInstances).toHaveLength(0)
-    expect(primitiveInstances).toHaveLength(2)
-    expect(wrapper.get('[data-testid="radar-globe"]').attributes('data-cesium-state')).toBe('ready')
-    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-    expect(wrapper.get('.radar-dialog').text()).not.toContain('不支持')
-
-    await wrapper.get('.radar-dialog .el-dialog__headerbtn').trigger('click')
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await vi.waitFor(() => {
+      expect(primitiveInstances.length).toBeGreaterThan(0)
+      expect(viewerInstances[0]?.entities.values.length).toBeGreaterThan(0)
+    })
     await flushPromises()
-    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+
+    const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.text()).toContain('30 × 30 网格')
+    const legend = globe.get('[data-testid="aspect-legend"]')
+    expect(legend.text()).toContain('坡向')
+    expect(legend.text()).toContain('北')
+    expect(legend.text()).toContain('西南')
 
     wrapper.unmount()
   })
 
-  it('silently falls back to a fixed-height radar disc when terrain heights fail to initialize', async () => {
-    cesiumMockState.groundTerrainHeightsOutcome = 'failure'
+  it('keeps the aspect scene operable when terrain loading falls back to the ellipsoid', async () => {
+    cesiumMockState.cesiumTerrainProviderOutcome = 'failure'
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const wrapper = await mountAt('/effects')
+    const wrapper = await mountAt('/spatial-analysis/2-1-13-aspect-analysis')
 
-    await openRadar(wrapper)
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await vi.waitFor(() => {
+      expect(primitiveInstances.length).toBeGreaterThan(0)
+    })
+    await flushPromises()
 
-    expect(groundPrimitiveInstances).toHaveLength(0)
-    expect(primitiveInstances).toHaveLength(2)
-    expect(wrapper.get('[data-testid="radar-globe"]').attributes('data-cesium-state')).toBe('ready')
+    const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.text()).toContain('已回退椭球地形')
     expect(wrapper.find('[role="alert"]').exists()).toBe(false)
-    expect(wrapper.get('.radar-dialog').text()).not.toContain('加载失败')
     expect(consoleError).toHaveBeenCalled()
 
-    await wrapper.get('.radar-dialog .el-dialog__headerbtn').trigger('click')
+    await wrapper.get('.feature-dialog--spatial .el-dialog__headerbtn').trigger('click')
     await flushPromises()
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
 

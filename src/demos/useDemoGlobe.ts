@@ -1,4 +1,4 @@
-import { onBeforeUnmount, onMounted, ref, type Ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, shallowRef, type Ref } from 'vue'
 import * as Cesium from 'cesium'
 import 'cesium/Build/Cesium/Widgets/widgets.css'
 
@@ -57,6 +57,7 @@ export function useDemoGlobe({
   const sceneState = ref<'loading' | 'ready' | 'error'>('loading')
   const statusMessage = ref(initialStatus)
   const actions = ref<DemoSceneAction[]>([])
+  const loadedScene = shallowRef<DemoScene | undefined>()
   let session: GlobeSession | undefined
   let scene: DemoScene | undefined
   let sceneAbortController: AbortController | undefined
@@ -190,10 +191,12 @@ export function useDemoGlobe({
         return
       }
 
+      loadedScene.value = scene
       actions.value = scene.actions
       session.cleanup = () => {
         sceneAbortController?.abort()
         removeTileLoadProgressListener()
+        loadedScene.value = undefined
         scene?.dispose()
         scene = undefined
       }
@@ -211,6 +214,7 @@ export function useDemoGlobe({
       const aborted = sceneAbortController?.signal.aborted ?? false
       scene?.dispose()
       scene = undefined
+      loadedScene.value = undefined
 
       if (session) {
         if (getActiveSession() === session) {
@@ -240,6 +244,7 @@ export function useDemoGlobe({
     clearScheduledRenders()
     scene?.dispose()
     scene = undefined
+    loadedScene.value = undefined
 
     if (session) {
       if (getActiveSession() === session) {
@@ -251,6 +256,7 @@ export function useDemoGlobe({
 
   return {
     actions,
+    scene: loadedScene,
     resize,
     runAction,
     sceneState,
