@@ -5,6 +5,7 @@ import { ElButton, ElDatePicker, ElTimePicker } from 'element-plus'
 import type { SpatialSceneId } from '@/data/layers'
 import {
   aspectLegend,
+  aspectLegendGradient,
   createSpatialScene,
   type SpatialScene,
   type SunlightRange,
@@ -119,19 +120,14 @@ defineExpose({ resize })
       data-testid="aspect-legend"
       aria-label="坡向颜色图例"
     >
-      <span class="spatial-demo-globe__legend-title">坡向</span>
+      <span class="spatial-demo-globe__legend-title">坡向坡度</span>
+      <span class="spatial-demo-globe__legend-min">{{ aspectLegend.minLabel }}</span>
       <span
-        v-for="entry in aspectLegend"
-        :key="entry.label"
-        class="spatial-demo-globe__legend-item"
-      >
-        <span
-          class="spatial-demo-globe__legend-swatch"
-          :style="{ backgroundColor: entry.color }"
-          aria-hidden="true"
-        ></span>
-        {{ entry.label }}
-      </span>
+        class="spatial-demo-globe__legend-gradient"
+        :style="{ background: aspectLegendGradient }"
+        aria-hidden="true"
+      ></span>
+      <span class="spatial-demo-globe__legend-max">{{ aspectLegend.maxLabel }}</span>
     </div>
   </div>
 </template>
@@ -236,18 +232,12 @@ defineExpose({ resize })
   color: #ffffff;
 }
 
-.spatial-demo-globe__legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.spatial-demo-globe__legend-swatch {
+.spatial-demo-globe__legend-gradient {
   display: inline-block;
-  width: 12px;
-  height: 12px;
-  border: 1px solid rgb(255 255 255 / 40%);
-  border-radius: 2px;
+  width: 190px;
+  height: 10px;
+  border: 1px solid rgb(255 255 255 / 45%);
+  border-radius: 999px;
 }
 
 .spatial-demo-globe__notice {

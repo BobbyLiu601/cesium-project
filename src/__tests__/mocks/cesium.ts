@@ -48,6 +48,7 @@ export interface MockViewer {
     multiplier: number
   }
   flyTo: ReturnType<typeof vi.fn<(target: unknown) => Promise<boolean>>>
+  shadows: boolean
   resize: ReturnType<typeof vi.fn<() => void>>
   destroy: ReturnType<typeof vi.fn<() => void>>
   isDestroyed: ReturnType<typeof vi.fn<() => boolean>>
@@ -315,6 +316,7 @@ export class Viewer implements MockViewer {
 
   resize = vi.fn<() => void>()
   flyTo = vi.fn<(target: unknown) => Promise<boolean>>(() => Promise.resolve(true))
+  shadows = false
   destroy = vi.fn<() => void>(() => {
     this.destroyed = true
   })
@@ -380,6 +382,8 @@ export class PolylineVolumeGeometry {
 }
 
 export class PerInstanceColorAppearance {
+  static VERTEX_FORMAT = {}
+
   constructor(public options?: Record<string, unknown>) {}
 }
 
@@ -601,6 +605,10 @@ export class PolylineGlowMaterialProperty {
   constructor(public options: Record<string, unknown>) {}
 }
 
+export class PolylineArrowMaterialProperty {
+  constructor(public color: unknown) {}
+}
+
 export class Cartographic {
   longitude: number
   latitude: number
@@ -704,6 +712,10 @@ export class WebMercatorTilingScheme {
 
 export class EllipsoidTerrainProvider {}
 
+export const buildModuleUrl = vi.fn<(relativeUrl: string) => string>(
+  (relativeUrl) => `/cesium/${relativeUrl}`,
+)
+
 export class CesiumTerrainProvider implements MockCesiumTerrainProvider {
   constructor(
     public url: string,
@@ -781,6 +793,10 @@ export class MaterialAppearance {
   constructor(public options: Record<string, unknown>) {}
 }
 
+export class EllipsoidSurfaceAppearance {
+  constructor(public options: Record<string, unknown>) {}
+}
+
 export class GeometryInstance {
   constructor(public options: Record<string, unknown>) {}
 }
@@ -836,6 +852,10 @@ export class Color {
 
   static fromCssColorString(value: string) {
     return new Color(0.5, 0.5, 0.5, value.length > 8 ? 0.7 : 1)
+  }
+
+  withAlpha(alpha: number) {
+    return new Color(this.red, this.green, this.blue, alpha)
   }
 }
 
@@ -1047,4 +1067,5 @@ export function resetCesiumMock() {
   Matrix3.fromQuaternion.mockClear()
   SceneTransforms.worldToWindowCoordinates.mockClear()
   sampleTerrainMostDetailed.mockClear()
+  buildModuleUrl.mockClear()
 }

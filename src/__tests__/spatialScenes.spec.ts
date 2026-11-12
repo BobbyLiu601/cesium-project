@@ -40,15 +40,16 @@ describe('spatial scenes', () => {
     const { setStatus, statuses } = collectStatus()
     const scene = await createSpatialScene(viewer, 'inundation-analysis-simple', setStatus)
     const entity = (viewer as unknown as Viewer).entities.values[0]!
-    const extrudedHeight = entity.polygon?.extrudedHeight as { getValue: () => number }
+    const waterHeight = entity.polygon?.height as { getValue: () => number }
 
-    expect(extrudedHeight.getValue()).toBe(1_000)
+    expect(waterHeight.getValue()).toBe(1_000)
     now.mockReturnValue(2_250)
-    expect(extrudedHeight.getValue()).toBeCloseTo(2_300)
+    expect(waterHeight.getValue()).toBeCloseTo(2_300)
     now.mockReturnValue(4_500)
-    expect(extrudedHeight.getValue()).toBe(3_600)
+    expect(waterHeight.getValue()).toBe(3_600)
     ;(viewer as unknown as Viewer).scene.preUpdate.raiseEvent()
     expect(statuses[statuses.length - 1]).toContain('目标高度')
+    expect((viewer as unknown as Viewer).camera.viewBoundingSphere).toHaveBeenCalled()
 
     scene.dispose()
     expect((viewer as unknown as Viewer).entities.values).toHaveLength(0)
@@ -60,10 +61,12 @@ describe('spatial scenes', () => {
     const { setStatus, statuses } = collectStatus()
     const scene = await createSpatialScene(viewer, 'sunlight-analysis', setStatus)
 
-    expect(mockViewer.entities.values).toHaveLength(36)
+    expect(mockViewer.entities.values).toHaveLength(37)
     expect(mockViewer.scene.globe.enableLighting).toBe(true)
+    expect(mockViewer.shadows).toBe(true)
     expect(scene.actions.map((action) => action.label)).toEqual(['播放日照', '暂停日照'])
     expect(mockViewer.clock.startTime).not.toBe(mockViewer.clock.stopTime)
+    expect(mockViewer.camera.viewBoundingSphere).toHaveBeenCalled()
 
     await scene.actions[0]?.run()
     expect(mockViewer.clock.shouldAnimate).toBe(true)
@@ -86,6 +89,7 @@ describe('spatial scenes', () => {
 
     scene.dispose()
     expect(mockViewer.entities.values).toHaveLength(0)
+    expect(mockViewer.shadows).toBe(false)
   })
 
   it('renders the animated water surface as a water-material primitive', async () => {
@@ -96,11 +100,15 @@ describe('spatial scenes', () => {
 
     expect(primitiveInstances).toHaveLength(1)
     expect(materialInstances.map((material) => material.options.fabric.type)).toContain('Water')
+    expect(materialInstances[0]?.options.fabric.uniforms.normalMap).toContain('waterNormals.jpg')
     expect(mockViewer.entities.values).toHaveLength(1)
+    expect(mockViewer.camera.viewBoundingSphere).toHaveBeenCalled()
+    expect(mockViewer.scene.preUpdate.listeners.size).toBe(1)
 
     scene.dispose()
     expect(scenePrimitiveRemoves).toHaveLength(1)
     expect(mockViewer.entities.values).toHaveLength(0)
+    expect(mockViewer.scene.preUpdate.listeners.size).toBe(0)
   })
 
   it('samples a 30x30 terrain grid and renders aspect cells plus direction arrows', async () => {
@@ -114,6 +122,8 @@ describe('spatial scenes', () => {
     expect(primitiveInstances.length).toBeGreaterThan(0)
     expect(mockViewer.entities.values.length).toBeGreaterThan(0)
     expect(statuses[statuses.length - 1]).toContain('30 × 30')
+    expect(statuses[statuses.length - 1]).toContain('红色坡度坡面')
+    expect(mockViewer.camera.viewBoundingSphere).toHaveBeenCalled()
 
     scene.dispose()
     expect(scenePrimitiveRemoves).toHaveLength(primitiveInstances.length)

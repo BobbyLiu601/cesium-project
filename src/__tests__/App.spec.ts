@@ -183,11 +183,11 @@ describe('App', () => {
     expect(cards[18]?.attributes('aria-label')).toBe('打开1.3.16、gif')
     expect(cards[19]?.attributes('aria-label')).toBe('打开1.4.1、模型插值运动')
     expect(cards[20]?.attributes('aria-label')).toBe('打开1.4.2、风力发电机')
-    expect(cards[21]?.attributes('aria-label')).toBe('打开2.1.3、淹没分析（简易）')
+    expect(cards[21]?.attributes('aria-label')).toBe('打开2.1.1、淹没分析（简易）')
     expect(cards[21]?.get('img').attributes('alt')).toBe('淹没分析（简易）参考示例封面')
-    expect(cards[22]?.attributes('aria-label')).toBe('打开2.1.6、日照分析')
-    expect(cards[23]?.attributes('aria-label')).toBe('打开2.1.10、水域面')
-    expect(cards[24]?.attributes('aria-label')).toBe('打开2.1.13、坡向分析')
+    expect(cards[22]?.attributes('aria-label')).toBe('打开2.1.2、日照分析')
+    expect(cards[23]?.attributes('aria-label')).toBe('打开2.1.3、水域面')
+    expect(cards[24]?.attributes('aria-label')).toBe('打开2.1.4、坡向分析')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
@@ -770,8 +770,17 @@ describe('App', () => {
     wrapper.unmount()
   })
 
+  it('does not redirect the renamed spatial-analysis addresses', async () => {
+    const wrapper = await mountAt('/spatial-analysis/2-1-13-aspect-analysis')
+
+    expect(router.currentRoute.value.fullPath).toBe('/spatial-analysis/2-1-13-aspect-analysis')
+    expect(wrapper.get('h1').text()).toBe('页面不存在')
+
+    wrapper.unmount()
+  })
+
   it('opens the simple inundation demo from its deep link and returns to its card', async () => {
-    const wrapper = await mountAt('/spatial-analysis/2-1-3-inundation-analysis-simple')
+    const wrapper = await mountAt('/spatial-analysis/2-1-1-inundation-analysis-simple')
 
     await vi.waitFor(() => {
       expect(viewerInstances).toHaveLength(1)
@@ -780,12 +789,12 @@ describe('App', () => {
 
     const dialog = wrapper.get('.feature-dialog--spatial')
     const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
-    expect(dialog.text()).toContain('2.1.3、淹没分析（简易）')
+    expect(dialog.text()).toContain('2.1.1、淹没分析（简易）')
     expect(globe.attributes('data-scene-id')).toBe('inundation-analysis-simple')
     expect(globe.attributes('data-cesium-state')).toBe('ready')
     expect(globe.text()).toContain('1000 米')
     expect(viewerInstances[0]?.entities.values).toHaveLength(1)
-    expect(viewerInstances[0]?.entities.values[0]?.polygon?.extrudedHeight).toBeDefined()
+    expect(viewerInstances[0]?.entities.values[0]?.polygon?.height).toBeDefined()
 
     await wrapper.get('.feature-dialog--spatial .el-dialog__headerbtn').trigger('click')
     await flushPromises()
@@ -798,7 +807,7 @@ describe('App', () => {
   })
 
   it('opens the sunlight demo with date and time controls that drive the scene clock', async () => {
-    const wrapper = await mountAt('/spatial-analysis/2-1-6-sunlight-analysis')
+    const wrapper = await mountAt('/spatial-analysis/2-1-2-sunlight-analysis')
 
     await vi.waitFor(() => {
       expect(viewerInstances).toHaveLength(1)
@@ -829,7 +838,7 @@ describe('App', () => {
   })
 
   it('opens the animated water surface demo and renders a water primitive', async () => {
-    const wrapper = await mountAt('/spatial-analysis/2-1-10-water-surface')
+    const wrapper = await mountAt('/spatial-analysis/2-1-3-water-surface')
 
     await vi.waitFor(() => {
       expect(viewerInstances).toHaveLength(1)
@@ -839,7 +848,7 @@ describe('App', () => {
     const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
     expect(globe.attributes('data-scene-id')).toBe('water-surface')
     expect(globe.attributes('data-cesium-state')).toBe('ready')
-    expect(globe.text()).toContain('动态水域面')
+    expect(globe.text()).toContain('水面波纹持续流动')
     expect(primitiveInstances).toHaveLength(1)
     expect(viewerInstances[0]?.entities.values).toHaveLength(1)
 
@@ -847,7 +856,7 @@ describe('App', () => {
   })
 
   it('opens the aspect analysis demo with color cells, arrows and a legend', async () => {
-    const wrapper = await mountAt('/spatial-analysis/2-1-13-aspect-analysis')
+    const wrapper = await mountAt('/spatial-analysis/2-1-4-aspect-analysis')
 
     await vi.waitFor(() => {
       expect(viewerInstances).toHaveLength(1)
@@ -861,10 +870,11 @@ describe('App', () => {
     const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
     expect(globe.attributes('data-cesium-state')).toBe('ready')
     expect(globe.text()).toContain('30 × 30 网格')
+    expect(globe.text()).toContain('红色坡度坡面')
     const legend = globe.get('[data-testid="aspect-legend"]')
-    expect(legend.text()).toContain('坡向')
-    expect(legend.text()).toContain('北')
-    expect(legend.text()).toContain('西南')
+    expect(legend.text()).toContain('坡向坡度')
+    expect(legend.text()).toContain('缓')
+    expect(legend.text()).toContain('陡')
 
     wrapper.unmount()
   })
@@ -872,7 +882,7 @@ describe('App', () => {
   it('keeps the aspect scene operable when terrain loading falls back to the ellipsoid', async () => {
     cesiumMockState.cesiumTerrainProviderOutcome = 'failure'
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const wrapper = await mountAt('/spatial-analysis/2-1-13-aspect-analysis')
+    const wrapper = await mountAt('/spatial-analysis/2-1-4-aspect-analysis')
 
     await vi.waitFor(() => {
       expect(viewerInstances).toHaveLength(1)

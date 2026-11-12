@@ -33,15 +33,18 @@ const INUNDATION_START_HEIGHT = 1_000
 const INUNDATION_TARGET_HEIGHT = 3_600
 const INUNDATION_DURATION_MS = 4_500
 const ASPECT_GRID_SIZE = 30
+const ASPECT_SURFACE_OFFSET = 8
+const ASPECT_ARROW_OFFSET = 18
+const INUNDATION_CAMERA_RANGE_FACTOR = 3.1
+const SUNLIGHT_CAMERA_RANGE_FACTOR = 2.8
+const WATER_CAMERA_RANGE_FACTOR = 1.85
+const ASPECT_CAMERA_RANGE_FACTOR = 2.8
 
 const inundationPolygon = [
-  [113.292, 23.146],
-  [113.318, 23.132],
-  [113.352, 23.144],
-  [113.366, 23.172],
-  [113.344, 23.192],
-  [113.306, 23.184],
-  [113.284, 23.166],
+  [98.676842346815, 27.571578111198868],
+  [98.86252156624968, 27.77444519911974],
+  [98.76756234288729, 27.800244194152533],
+  [98.57088699052892, 27.72492584876768],
 ] as const
 
 const waterPolygon = [
@@ -51,18 +54,31 @@ const waterPolygon = [
   [90, 30],
 ] as const
 
-const aspectBuckets = [
-  { key: 'north', label: '北', color: '#e45756', center: 0 },
-  { key: 'northeast', label: '东北', color: '#f58518', center: 45 },
-  { key: 'east', label: '东', color: '#eeca3b', center: 90 },
-  { key: 'southeast', label: '东南', color: '#9fcb45', center: 135 },
-  { key: 'south', label: '南', color: '#54a24b', center: 180 },
-  { key: 'southwest', label: '西南', color: '#3f9f9f', center: 225 },
-  { key: 'west', label: '西', color: '#4c78a8', center: 270 },
-  { key: 'northwest', label: '西北', color: '#b07aa1', center: 315 },
+const aspectColors = [
+  { color: '#ff9090', maxSlope: 0.29 },
+  { color: '#ff8080', maxSlope: 0.5 },
+  { color: '#ff7070', maxSlope: Math.SQRT1_2 },
+  { color: '#ff6060', maxSlope: 0.87 },
+  { color: '#ff5050', maxSlope: 0.91 },
+  { color: '#ff4040', maxSlope: 0.95 },
+  { color: '#ff3030', maxSlope: Number.POSITIVE_INFINITY },
 ] as const
 
-export const aspectLegend = aspectBuckets.map(({ color, label }) => ({ color, label }))
+export const aspectLegend = {
+  colors: aspectColors.map(({ color }) => color),
+  minLabel: '缓',
+  maxLabel: '陡',
+}
+
+export const aspectLegendGradient = `linear-gradient(90deg, ${aspectLegend.colors.join(', ')})`
+
+// 参考站 4.1.13 坡向分析的区域范围。
+const aspectArea = {
+  west: 114.20331001281738,
+  south: 31.148034709323344,
+  east: 114.21009063720703,
+  north: 31.154204879640236,
+} as const
 
 function requestRender(viewer: Cesium.Viewer) {
   viewer.scene.requestRender()
@@ -80,6 +96,8 @@ function throwIfAborted(signal?: AbortSignal) {
 
 function setSceneDefaults(viewer: Cesium.Viewer) {
   viewer.scene.backgroundColor = Cesium.Color.fromCssColorString('#07111f')
+  viewer.scene.globe.enableLighting = false
+  viewer.shadows = false
   viewer.clock.shouldAnimate = false
 }
 
@@ -87,11 +105,51 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value))
 }
 
-function createInundationScene(viewer: Cesium.Viewer, setStatus: StatusReporter): SpatialScene {
+function framePositions(
+  viewer: Cesium.Viewer,
+  positions: Cesium.Cartesian3[],
+  headingDegrees: number,
+  pitchDegrees: number,
+  rangeFactor: number,
+) {
+  if (positions.length === 0) {
+    return
+  }
+
+  const sphere = Cesium.BoundingSphere.fromPoints(positions)
+  viewer.camera.viewBoundingSphere(
+    sphere,
+    new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(headingDegrees),
+      Cesium.Math.toRadians(pitchDegrees),
+      Math.max(650, sphere.radius * rangeFactor),
+    ),
+  )
+}
+
+function createContinuousRenderTicker(viewer: Cesium.Viewer) {
+  const tick = () => requestRender(viewer)
+  viewer.scene.preUpdate.addEventListener(tick)
+  return () => viewer.scene.preUpdate.removeEventListener(tick)
+}
+
+function getSlopeStyle(slope: number) {
+  return (
+    aspectColors.find(({ maxSlope }) => slope < maxSlope) ?? aspectColors[aspectColors.length - 1]!
+  )
+}
+
+async function createInundationScene(
+  viewer: Cesium.Viewer,
+  setStatus: StatusReporter,
+  signal?: AbortSignal,
+): Promise<SpatialScene> {
+  const terrain = await loadSpatialTerrain(viewer, signal)
+  throwIfAborted(signal)
   const positions = Cesium.Cartesian3.fromDegreesArray(
     inundationPolygon.flatMap(([longitude, latitude]) => [longitude, latitude]),
   )
-  const startedAt = performance.now()
+  let startedAt = performance.now()
   let completed = false
 
   const waterEntity = viewer.entities.add({
@@ -99,30 +157,26 @@ function createInundationScene(viewer: Cesium.Viewer, setStatus: StatusReporter)
     name: '简易淹没水面',
     polygon: {
       hierarchy: new Cesium.PolygonHierarchy(positions),
-      height: 0,
-      extrudedHeight: new Cesium.CallbackProperty(() => {
+      height: new Cesium.CallbackProperty(() => {
         const progress = clamp01((performance.now() - startedAt) / INUNDATION_DURATION_MS)
         return (
           INUNDATION_START_HEIGHT + (INUNDATION_TARGET_HEIGHT - INUNDATION_START_HEIGHT) * progress
         )
       }, false),
       material: new Cesium.ColorMaterialProperty(
-        Cesium.Color.fromCssColorString('rgba(56, 160, 214, 0.46)'),
+        Cesium.Color.fromCssColorString('rgba(40, 169, 224, 0.62)'),
       ),
       outline: true,
-      outlineColor: Cesium.Color.fromCssColorString('rgba(158, 220, 255, 0.9)'),
+      outlineColor: Cesium.Color.fromCssColorString('rgba(191, 238, 255, 0.95)'),
     },
   })
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(113.326, 23.162, 9_500),
-    orientation: {
-      heading: 0,
-      pitch: (-42 * Math.PI) / 180,
-      roll: 0,
-    },
-  })
-  setStatus('淹没水面正从 1000 米自动上涨至 3600 米，达到目标高度后停止')
+  framePositions(viewer, positions, 18, -58, INUNDATION_CAMERA_RANGE_FACTOR)
+  setStatus(
+    terrain.loaded
+      ? '已加载参考区域山体地形，淹没水面正从 1000 米上涨至 3600 米'
+      : '地形服务不可用，已回退椭球地形；淹没水面仍从 1000 米上涨至 3600 米',
+  )
 
   const tick = () => {
     requestRender(viewer)
@@ -134,7 +188,18 @@ function createInundationScene(viewer: Cesium.Viewer, setStatus: StatusReporter)
   viewer.scene.preUpdate.addEventListener(tick)
 
   return {
-    actions: [],
+    actions: [
+      {
+        id: 'replay-inundation',
+        label: '重播淹没',
+        run() {
+          startedAt = performance.now()
+          completed = false
+          setStatus('淹没动画已重新开始，水面将从 1000 米上涨至 3600 米')
+          requestRender(viewer)
+        },
+      },
+    ],
     dispose() {
       viewer.scene.preUpdate.removeEventListener(tick)
       viewer.entities.remove(waterEntity)
@@ -158,23 +223,54 @@ function createSunlightScene(
 ): SpatialScene {
   const entities: Cesium.Entity[] = []
   const center = { longitude: 113.33, latitude: 23.16 }
+  const buildingPositions: Cesium.Cartesian3[] = []
 
   viewer.scene.globe.enableLighting = true
+  viewer.shadows = true
+  const groundEntity = viewer.entities.add({
+    id: 'sunlight-ground',
+    name: '日照分析地面基底',
+    polygon: {
+      hierarchy: new Cesium.PolygonHierarchy(
+        Cesium.Cartesian3.fromDegreesArray([
+          center.longitude - 0.009,
+          center.latitude - 0.009,
+          center.longitude + 0.009,
+          center.latitude - 0.009,
+          center.longitude + 0.009,
+          center.latitude + 0.009,
+          center.longitude - 0.009,
+          center.latitude + 0.009,
+        ]),
+      ),
+      height: 0,
+      material: new Cesium.ColorMaterialProperty(
+        Cesium.Color.fromCssColorString('rgba(105, 118, 103, 0.96)'),
+      ),
+      outline: true,
+      outlineColor: Cesium.Color.fromCssColorString('rgba(54, 68, 58, 0.9)'),
+    },
+  })
+  entities.push(groundEntity)
+
   for (let row = 0; row < 6; row += 1) {
     for (let column = 0; column < 6; column += 1) {
       const height = 42 + ((row * 7 + column * 11) % 9) * 16
       const longitude = center.longitude + (column - 2.5) * 0.0022
       const latitude = center.latitude + (row - 2.5) * 0.0022
+      const position = Cesium.Cartesian3.fromDegrees(longitude, latitude, height / 2)
+      buildingPositions.push(position)
       entities.push(
         viewer.entities.add({
           id: `sunlight-building-${row}-${column}`,
           name: '本地低多边形建筑',
-          position: Cesium.Cartesian3.fromDegrees(longitude, latitude, height / 2),
+          position,
           box: {
-            dimensions: new Cesium.Cartesian3(78, 78, height),
+            dimensions: new Cesium.Cartesian3(92, 92, height),
             material: Cesium.Color.fromCssColorString(row % 2 === 0 ? '#c8b89a' : '#9aa7b5'),
             outline: true,
             outlineColor: Cesium.Color.fromCssColorString('#243447'),
+            shadows: Cesium.ShadowMode.ENABLED,
           },
         }),
       )
@@ -216,14 +312,7 @@ function createSunlightScene(
   }
   viewer.scene.preUpdate.addEventListener(tick)
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(113.347, 23.177, 1_650),
-    orientation: {
-      heading: Cesium.Math.toRadians(28),
-      pitch: Cesium.Math.toRadians(-38),
-      roll: 0,
-    },
-  })
+  framePositions(viewer, buildingPositions, 26, -41, SUNLIGHT_CAMERA_RANGE_FACTOR)
 
   return {
     actions: [
@@ -252,6 +341,7 @@ function createSunlightScene(
     dispose() {
       viewer.scene.preUpdate.removeEventListener(tick)
       viewer.clock.shouldAnimate = false
+      viewer.shadows = false
       entities.forEach((entity) => viewer.entities.remove(entity))
     },
   }
@@ -262,23 +352,22 @@ function createWaterSurfaceScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     waterPolygon.flatMap(([longitude, latitude]) => [longitude, latitude]),
   )
   const material = Cesium.Material.fromType('Water', {
-    baseWaterColor: Cesium.Color.fromCssColorString('rgba(44, 122, 166, 0.86)'),
-    blendColor: Cesium.Color.fromCssColorString('rgba(12, 57, 82, 0.9)'),
-    frequency: 1_800,
-    animationSpeed: 0.015,
-    amplitude: 6,
+    baseWaterColor: Cesium.Color.fromCssColorString('rgba(31, 111, 173, 0.88)'),
+    blendColor: Cesium.Color.fromCssColorString('rgba(10, 52, 84, 0.92)'),
+    normalMap: Cesium.buildModuleUrl('Assets/Textures/waterNormals.jpg'),
+    frequency: 1_000,
+    animationSpeed: 0.01,
+    amplitude: 10,
+    specularIntensity: 1.5,
   })
   const waterPrimitive = new Cesium.Primitive({
     geometryInstances: new Cesium.GeometryInstance({
       geometry: Cesium.PolygonGeometry.fromPositions({
         positions,
-        vertexFormat: Cesium.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat,
       }),
     }),
-    appearance: new Cesium.MaterialAppearance({
+    appearance: new Cesium.EllipsoidSurfaceAppearance({
       material,
-      translucent: true,
-      flat: true,
     }),
     asynchronous: false,
   })
@@ -298,19 +387,14 @@ function createWaterSurfaceScene(viewer: Cesium.Viewer, setStatus: StatusReporte
     },
   })
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(90.5, 29.5, 190_000),
-    orientation: {
-      heading: 0,
-      pitch: (-58 * Math.PI) / 180,
-      roll: 0,
-    },
-  })
-  setStatus('已展示 90°–91°E、29°–30°N 的动态水域面，水面材质持续流动')
+  framePositions(viewer, positions, 0, -78, WATER_CAMERA_RANGE_FACTOR)
+  setStatus('已展示 90°–91°E、29°–30°N 的动态水域面，水面波纹持续流动')
+  const stopRenderTicker = createContinuousRenderTicker(viewer)
 
   return {
     actions: [],
     dispose() {
+      stopRenderTicker()
       viewer.scene.primitives.remove(waterPrimitive)
       viewer.entities.remove(borderEntity)
     },
@@ -361,39 +445,29 @@ async function loadSpatialTerrain(viewer: Cesium.Viewer, signal?: AbortSignal) {
   }
 }
 
-function classifyAspect(aspect: number) {
-  const normalized = (aspect + 360) % 360
-  return aspectBuckets.reduce((closest, bucket) => {
-    const distance = Math.abs(((normalized - bucket.center + 540) % 360) - 180)
-    const closestDistance = Math.abs(((normalized - closest.center + 540) % 360) - 180)
-    return distance < closestDistance ? bucket : closest
-  }, aspectBuckets[0])
-}
-
 function buildAspectGrid() {
-  const longitudeStart = 113.69
-  const latitudeStart = 23.585
-  const longitudeStep = 0.0018
-  const latitudeStep = 0.0014
+  const longitudeStep = (aspectArea.east - aspectArea.west) / (ASPECT_GRID_SIZE - 1)
+  const latitudeStep = (aspectArea.north - aspectArea.south) / (ASPECT_GRID_SIZE - 1)
   const longitudes: number[] = []
   const latitudes: number[] = []
   const positions: Cesium.Cartographic[] = []
   const proceduralHeights: number[][] = []
 
   for (let row = 0; row < ASPECT_GRID_SIZE; row += 1) {
-    const latitude = latitudeStart + row * latitudeStep
+    const latitude = aspectArea.south + row * latitudeStep
     latitudes.push(latitude)
     const heightRow: number[] = []
     for (let column = 0; column < ASPECT_GRID_SIZE; column += 1) {
       if (row === 0) {
-        longitudes.push(longitudeStart + column * longitudeStep)
+        longitudes.push(aspectArea.west + column * longitudeStep)
       }
-      const longitude = longitudeStart + column * longitudeStep
+      const longitude = aspectArea.west + column * longitudeStep
       positions.push(Cesium.Cartographic.fromDegrees(longitude, latitude))
       heightRow.push(
-        160 +
-          48 * Math.sin(column * 0.48) * Math.cos(row * 0.42) +
-          22 * Math.sin((column + row) * 0.31),
+        210 +
+          64 * Math.sin(column * 0.54) * Math.cos(row * 0.46) +
+          28 * Math.sin((column + row) * 0.34) +
+          16 * Math.cos(column * 0.19 - row * 0.27),
       )
     }
     proceduralHeights.push(heightRow)
@@ -419,6 +493,7 @@ async function createAspectScene(
   throwIfAborted(signal)
 
   let heights = grid.proceduralHeights
+  let terrainHeightsApplied = false
   if (terrain.loaded) {
     try {
       const sampled = await Cesium.sampleTerrainMostDetailed(terrain.provider, grid.positions)
@@ -438,6 +513,7 @@ async function createAspectScene(
           }
         }
         heights = sampledHeights
+        terrainHeightsApplied = true
       }
     } catch (error) {
       if (signal?.aborted) {
@@ -448,62 +524,88 @@ async function createAspectScene(
   }
 
   const cells: Array<{
+    color: string
+    downhillEast: number
+    downhillNorth: number
+    height: number
     longitude: number
     latitude: number
-    bucket: (typeof aspectBuckets)[number]
+    slope: number
   }> = []
-  for (let row = 1; row < ASPECT_GRID_SIZE - 1; row += 1) {
-    for (let column = 1; column < ASPECT_GRID_SIZE - 1; column += 1) {
-      const dzdx = heights[row]![column + 1]! - heights[row]![column - 1]!
-      const dzdy = heights[row + 1]![column]! - heights[row - 1]![column]!
-      const aspect = (Cesium.Math.toDegrees(Math.atan2(-dzdx, dzdy)) + 360) % 360
+  const instancesByColor = new Map<string, Cesium.GeometryInstance[]>()
+  const cameraPositions: Cesium.Cartesian3[] = []
+  const longitudeMeters = Math.cos(Cesium.Math.toRadians(aspectArea.south)) * 111_320
+  const cellInset = 0.06
+
+  for (let row = 0; row < ASPECT_GRID_SIZE - 1; row += 1) {
+    for (let column = 0; column < ASPECT_GRID_SIZE - 1; column += 1) {
+      const heightSouthWest = heights[row]![column]!
+      const heightSouthEast = heights[row]![column + 1]!
+      const heightNorthWest = heights[row + 1]![column]!
+      const heightNorthEast = heights[row + 1]![column + 1]!
+      const dzdx = (heightSouthEast + heightNorthEast - heightSouthWest - heightNorthWest) / 2
+      const dzdy = (heightNorthWest + heightNorthEast - heightSouthWest - heightSouthEast) / 2
+      const eastWestDistance = grid.longitudeStep * longitudeMeters
+      const northSouthDistance = grid.latitudeStep * 110_540
+      const gradientEast = dzdx / eastWestDistance
+      const gradientNorth = dzdy / northSouthDistance
+      const slope = Math.hypot(gradientEast, gradientNorth)
+      const style = getSlopeStyle(slope)
+      const west = grid.longitudes[column]! + grid.longitudeStep * cellInset
+      const east = grid.longitudes[column + 1]! - grid.longitudeStep * cellInset
+      const south = grid.latitudes[row]! + grid.latitudeStep * cellInset
+      const north = grid.latitudes[row + 1]! - grid.latitudeStep * cellInset
+      const geometryPositions = Cesium.Cartesian3.fromDegreesArrayHeights([
+        west,
+        south,
+        heightSouthWest + ASPECT_SURFACE_OFFSET,
+        east,
+        south,
+        heightSouthEast + ASPECT_SURFACE_OFFSET,
+        east,
+        north,
+        heightNorthEast + ASPECT_SURFACE_OFFSET,
+        west,
+        north,
+        heightNorthWest + ASPECT_SURFACE_OFFSET,
+      ])
+      cameraPositions.push(...geometryPositions)
+      const geometry = Cesium.PolygonGeometry.fromPositions({
+        positions: geometryPositions,
+        perPositionHeight: true,
+        vertexFormat: Cesium.PerInstanceColorAppearance.VERTEX_FORMAT,
+      })
+      const instance = new Cesium.GeometryInstance({
+        geometry,
+        attributes: {
+          color: Cesium.ColorGeometryInstanceAttribute.fromColor(
+            Cesium.Color.fromCssColorString(style.color).withAlpha(0.88),
+          ),
+        },
+      })
+      const colorInstances = instancesByColor.get(style.color) ?? []
+      colorInstances.push(instance)
+      instancesByColor.set(style.color, colorInstances)
       cells.push({
-        longitude: grid.longitudes[column]!,
-        latitude: grid.latitudes[row]!,
-        bucket: classifyAspect(aspect),
+        color: style.color,
+        downhillEast: -gradientEast,
+        downhillNorth: -gradientNorth,
+        height: (heightSouthWest + heightSouthEast + heightNorthEast + heightNorthWest) / 4,
+        longitude: grid.longitudes[column]! + grid.longitudeStep / 2,
+        latitude: grid.latitudes[row]! + grid.latitudeStep / 2,
+        slope,
       })
     }
   }
 
   const primitives: Cesium.Primitive[] = []
   const entities: Cesium.Entity[] = []
-  const instancesByBucket = new Map<(typeof aspectBuckets)[number], Cesium.GeometryInstance[]>()
 
-  for (const cell of cells) {
-    const west = cell.longitude - grid.longitudeStep / 2
-    const east = cell.longitude + grid.longitudeStep / 2
-    const south = cell.latitude - grid.latitudeStep / 2
-    const north = cell.latitude + grid.latitudeStep / 2
-    const geometry = Cesium.PolygonGeometry.fromPositions({
-      positions: Cesium.Cartesian3.fromDegreesArray([
-        west,
-        south,
-        east,
-        south,
-        east,
-        north,
-        west,
-        north,
-      ]),
-    })
-    const instance = new Cesium.GeometryInstance({
-      geometry,
-      attributes: {
-        color: Cesium.ColorGeometryInstanceAttribute.fromColor(
-          Cesium.Color.fromCssColorString(cell.bucket.color),
-        ),
-      },
-    })
-    const bucketInstances = instancesByBucket.get(cell.bucket) ?? []
-    bucketInstances.push(instance)
-    instancesByBucket.set(cell.bucket, bucketInstances)
-  }
-
-  for (const instances of instancesByBucket.values()) {
+  for (const instances of instancesByColor.values()) {
     const primitive = new Cesium.Primitive({
       geometryInstances: instances,
       appearance: new Cesium.PerInstanceColorAppearance({
-        translucent: false,
+        translucent: true,
         flat: true,
       }),
       asynchronous: false,
@@ -512,46 +614,58 @@ async function createAspectScene(
     primitives.push(primitive)
   }
 
-  for (const bucket of aspectBuckets) {
-    const sample = cells.find((cell) => cell.bucket === bucket)
-    if (!sample) {
-      continue
+  let arrowCount = 0
+  for (let row = 2; row < ASPECT_GRID_SIZE - 2; row += 3) {
+    for (let column = 2; column < ASPECT_GRID_SIZE - 2; column += 3) {
+      const cell = cells[(row - 1) * (ASPECT_GRID_SIZE - 1) + (column - 1)]
+      if (!cell || cell.slope < 0.025) {
+        continue
+      }
+      const directionLength = Math.hypot(cell.downhillEast, cell.downhillNorth)
+      if (directionLength === 0) {
+        continue
+      }
+      const east = cell.downhillEast / directionLength
+      const north = cell.downhillNorth / directionLength
+      const arrowHalfLength = Math.max(grid.longitudeStep, grid.latitudeStep) * 1.15
+      const startLongitude = cell.longitude - east * arrowHalfLength
+      const startLatitude = cell.latitude - north * arrowHalfLength
+      const endLongitude = cell.longitude + east * arrowHalfLength
+      const endLatitude = cell.latitude + north * arrowHalfLength
+      const arrowHeight = cell.height + ASPECT_ARROW_OFFSET
+      const arrowPositions = Cesium.Cartesian3.fromDegreesArrayHeights([
+        startLongitude,
+        startLatitude,
+        arrowHeight,
+        endLongitude,
+        endLatitude,
+        arrowHeight + 3,
+      ])
+      entities.push(
+        viewer.entities.add({
+          id: `aspect-arrow-${arrowCount}`,
+          name: '坡向下降方向箭头',
+          polyline: {
+            positions: arrowPositions,
+            width: 7,
+            material: new Cesium.PolylineArrowMaterialProperty(
+              Cesium.Color.fromCssColorString('#8e1717'),
+            ),
+          },
+        }),
+      )
+      arrowCount += 1
     }
-    const radians = (bucket.center * Math.PI) / 180
-    const arrowLength = 0.0024
-    const arrowPositions = Cesium.Cartesian3.fromDegreesArrayHeights([
-      sample.longitude,
-      sample.latitude,
-      220,
-      sample.longitude + Math.sin(radians) * arrowLength,
-      sample.latitude + Math.cos(radians) * arrowLength,
-      220,
-    ])
-    entities.push(
-      viewer.entities.add({
-        id: `aspect-arrow-${bucket.key}`,
-        name: `${bucket.label}向坡向箭头`,
-        polyline: {
-          positions: arrowPositions,
-          width: 4,
-          material: new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString(bucket.color)),
-        },
-      }),
-    )
   }
 
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(113.716, 23.605, 8_200),
-    orientation: {
-      heading: Cesium.Math.toRadians(12),
-      pitch: Cesium.Math.toRadians(-46),
-      roll: 0,
-    },
-  })
+  framePositions(viewer, cameraPositions, 10, -54, ASPECT_CAMERA_RANGE_FACTOR)
+  const terrainMessage = terrainHeightsApplied
+    ? '已加载参考区域地形'
+    : terrain.loaded
+      ? '地形采样无有效高差，已使用本地山体高程'
+      : '地形加载失败，已回退椭球地形'
   setStatus(
-    terrain.loaded
-      ? `已加载地形并采样 ${ASPECT_GRID_SIZE} × ${ASPECT_GRID_SIZE} 网格，按八向坡向着色并叠加方向箭头`
-      : '地形加载失败，已回退椭球地形；坡向着色和方向箭头仍可查看',
+    `${terrainMessage}并采样 ${ASPECT_GRID_SIZE} × ${ASPECT_GRID_SIZE} 网格，已渲染红色坡度坡面及 ${arrowCount} 个下坡方向箭头`,
   )
 
   return {
@@ -574,7 +688,7 @@ export async function createSpatialScene(
 
   switch (sceneId) {
     case 'inundation-analysis-simple':
-      return createInundationScene(viewer, setStatus)
+      return createInundationScene(viewer, setStatus, options.signal)
     case 'sunlight-analysis':
       return createSunlightScene(
         viewer,

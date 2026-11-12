@@ -23,6 +23,34 @@ async function expectCanvasToAnimate(page: Page, canvas: Locator) {
   expect(frames.some((frame) => !frame.equals(frames[0]!))).toBe(true)
 }
 
+async function expectCanvasToContainRedFacets(page: Page, canvas: Locator) {
+  const screenshot = await canvas.screenshot()
+  const redPixels = await page.evaluate(async (base64) => {
+    const binary = atob(base64)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+    const bitmapCanvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = bitmapCanvas.getContext('2d')
+    if (!context) {
+      return 0
+    }
+    context.drawImage(bitmap, 0, 0)
+    const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data
+    let count = 0
+    for (let index = 0; index < pixels.length; index += 16) {
+      const red = pixels[index] ?? 0
+      const green = pixels[index + 1] ?? 0
+      const blue = pixels[index + 2] ?? 0
+      if (red > 110 && red > green * 1.35 && red > blue * 1.25) {
+        count += 1
+      }
+    }
+    return count
+  }, screenshot.toString('base64'))
+
+  expect(redPixels).toBeGreaterThan(250)
+}
+
 async function expectSubmenuArrowsPointDown(menu: Locator) {
   const arrows = menu.locator('.sidebar-menu__group > .el-sub-menu__title .el-sub-menu__icon-arrow')
   await expect(arrows).toHaveCount(2)
@@ -109,17 +137,17 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开1.4.2、风力发电机' })).toContainText(
     '1.4.2、风力发电机',
   )
-  await expect(page.getByRole('button', { name: '打开2.1.3、淹没分析（简易）' })).toContainText(
-    '2.1.3、淹没分析（简易）',
+  await expect(page.getByRole('button', { name: '打开2.1.1、淹没分析（简易）' })).toContainText(
+    '2.1.1、淹没分析（简易）',
   )
-  await expect(page.getByRole('button', { name: '打开2.1.6、日照分析' })).toContainText(
-    '2.1.6、日照分析',
+  await expect(page.getByRole('button', { name: '打开2.1.2、日照分析' })).toContainText(
+    '2.1.2、日照分析',
   )
-  await expect(page.getByRole('button', { name: '打开2.1.10、水域面' })).toContainText(
-    '2.1.10、水域面',
+  await expect(page.getByRole('button', { name: '打开2.1.3、水域面' })).toContainText(
+    '2.1.3、水域面',
   )
-  await expect(page.getByRole('button', { name: '打开2.1.13、坡向分析' })).toContainText(
-    '2.1.13、坡向分析',
+  await expect(page.getByRole('button', { name: '打开2.1.4、坡向分析' })).toContainText(
+    '2.1.4、坡向分析',
   )
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
   await expect(page.getByTestId('feature-card')).toHaveCount(25)
@@ -876,8 +904,8 @@ test('空间分析菜单通过向下箭头分组并锚定坡向分析内容', as
 
   await expect(page).toHaveURL(/\/layers#spatial$/)
   await expect(spatialMenuItem).toHaveAttribute('aria-current', 'location')
-  const card = page.getByRole('button', { name: '打开2.1.13、坡向分析' })
-  await expect(card).toContainText('2.1.13、坡向分析')
+  const card = page.getByRole('button', { name: '打开2.1.4、坡向分析' })
+  await expect(card).toContainText('2.1.4、坡向分析')
   await expect(card.locator('img')).toHaveAttribute('alt', '坡向分析参考示例封面')
   await expectSubmenuArrowsPointDown(page.locator('.admin-sidebar'))
 
@@ -896,15 +924,17 @@ test('空间分析菜单通过向下箭头分组并锚定坡向分析内容', as
 
   await card.click()
 
-  const dialog = page.getByRole('dialog', { name: '2.1.13、坡向分析' })
+  const dialog = page.getByRole('dialog', { name: '2.1.4、坡向分析' })
   const globe = dialog.getByTestId('spatial-demo-globe')
   const legend = globe.getByTestId('aspect-legend')
   await expect(dialog).toBeVisible()
   await expectCesiumReady(globe)
   await expect(globe.locator('canvas')).toBeVisible()
   await expect(legend).toBeVisible()
-  await expect(legend).toContainText('坡向')
+  await expect(legend).toContainText('坡向坡度')
   await expect(globe.getByText(/已回退椭球地形/)).toBeVisible()
+  await expect(globe.getByText(/红色坡度坡面/)).toBeVisible()
+  await expectCanvasToContainRedFacets(page, globe.locator('canvas'))
 
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(dialog).toBeHidden()
@@ -914,50 +944,58 @@ test('空间分析菜单通过向下箭头分组并锚定坡向分析内容', as
 test('四个空间分析深链均可打开、交互、全屏、关闭并返回对应卡片', async ({ page }) => {
   test.setTimeout(60_000)
 
-  await page.goto('/spatial-analysis/2-1-3-inundation-analysis-simple')
-  let dialog = page.getByRole('dialog', { name: '2.1.3、淹没分析（简易）' })
+  await page.goto('/spatial-analysis/2-1-1-inundation-analysis-simple')
+  let dialog = page.getByRole('dialog', { name: '2.1.1、淹没分析（简易）' })
   let globe = dialog.getByTestId('spatial-demo-globe')
   await expectCesiumReady(globe)
   await expect(globe).toHaveAttribute('data-scene-id', 'inundation-analysis-simple')
   await expect(globe.getByText(/1000 米/)).toBeVisible()
+  await expectCanvasToAnimate(page, globe.locator('canvas'))
   await dialog.getByRole('button', { name: '全屏' }).click()
   await expect(page.locator('.feature-dialog--spatial')).toHaveClass(/is-fullscreen/)
   await dialog.getByRole('button', { name: '退出全屏' }).click()
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(dialog).toBeHidden()
   await expect(page).toHaveURL(/\/layers#inundation-analysis-simple$/)
-  await expect(page.getByRole('button', { name: '打开2.1.3、淹没分析（简易）' })).toBeFocused()
+  await expect(page.getByRole('button', { name: '打开2.1.1、淹没分析（简易）' })).toBeFocused()
 
-  await page.goto('/spatial-analysis/2-1-6-sunlight-analysis')
-  dialog = page.getByRole('dialog', { name: '2.1.6、日照分析' })
+  await page.goto('/spatial-analysis/2-1-2-sunlight-analysis')
+  dialog = page.getByRole('dialog', { name: '2.1.2、日照分析' })
   globe = dialog.getByTestId('spatial-demo-globe')
   await expectCesiumReady(globe)
   await expect(globe.getByText(/36 栋本地低多边形建筑/)).toBeVisible()
   await expect(globe.getByLabel('日照日期')).toBeVisible()
   await expect(globe.getByLabel('开始时间')).toBeVisible()
   await expect(globe.getByLabel('结束时间')).toBeVisible()
+  const sunlightCanvas = globe.locator('canvas')
+  const sunlightBefore = await sunlightCanvas.screenshot()
   await dialog.getByRole('button', { name: '播放日照' }).click()
   await expect(globe.getByText(/日照模拟播放中/)).toBeVisible()
+  await page.waitForTimeout(700)
+  expect((await sunlightCanvas.screenshot()).equals(sunlightBefore)).toBe(false)
   await dialog.getByRole('button', { name: '暂停日照' }).click()
   await expect(globe.getByText(/日照模拟已暂停/)).toBeVisible()
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
 
-  await page.goto('/spatial-analysis/2-1-10-water-surface')
-  dialog = page.getByRole('dialog', { name: '2.1.10、水域面' })
+  await page.goto('/spatial-analysis/2-1-3-water-surface')
+  dialog = page.getByRole('dialog', { name: '2.1.3、水域面' })
   globe = dialog.getByTestId('spatial-demo-globe')
   await expectCesiumReady(globe)
-  await expect(globe.getByText(/动态水域面/)).toBeVisible()
+  await expect(globe.getByText(/水面波纹持续流动/)).toBeVisible()
+  await expectCanvasToAnimate(page, globe.locator('canvas'))
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
 
-  await page.goto('/spatial-analysis/2-1-13-aspect-analysis')
-  dialog = page.getByRole('dialog', { name: '2.1.13、坡向分析' })
+  await page.goto('/spatial-analysis/2-1-4-aspect-analysis')
+  dialog = page.getByRole('dialog', { name: '2.1.4、坡向分析' })
   globe = dialog.getByTestId('spatial-demo-globe')
   await expectCesiumReady(globe)
   await expect(globe.getByTestId('aspect-legend')).toBeVisible()
   await expect(globe.getByText(/已回退椭球地形/)).toBeVisible()
+  await expect(globe.getByText(/红色坡度坡面/)).toBeVisible()
+  await expectCanvasToContainRedFacets(page, globe.locator('canvas'))
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(page).toHaveURL(/\/layers#aspect-analysis$/)
-  await expect(page.getByRole('button', { name: '打开2.1.13、坡向分析' })).toBeFocused()
+  await expect(page.getByRole('button', { name: '打开2.1.4、坡向分析' })).toBeFocused()
 })
 
 test('旧 /effects 地址保留原 URL 并显示 404 页面', async ({ page }) => {
@@ -967,4 +1005,11 @@ test('旧 /effects 地址保留原 URL 并显示 404 页面', async ({ page }) =
   await expect(page.getByRole('heading', { level: 1, name: '页面不存在' })).toBeVisible()
   await expect(page.getByRole('button', { name: /雷达图/ })).toHaveCount(0)
   await expect(page.getByRole('menuitem', { name: '2、空间分析' })).toBeVisible()
+})
+
+test('旧空间分析地址保留原 URL 并显示 404 页面', async ({ page }) => {
+  await page.goto('/spatial-analysis/2-1-13-aspect-analysis')
+
+  await expect(page).toHaveURL('/spatial-analysis/2-1-13-aspect-analysis')
+  await expect(page.getByRole('heading', { level: 1, name: '页面不存在' })).toBeVisible()
 })
