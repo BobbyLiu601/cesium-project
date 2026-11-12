@@ -39,6 +39,8 @@ const INUNDATION_CAMERA_RANGE_FACTOR = 3.1
 const SUNLIGHT_CAMERA_RANGE_FACTOR = 2.8
 const WATER_CAMERA_RANGE_FACTOR = 1.85
 const ASPECT_CAMERA_RANGE_FACTOR = 2.8
+const SUNLIGHT_TILESET_PATH = 'spatial-analysis/sunlight-model/tileset.json'
+const SUNLIGHT_TILESET_LOAD_TIMEOUT_MS = 20_000
 
 const inundationPolygon = [
   [98.676842346815, 27.571578111198868],
@@ -105,6 +107,30 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value))
 }
 
+function getPublicAssetUrl(path: string) {
+  const baseUrl = import.meta.env.BASE_URL.endsWith('/')
+    ? import.meta.env.BASE_URL
+    : `${import.meta.env.BASE_URL}/`
+  return `${baseUrl}${path.replace(/^\//, '')}`
+}
+
+function frameBoundingSphere(
+  viewer: Cesium.Viewer,
+  sphere: Cesium.BoundingSphere,
+  headingDegrees: number,
+  pitchDegrees: number,
+  rangeFactor: number,
+) {
+  viewer.camera.viewBoundingSphere(
+    sphere,
+    new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(headingDegrees),
+      Cesium.Math.toRadians(pitchDegrees),
+      Math.max(650, sphere.radius * rangeFactor),
+    ),
+  )
+}
+
 function framePositions(
   viewer: Cesium.Viewer,
   positions: Cesium.Cartesian3[],
@@ -117,14 +143,7 @@ function framePositions(
   }
 
   const sphere = Cesium.BoundingSphere.fromPoints(positions)
-  viewer.camera.viewBoundingSphere(
-    sphere,
-    new Cesium.HeadingPitchRange(
-      Cesium.Math.toRadians(headingDegrees),
-      Cesium.Math.toRadians(pitchDegrees),
-      Math.max(650, sphere.radius * rangeFactor),
-    ),
-  )
+  frameBoundingSphere(viewer, sphere, headingDegrees, pitchDegrees, rangeFactor)
 }
 
 function createContinuousRenderTicker(viewer: Cesium.Viewer) {
@@ -216,66 +235,60 @@ function parseSunlightRange(range: SunlightRange) {
   return { start, stop }
 }
 
-function createSunlightScene(
+async function loadSunlightTileset(signal?: AbortSignal): Promise<Cesium.Cesium3DTileset> {
+  throwIfAborted(signal)
+  const tilesetPromise = Cesium.Cesium3DTileset.fromUrl(getPublicAssetUrl(SUNLIGHT_TILESET_PATH), {
+    cullWithChildrenBounds: true,
+    dynamicScreenSpaceError: true,
+    maximumScreenSpaceError: 8,
+    shadows: Cesium.ShadowMode.ENABLED,
+  })
+
+  if (!signal) {
+    return tilesetPromise
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  let abortHandler: (() => void) | undefined
+  try {
+    return await Promise.race([
+      tilesetPromise,
+      new Promise<never>((_, reject) => {
+        abortHandler = () => reject(createAbortError())
+        signal.addEventListener('abort', abortHandler, { once: true })
+      }),
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('日照分析 3D Tiles 模型加载超时')),
+          SUNLIGHT_TILESET_LOAD_TIMEOUT_MS,
+        )
+      }),
+    ])
+  } catch (error) {
+    if (signal.aborted) {
+      void tilesetPromise.then((tileset) => tileset.destroy()).catch(() => undefined)
+    }
+    throw error
+  } finally {
+    if (timeoutId !== undefined) {
+      clearTimeout(timeoutId)
+    }
+    if (abortHandler) {
+      signal.removeEventListener('abort', abortHandler)
+    }
+  }
+}
+
+async function createSunlightScene(
   viewer: Cesium.Viewer,
   setStatus: StatusReporter,
   initialRange: SunlightRange,
-): SpatialScene {
-  const entities: Cesium.Entity[] = []
-  const center = { longitude: 113.33, latitude: 23.16 }
-  const buildingPositions: Cesium.Cartesian3[] = []
+  signal?: AbortSignal,
+): Promise<SpatialScene> {
+  const tileset = await loadSunlightTileset(signal)
+  throwIfAborted(signal)
 
-  viewer.scene.globe.enableLighting = true
-  viewer.shadows = true
-  const groundEntity = viewer.entities.add({
-    id: 'sunlight-ground',
-    name: '日照分析地面基底',
-    polygon: {
-      hierarchy: new Cesium.PolygonHierarchy(
-        Cesium.Cartesian3.fromDegreesArray([
-          center.longitude - 0.009,
-          center.latitude - 0.009,
-          center.longitude + 0.009,
-          center.latitude - 0.009,
-          center.longitude + 0.009,
-          center.latitude + 0.009,
-          center.longitude - 0.009,
-          center.latitude + 0.009,
-        ]),
-      ),
-      height: 0,
-      material: new Cesium.ColorMaterialProperty(
-        Cesium.Color.fromCssColorString('rgba(105, 118, 103, 0.96)'),
-      ),
-      outline: true,
-      outlineColor: Cesium.Color.fromCssColorString('rgba(54, 68, 58, 0.9)'),
-    },
-  })
-  entities.push(groundEntity)
-
-  for (let row = 0; row < 6; row += 1) {
-    for (let column = 0; column < 6; column += 1) {
-      const height = 42 + ((row * 7 + column * 11) % 9) * 16
-      const longitude = center.longitude + (column - 2.5) * 0.0022
-      const latitude = center.latitude + (row - 2.5) * 0.0022
-      const position = Cesium.Cartesian3.fromDegrees(longitude, latitude, height / 2)
-      buildingPositions.push(position)
-      entities.push(
-        viewer.entities.add({
-          id: `sunlight-building-${row}-${column}`,
-          name: '本地低多边形建筑',
-          position,
-          box: {
-            dimensions: new Cesium.Cartesian3(92, 92, height),
-            material: Cesium.Color.fromCssColorString(row % 2 === 0 ? '#c8b89a' : '#9aa7b5'),
-            outline: true,
-            outlineColor: Cesium.Color.fromCssColorString('#243447'),
-            shadows: Cesium.ShadowMode.ENABLED,
-          },
-        }),
-      )
-    }
-  }
+  viewer.scene.primitives.add(tileset)
 
   function applyRange(range: SunlightRange, announce: boolean) {
     const parsed = parseSunlightRange(range)
@@ -302,7 +315,7 @@ function createSunlightScene(
 
   applyRange(initialRange, false)
   setStatus(
-    `已生成 36 栋本地低多边形建筑，日照日期 ${initialRange.date}，区间 ${initialRange.startTime}–${initialRange.endTime}`,
+    `已加载参考站 4.1.6「日照分析」3D Tiles 城市模型，日照日期 ${initialRange.date}，区间 ${initialRange.startTime}–${initialRange.endTime}；点击播放查看建筑阴影变化`,
   )
 
   const tick = () => {
@@ -312,7 +325,7 @@ function createSunlightScene(
   }
   viewer.scene.preUpdate.addEventListener(tick)
 
-  framePositions(viewer, buildingPositions, 26, -41, SUNLIGHT_CAMERA_RANGE_FACTOR)
+  frameBoundingSphere(viewer, tileset.boundingSphere, 24, -46, SUNLIGHT_CAMERA_RANGE_FACTOR)
 
   return {
     actions: [
@@ -320,6 +333,8 @@ function createSunlightScene(
         id: 'play-sunlight',
         label: '播放日照',
         run() {
+          viewer.scene.globe.enableLighting = true
+          viewer.shadows = true
           viewer.clock.shouldAnimate = true
           setStatus('日照模拟播放中，建筑阴影会随所选时间段变化')
           requestRender(viewer)
@@ -342,7 +357,7 @@ function createSunlightScene(
       viewer.scene.preUpdate.removeEventListener(tick)
       viewer.clock.shouldAnimate = false
       viewer.shadows = false
-      entities.forEach((entity) => viewer.entities.remove(entity))
+      viewer.scene.primitives.remove(tileset)
     },
   }
 }
@@ -694,6 +709,7 @@ export async function createSpatialScene(
         viewer,
         setStatus,
         options.sunlight ?? { date: '2020-10-20', startTime: '08:00', endTime: '18:00' },
+        options.signal,
       )
     case 'water-surface':
       return createWaterSurfaceScene(viewer, setStatus)

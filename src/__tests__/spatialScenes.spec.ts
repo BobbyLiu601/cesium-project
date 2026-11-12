@@ -1,14 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  Cesium3DTileset,
   cesiumMockState,
+  cesium3DTilesetInstances,
+  cesium3DTilesetRequests,
   CesiumTerrainProvider,
   EllipsoidTerrainProvider,
   materialInstances,
   primitiveInstances,
   resetCesiumMock,
   sampleTerrainMostDetailed,
+  scenePrimitiveAdds,
   scenePrimitiveRemoves,
+  ShadowMode,
   Viewer,
 } from './mocks/cesium'
 import { createSpatialScene } from '../demos/spatialScene'
@@ -55,20 +60,31 @@ describe('spatial scenes', () => {
     expect((viewer as unknown as Viewer).entities.values).toHaveLength(0)
   })
 
-  it('creates local buildings and controls the sunlight clock', async () => {
+  it('loads the reference city tileset and controls the sunlight clock', async () => {
     const viewer = createViewer()
     const mockViewer = viewer as unknown as Viewer
     const { setStatus, statuses } = collectStatus()
     const scene = await createSpatialScene(viewer, 'sunlight-analysis', setStatus)
 
-    expect(mockViewer.entities.values).toHaveLength(37)
-    expect(mockViewer.scene.globe.enableLighting).toBe(true)
-    expect(mockViewer.shadows).toBe(true)
+    expect(cesium3DTilesetRequests).toHaveLength(1)
+    expect(cesium3DTilesetRequests[0]?.url).toContain(
+      'spatial-analysis/sunlight-model/tileset.json',
+    )
+    expect(cesium3DTilesetInstances).toHaveLength(1)
+    const tileset = cesium3DTilesetInstances[0] as Cesium3DTileset
+    expect(tileset).toBeInstanceOf(Cesium3DTileset)
+    expect(tileset.shadows).toBe(ShadowMode.ENABLED)
+    expect(scenePrimitiveAdds).toContain(tileset)
+    expect(mockViewer.entities.values).toHaveLength(0)
+    expect(mockViewer.scene.globe.enableLighting).toBe(false)
+    expect(mockViewer.shadows).toBe(false)
     expect(scene.actions.map((action) => action.label)).toEqual(['播放日照', '暂停日照'])
     expect(mockViewer.clock.startTime).not.toBe(mockViewer.clock.stopTime)
     expect(mockViewer.camera.viewBoundingSphere).toHaveBeenCalled()
 
     await scene.actions[0]?.run()
+    expect(mockViewer.scene.globe.enableLighting).toBe(true)
+    expect(mockViewer.shadows).toBe(true)
     expect(mockViewer.clock.shouldAnimate).toBe(true)
     await scene.actions[1]?.run()
     expect(mockViewer.clock.shouldAnimate).toBe(false)
@@ -88,6 +104,7 @@ describe('spatial scenes', () => {
     expect(statuses[statuses.length - 1]).toContain('请选择有效的日期和起止时间')
 
     scene.dispose()
+    expect(scenePrimitiveRemoves).toContain(tileset)
     expect(mockViewer.entities.values).toHaveLength(0)
     expect(mockViewer.shadows).toBe(false)
   })

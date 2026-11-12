@@ -200,6 +200,11 @@ export const materialInstances: MockMaterial[] = []
 export const polylineDashMaterialInstances: unknown[] = []
 export const scenePrimitiveAdds: unknown[] = []
 export const scenePrimitiveRemoves: unknown[] = []
+export const cesium3DTilesetInstances: MockCesium3DTileset[] = []
+export const cesium3DTilesetRequests: Array<{
+  url: string
+  options?: Record<string, unknown>
+}> = []
 export const elevationProviderRequests: Array<{
   url: string
   options?: Record<string, unknown>
@@ -833,6 +838,38 @@ export class Primitive implements MockPrimitive {
   }
 }
 
+export interface MockCesium3DTileset {
+  boundingSphere: BoundingSphere
+  destroyed: boolean
+  options: Record<string, unknown>
+  shadows: number
+  url: string
+  destroy: () => void
+}
+
+export class Cesium3DTileset implements MockCesium3DTileset {
+  boundingSphere = new BoundingSphere(new Cartesian3(0, 0, 0), 900)
+  destroyed = false
+  shadows: number
+
+  constructor(
+    public url: string,
+    public options: Record<string, unknown> = {},
+  ) {
+    this.shadows = Number(options.shadows ?? 0)
+    cesium3DTilesetInstances.push(this)
+  }
+
+  static fromUrl(url: string, options: Record<string, unknown> = {}) {
+    cesium3DTilesetRequests.push({ url, options })
+    return Promise.resolve(new Cesium3DTileset(url, options))
+  }
+
+  destroy = () => {
+    this.destroyed = true
+  }
+}
+
 export class Color {
   constructor(
     public red: number,
@@ -1049,6 +1086,8 @@ export function resetCesiumMock() {
   screenSpaceEventHandlerInstances.length = 0
   terrainSampleRequests.length = 0
   modelInstances.length = 0
+  cesium3DTilesetInstances.length = 0
+  cesium3DTilesetRequests.length = 0
   cesiumMockState.failNextViewer = false
   cesiumMockState.failNextImageryLayer = false
   cesiumMockState.groundMaterialsSupported = true

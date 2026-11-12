@@ -816,15 +816,16 @@ describe('App', () => {
 
     const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
     expect(globe.attributes('data-cesium-state')).toBe('ready')
-    expect(globe.text()).toContain('36 栋本地低多边形建筑')
+    expect(globe.text()).toContain('参考站 4.1.6「日照分析」3D Tiles 城市模型')
     expect(globe.find('.spatial-demo-globe__sunlight-controls').exists()).toBe(true)
     expect(globe.find('input[aria-label="日照日期"]').exists()).toBe(true)
     expect(globe.find('input[aria-label="开始时间"]').exists()).toBe(true)
     expect(globe.find('input[aria-label="结束时间"]').exists()).toBe(true)
-    expect(viewerInstances[0]?.scene.globe.enableLighting).toBe(true)
+    expect(viewerInstances[0]?.scene.globe.enableLighting).toBe(false)
 
     await globe.get('button').trigger('click')
     await flushPromises()
+    expect(viewerInstances[0]?.scene.globe.enableLighting).toBe(true)
     expect(viewerInstances[0]?.clock.shouldAnimate).toBe(true)
     expect(globe.text()).toContain('日照模拟播放中')
 

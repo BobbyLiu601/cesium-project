@@ -942,7 +942,7 @@ test('空间分析菜单通过向下箭头分组并锚定坡向分析内容', as
 })
 
 test('四个空间分析深链均可打开、交互、全屏、关闭并返回对应卡片', async ({ page }) => {
-  test.setTimeout(60_000)
+  test.setTimeout(120_000)
 
   await page.goto('/spatial-analysis/2-1-1-inundation-analysis-simple')
   let dialog = page.getByRole('dialog', { name: '2.1.1、淹没分析（简易）' })
@@ -959,20 +959,30 @@ test('四个空间分析深链均可打开、交互、全屏、关闭并返回�
   await expect(page).toHaveURL(/\/layers#inundation-analysis-simple$/)
   await expect(page.getByRole('button', { name: '打开2.1.1、淹没分析（简易）' })).toBeFocused()
 
+  const tilesetResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith('/spatial-analysis/sunlight-model/tileset.json'),
+  )
+  const modelResponsePromise = page.waitForResponse((response) =>
+    /\/spatial-analysis\/sunlight-model\/NoLod_[01]\.b3dm$/.test(response.url()),
+  )
   await page.goto('/spatial-analysis/2-1-2-sunlight-analysis')
   dialog = page.getByRole('dialog', { name: '2.1.2、日照分析' })
   globe = dialog.getByTestId('spatial-demo-globe')
   await expectCesiumReady(globe)
-  await expect(globe.getByText(/36 栋本地低多边形建筑/)).toBeVisible()
+  expect((await tilesetResponsePromise).status()).toBe(200)
+  expect((await modelResponsePromise).status()).toBe(200)
+  await expect(globe.getByText(/参考站 4\.1\.6「日照分析」3D Tiles 城市模型/)).toBeVisible()
   await expect(globe.getByLabel('日照日期')).toBeVisible()
   await expect(globe.getByLabel('开始时间')).toBeVisible()
   await expect(globe.getByLabel('结束时间')).toBeVisible()
   const sunlightCanvas = globe.locator('canvas')
-  const sunlightBefore = await sunlightCanvas.screenshot()
+  const sunlightClip = await sunlightCanvas.boundingBox()
+  expect(sunlightClip).not.toBeNull()
+  const sunlightBefore = await page.screenshot({ clip: sunlightClip! })
   await dialog.getByRole('button', { name: '播放日照' }).click()
   await expect(globe.getByText(/日照模拟播放中/)).toBeVisible()
   await page.waitForTimeout(700)
-  expect((await sunlightCanvas.screenshot()).equals(sunlightBefore)).toBe(false)
+  expect((await page.screenshot({ clip: sunlightClip! })).equals(sunlightBefore)).toBe(false)
   await dialog.getByRole('button', { name: '暂停日照' }).click()
   await expect(globe.getByText(/日照模拟已暂停/)).toBeVisible()
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
