@@ -9,6 +9,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const server = await createServer({
   root,
   configFile: resolve(root, 'vite.config.ts'),
+  cacheDir: resolve(root, '.cache/vite-e2e'),
   configLoader: 'native',
   logLevel: 'warn',
   server: {
@@ -23,13 +24,15 @@ let exitCode = 1
 try {
   await server.listen()
 
-  // Vitest can invalidate Vite's optimized dependencies; warm the browser graph
-  // before Playwright's per-test timeout starts.
+  // Keep E2E cache isolated from Vitest and pretransform the entry graph before
+  // Playwright's per-test timeout starts.
+  await server.warmupRequest('/src/main.ts')
+
   const warmupBrowser = await chromium.launch()
   try {
     const warmupPage = await warmupBrowser.newPage()
     await warmupPage.goto('http://127.0.0.1:4173/', {
-      timeout: 120_000,
+      timeout: 180_000,
       waitUntil: 'domcontentloaded',
     })
   } finally {
