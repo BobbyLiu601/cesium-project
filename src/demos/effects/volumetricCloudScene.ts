@@ -2,7 +2,7 @@ import * as Cesium from 'cesium'
 
 import type { EffectsScene, VolumetricCloudControls } from '@/demos/effects/types'
 
-export const DEFAULT_CLOUD_SCALE = { x: 25, y: 12 } as const
+export const DEFAULT_CLOUD_SCALE = { x: 600, y: 350 } as const
 export const DEFAULT_CLOUD_BRIGHTNESS = 1
 
 interface CreateVolumetricCloudSceneOptions {

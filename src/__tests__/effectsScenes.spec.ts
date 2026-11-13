@@ -145,7 +145,7 @@ describe('scene effects', () => {
     expect(collection.options.noiseDetail).toBe(16)
     expect(cloud.slice).toBe(0.36)
     expect(cloud.brightness).toBe(1)
-    expect(cloud.scale).toMatchObject({ x: 25, y: 12 })
+    expect(cloud.scale).toMatchObject({ x: 600, y: 350 })
     expect(viewer.camera.flyTo).toHaveBeenCalledOnce()
     expect(statuses[statuses.length - 1]).toContain('可实时调整尺寸与亮度')
 
@@ -188,8 +188,15 @@ describe('scene effects', () => {
     expect(scene.retryAudio).toBe(audio.play)
     expect(viewer.scene.postProcessStages.stages.map((stage) => stage.options.name)).toEqual([
       'effect_rain',
-      'effect_lightning_flash',
+      'effect_lightning',
     ])
+    expect(viewer.scene.postProcessStages.stages[1]?.options.fragmentShader).toContain(
+      'segmentDistance',
+    )
+    expect(viewer.scene.postProcessStages.stages[1]?.options.uniforms).toMatchObject({
+      u_flash: expect.any(Function),
+      u_seed: expect.any(Function),
+    })
     expect(viewer.scene.preUpdate.listeners.size).toBe(1)
     expect(statuses[statuses.length - 1]).toContain('雷声默认开启并循环')
 
