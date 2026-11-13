@@ -950,6 +950,7 @@ test('四个空间分析深链均可打开、交互、全屏、关闭并返回�
   await expectCesiumReady(globe)
   await expect(globe).toHaveAttribute('data-scene-id', 'inundation-analysis-simple')
   await expect(globe.getByText(/1000 米/)).toBeVisible()
+  await expect(globe.getByText(/2000 米/)).toBeVisible()
   await expectCanvasToAnimate(page, globe.locator('canvas'))
   await dialog.getByRole('button', { name: '全屏' }).click()
   await expect(page.locator('.feature-dialog--spatial')).toHaveClass(/is-fullscreen/)

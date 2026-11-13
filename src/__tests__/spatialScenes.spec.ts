@@ -82,7 +82,7 @@ describe('spatial scenes', () => {
     vi.restoreAllMocks()
   })
 
-  it('raises the simple inundation volume from 1000m to 3600m and stops', async () => {
+  it('raises the simple inundation volume from 1000m to 2000m and stops', async () => {
     const now = vi.spyOn(performance, 'now').mockReturnValue(0)
     const viewer = createViewer()
     const { setStatus, statuses } = collectStatus()
@@ -94,15 +94,43 @@ describe('spatial scenes', () => {
     expect(entity.polygon?.perPositionHeight).toBe(true)
     expect(waterHeight.getValue()).toBe(1_000)
     now.mockReturnValue(2_250)
-    expect(waterHeight.getValue()).toBeCloseTo(2_300)
+    expect(waterHeight.getValue()).toBeCloseTo(1_500)
     now.mockReturnValue(4_500)
-    expect(waterHeight.getValue()).toBe(3_600)
+    expect(waterHeight.getValue()).toBe(2_000)
     ;(viewer as unknown as Viewer).scene.preUpdate.raiseEvent()
     expect(statuses[statuses.length - 1]).toContain('目标高度')
     expect((viewer as unknown as Viewer).camera.viewBoundingSphere).toHaveBeenCalled()
 
     scene.dispose()
     expect((viewer as unknown as Viewer).entities.values).toHaveLength(0)
+  })
+
+  it('adds the inundation water only after terrain elevation finishes loading', async () => {
+    let resolveSamples!: (samples: Array<{ height: number }>) => void
+    sampleTerrainMostDetailed.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSamples = resolve
+        }),
+    )
+    const viewer = createViewer()
+    const mockViewer = viewer as unknown as Viewer
+    const { setStatus } = collectStatus()
+    const pending = createSpatialScene(viewer, 'inundation-analysis-simple', setStatus)
+
+    await vi.waitFor(() => {
+      expect(sampleTerrainMostDetailed).toHaveBeenCalledOnce()
+    })
+    expect(sampleTerrainMostDetailed.mock.calls[0]?.[1]).toHaveLength(25)
+    expect(mockViewer.entities.values).toHaveLength(0)
+
+    resolveSamples(Array.from({ length: 25 }, () => ({ height: 1_200 })))
+    const scene = await pending
+
+    expect(mockViewer.entities.values).toHaveLength(1)
+    expect(mockViewer.entities.values[0]?.polygon?.extrudedHeight).toBeDefined()
+
+    scene.dispose()
   })
 
   it('loads the reference city tileset and controls the sunlight clock', async () => {

@@ -789,9 +789,11 @@ describe('App', () => {
 
     const dialog = wrapper.get('.feature-dialog--spatial')
     const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
+    await vi.waitFor(() => {
+      expect(globe.attributes('data-cesium-state')).toBe('ready')
+    })
     expect(dialog.text()).toContain('2.1.1、淹没分析（简易）')
     expect(globe.attributes('data-scene-id')).toBe('inundation-analysis-simple')
-    expect(globe.attributes('data-cesium-state')).toBe('ready')
     expect(globe.text()).toContain('1000 米')
     expect(viewerInstances[0]?.entities.values).toHaveLength(1)
     expect(viewerInstances[0]?.entities.values[0]?.polygon?.extrudedHeight).toBeDefined()
