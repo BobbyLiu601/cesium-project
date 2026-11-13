@@ -8,6 +8,12 @@ export interface MockViewer {
     addImageryProvider: ReturnType<typeof vi.fn<(provider: unknown) => MockImageryLayer>>
   }
   camera: {
+    positionCartographic: {
+      longitude: number
+      latitude: number
+      height: number
+    }
+    positionWC: unknown
     setView: ReturnType<typeof vi.fn<(options: unknown) => void>>
     viewBoundingSphere: ReturnType<typeof vi.fn<(sphere: unknown, orientation: unknown) => void>>
     lookAt: ReturnType<typeof vi.fn<(center: unknown, headingPitchRange: unknown) => void>>
@@ -21,10 +27,16 @@ export interface MockViewer {
     pick: ReturnType<typeof vi.fn<(position: unknown) => unknown>>
     preUpdate: MockEvent<() => void>
     preRender: MockEvent<() => void>
+    postRender: MockEvent<() => void>
     primitives: {
       add: ReturnType<typeof vi.fn<(primitive: unknown) => unknown>>
       remove: ReturnType<typeof vi.fn<(primitive: unknown) => boolean>>
     }
+    skyBox: unknown
+    skyAtmosphere?: {
+      show: boolean
+    }
+    postProcessStages: MockPostProcessStageCollection
     globe: {
       enableLighting: boolean
       depthTestAgainstTerrain: boolean
@@ -103,6 +115,26 @@ export class MockEvent<T extends (...args: never[]) => unknown> {
   raiseEvent(...args: Parameters<T>) {
     this.listeners.forEach((listener) => listener(...args))
   }
+}
+
+export class MockPostProcessStageCollection {
+  stages: PostProcessStage[] = []
+
+  add = vi.fn<(stage: PostProcessStage) => PostProcessStage>((stage) => {
+    this.stages.push(stage)
+    return stage
+  })
+
+  remove = vi.fn<(stage: PostProcessStage) => boolean>((stage) => {
+    const index = this.stages.indexOf(stage)
+    if (index < 0) {
+      return false
+    }
+
+    this.stages.splice(index, 1)
+    stage.destroy()
+    return true
+  })
 }
 
 export class MockEntityCollection {
@@ -219,9 +251,12 @@ export const tileLoadProgressListeners: Array<() => void> = []
 export const entityCollectionInstances: MockEntityCollection[] = []
 export const dataSourceInstances: MockDataSource[] = []
 export const billboardCollectionInstances: BillboardCollection[] = []
+export const cloudCollectionInstances: CloudCollection[] = []
 export const screenSpaceEventHandlerInstances: ScreenSpaceEventHandler[] = []
 export const terrainSampleRequests: unknown[][] = []
 export const modelInstances: MockModel[] = []
+export const postProcessStageInstances: PostProcessStage[] = []
+export const skyBoxInstances: SkyBox[] = []
 export const cesiumMockState = {
   failNextViewer: false,
   failNextImageryLayer: false,
@@ -253,6 +288,12 @@ export class Viewer implements MockViewer {
   }
 
   camera = {
+    positionCartographic: {
+      height: 3_336.6,
+      latitude: 0,
+      longitude: 0,
+    },
+    positionWC: new Cartesian3(0, 0, 6_378_137 + 3_336.6),
     setView: vi.fn<(options: unknown) => void>(),
     viewBoundingSphere: vi.fn<(sphere: unknown, orientation: unknown) => void>(),
     lookAt: vi.fn<(center: unknown, headingPitchRange: unknown) => void>(),
@@ -291,6 +332,7 @@ export class Viewer implements MockViewer {
     pick: vi.fn<(position: unknown) => unknown>(() => undefined),
     preUpdate: new MockEvent<() => void>(),
     preRender: new MockEvent<() => void>(),
+    postRender: new MockEvent<() => void>(),
     primitives: {
       add: vi.fn<(primitive: unknown) => unknown>((primitive) => {
         scenePrimitiveAdds.push(primitive)
@@ -317,6 +359,11 @@ export class Viewer implements MockViewer {
         }),
       },
     },
+    skyAtmosphere: {
+      show: true,
+    },
+    skyBox: undefined as unknown,
+    postProcessStages: new MockPostProcessStageCollection(),
     verticalExaggeration: 1,
   }
 
@@ -452,6 +499,56 @@ export class BillboardCollection {
     this.items.push(options)
     return options
   }
+}
+
+export class PostProcessStage {
+  destroyed = false
+
+  constructor(public options: Record<string, unknown>) {
+    postProcessStageInstances.push(this)
+  }
+
+  destroy = vi.fn<() => void>(() => {
+    this.destroyed = true
+  })
+
+  isDestroyed = vi.fn<() => boolean>(() => this.destroyed)
+}
+
+export class SkyBox {
+  destroyed = false
+
+  constructor(public options: Record<string, unknown>) {
+    skyBoxInstances.push(this)
+  }
+
+  destroy = vi.fn<() => void>(() => {
+    this.destroyed = true
+  })
+
+  isDestroyed = vi.fn<() => boolean>(() => this.destroyed)
+}
+
+export class CloudCollection {
+  destroyed = false
+  show = true
+  clouds: Array<Record<string, unknown>> = []
+
+  constructor(public options: Record<string, unknown>) {
+    cloudCollectionInstances.push(this)
+  }
+
+  add = vi.fn<(options: Record<string, unknown>) => Record<string, unknown>>((options) => {
+    const cloud = { ...options }
+    this.clouds.push(cloud)
+    return cloud
+  })
+
+  destroy = vi.fn<() => void>(() => {
+    this.destroyed = true
+  })
+
+  isDestroyed = vi.fn<() => boolean>(() => this.destroyed)
 }
 
 export class ModelAnimationCollection {
@@ -988,6 +1085,10 @@ export class Cartesian3 {
     return positions
   }
 
+  static magnitude(vector: Cartesian3) {
+    return globalThis.Math.hypot(vector.x, vector.y, vector.z)
+  }
+
   constructor(
     public x: number,
     public y: number,
@@ -1090,9 +1191,12 @@ export function resetCesiumMock() {
   entityCollectionInstances.length = 0
   dataSourceInstances.length = 0
   billboardCollectionInstances.length = 0
+  cloudCollectionInstances.length = 0
   screenSpaceEventHandlerInstances.length = 0
   terrainSampleRequests.length = 0
   modelInstances.length = 0
+  postProcessStageInstances.length = 0
+  skyBoxInstances.length = 0
   cesium3DTilesetInstances.length = 0
   cesium3DTilesetRequests.length = 0
   cesiumMockState.failNextViewer = false

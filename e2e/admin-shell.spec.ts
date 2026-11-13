@@ -53,14 +53,14 @@ async function expectCanvasToContainRedFacets(page: Page, canvas: Locator) {
 
 async function expectSubmenuArrowsPointDown(menu: Locator) {
   const arrows = menu.locator('.sidebar-menu__group > .el-sub-menu__title .el-sub-menu__icon-arrow')
-  await expect(arrows).toHaveCount(2)
+  await expect(arrows).toHaveCount(3)
   await expect
     .poll(() =>
       arrows.evaluateAll((elements) =>
         elements.map((element) => getComputedStyle(element).transform),
       ),
     )
-    .toEqual(['none', 'none'])
+    .toEqual(['none', 'none', 'none'])
 }
 
 const responsiveViewports = [
@@ -108,6 +108,8 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '1.4、模型' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '2、空间分析' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '2.1、空间分析' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '3、特效' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '3.1、场景特效' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -149,8 +151,21 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开2.1.4、坡向分析' })).toContainText(
     '2.1.4、坡向分析',
   )
+  await expect(page.getByRole('button', { name: '打开3.1.1、天空盒' })).toContainText(
+    '3.1.1、天空盒',
+  )
+  await expect(page.getByRole('button', { name: '打开3.1.2、近地天空盒' })).toContainText(
+    '3.1.2、近地天空盒',
+  )
+  await expect(page.getByRole('button', { name: '打开3.1.3、体积云' })).toContainText(
+    '3.1.3、体积云',
+  )
+  await expect(page.getByRole('button', { name: '打开3.1.4、闪电' })).toContainText('3.1.4、闪电')
+  await expect(page.getByRole('button', { name: '打开3.1.5、高度雾' })).toContainText(
+    '3.1.5、高度雾',
+  )
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(25)
+  await expect(page.getByTestId('feature-card')).toHaveCount(30)
   expect(
     await page
       .getByTestId('feature-card')
@@ -181,6 +196,11 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'sunlight-analysis',
     'water-surface',
     'aspect-analysis',
+    'skybox',
+    'near-ground-skybox',
+    'volumetric-cloud',
+    'lightning',
+    'height-fog',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -742,9 +762,11 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
   const sidebar = page.locator('.admin-sidebar')
   const layersGroup = sidebar.locator('.sidebar-menu__group').nth(0)
   const spatialGroup = sidebar.locator('.sidebar-menu__group').nth(1)
+  const effectsGroup = sidebar.locator('.sidebar-menu__group').nth(2)
 
   await expect(layersGroup).toHaveClass(/is-opened/)
   await expect(spatialGroup).not.toHaveClass(/is-opened/)
+  await expect(effectsGroup).not.toHaveClass(/is-opened/)
 
   await content.evaluate((element) => {
     const target = document.querySelector<HTMLElement>('[data-navigation-anchor="vector"]')
@@ -765,17 +787,19 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '2.1、空间分析' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '3.1、场景特效' })).toHaveAttribute(
     'aria-current',
     'location',
   )
   await expect(page).toHaveURL(/\/layers$/)
   await expect(layersGroup).not.toHaveClass(/is-opened/)
-  await expect(spatialGroup).toHaveClass(/is-opened/)
+  await expect(spatialGroup).not.toHaveClass(/is-opened/)
+  await expect(effectsGroup).toHaveClass(/is-opened/)
 
   await sidebar.locator('.sidebar-menu__group').nth(0).locator('.el-sub-menu__title').click()
   await expect(layersGroup).toHaveClass(/is-opened/)
   await expect(spatialGroup).not.toHaveClass(/is-opened/)
+  await expect(effectsGroup).not.toHaveClass(/is-opened/)
 })
 
 for (const viewport of responsiveViewports) {
@@ -827,6 +851,7 @@ test('移动端可通过按钮和键盘打开抽屉，并选择菜单关闭', as
   const drawer = page.getByRole('dialog', { name: '后台导航' })
   await expect(drawer).toBeVisible()
   await expect(drawer.getByText('1、图层', { exact: true })).toBeVisible()
+  await expect(drawer.getByText('3、特效', { exact: true })).toBeVisible()
   await expectSubmenuArrowsPointDown(drawer)
 
   const menuItem = drawer.getByRole('menuitem', { name: '1.1、影像' })
@@ -1009,13 +1034,130 @@ test('四个空间分析深链均可打开、交互、全屏、关闭并返回�
   await expect(page.getByRole('button', { name: '打开2.1.4、坡向分析' })).toBeFocused()
 })
 
-test('旧 /effects 地址保留原 URL 并显示 404 页面', async ({ page }) => {
-  await page.goto('/effects')
+test('五个场景特效深链均可打开并在关闭后返回对应卡片', async ({ page }) => {
+  test.setTimeout(180_000)
 
-  await expect(page).toHaveURL('/effects')
-  await expect(page.getByRole('heading', { level: 1, name: '页面不存在' })).toBeVisible()
-  await expect(page.getByRole('button', { name: /雷达图/ })).toHaveCount(0)
-  await expect(page.getByRole('menuitem', { name: '2、空间分析' })).toBeVisible()
+  const effects = [
+    { id: 'skybox', route: '/effects/scene/3-1-1-skybox', title: '3.1.1、天空盒' },
+    {
+      id: 'near-ground-skybox',
+      route: '/effects/scene/3-1-2-near-ground-skybox',
+      title: '3.1.2、近地天空盒',
+    },
+    {
+      id: 'volumetric-cloud',
+      route: '/effects/scene/3-1-3-volumetric-cloud',
+      title: '3.1.3、体积云',
+    },
+    { id: 'lightning', route: '/effects/scene/3-1-4-lightning', title: '3.1.4、闪电' },
+    { id: 'height-fog', route: '/effects/scene/3-1-5-height-fog', title: '3.1.5、高度雾' },
+  ] as const
+
+  for (const effect of effects) {
+    await page.goto(effect.route)
+    const dialog = page.getByRole('dialog', { name: effect.title })
+    const globe = dialog.getByTestId('effects-demo-globe')
+    await expect(dialog).toBeVisible()
+    await expectCesiumReady(globe)
+    await expect(globe).toHaveAttribute('data-scene-id', effect.id)
+    await expect(globe.locator('canvas')).toBeVisible()
+
+    await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`/layers#${effect.id}$`))
+    await expect(page.getByRole('button', { name: `打开${effect.title}` })).toBeFocused()
+  }
+})
+
+test('体积云控件实时更新 X、Y 尺寸与亮度', async ({ page }) => {
+  await page.goto('/effects/scene/3-1-3-volumetric-cloud')
+
+  const dialog = page.getByRole('dialog', { name: '3.1.3、体积云' })
+  const globe = dialog.getByTestId('effects-demo-globe')
+  await expectCesiumReady(globe)
+
+  const controls = globe.locator('.effects-demo-globe__control')
+  await expect(controls.nth(0)).toContainText('X 轴尺寸')
+  await expect(controls.nth(0)).toContainText('25')
+  await expect(controls.nth(1)).toContainText('12')
+  await expect(controls.nth(2)).toContainText('1.00')
+
+  await controls.nth(0).getByRole('slider').press('ArrowRight')
+  await expect(controls.nth(0).locator('strong')).toHaveText('26')
+
+  await controls.nth(1).getByRole('slider').press('ArrowRight')
+  await expect(controls.nth(1).locator('strong')).toHaveText('13')
+
+  await controls.nth(2).getByRole('slider').press('ArrowLeft')
+  await expect(controls.nth(2).locator('strong')).toHaveText('0.99')
+
+  await expect(globe.getByText(/可实时调整尺寸与亮度/)).toBeVisible()
+})
+
+test('近地天空盒可在近地全景与标准大气之间切换', async ({ page }) => {
+  await page.goto('/effects/scene/3-1-2-near-ground-skybox')
+
+  const dialog = page.getByRole('dialog', { name: '3.1.2、近地天空盒' })
+  const globe = dialog.getByTestId('effects-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-near-ground-mode', 'near-ground')
+  await expect(globe.getByText('当前模式：近地全景')).toBeVisible()
+
+  await globe.getByRole('button', { name: '升至高空' }).click()
+  await expect(globe).toHaveAttribute('data-near-ground-mode', 'atmosphere')
+  await expect(globe.getByText('当前模式：标准天空与大气')).toBeVisible()
+
+  await globe.getByRole('button', { name: '观察近地全景' }).click()
+  await expect(globe).toHaveAttribute('data-near-ground-mode', 'near-ground')
+})
+
+test('闪电场景进入后自动尝试播放雷声，受阻时可手动重试', async ({ page }) => {
+  await page.goto('/effects/scene/3-1-4-lightning')
+
+  const dialog = page.getByRole('dialog', { name: '3.1.4、闪电' })
+  const globe = dialog.getByTestId('effects-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe.getByText(/雨幕与周期闪电持续播放/)).toBeVisible()
+  await expect(globe).toHaveAttribute('data-audio-state', /^(playing|blocked|error)$/)
+
+  const audioState = await globe.getAttribute('data-audio-state')
+  if (audioState === 'blocked') {
+    await globe.getByRole('button', { name: '重新播放雷声' }).click()
+    await expect(globe).toHaveAttribute('data-audio-state', 'playing')
+  } else {
+    expect(audioState).toBe('playing')
+  }
+
+  await expectCanvasToAnimate(page, globe.locator('canvas'))
+})
+
+test('移动端可从抽屉进入特效场景并关闭弹窗', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/layers')
+
+  await page.getByRole('button', { name: '打开导航菜单' }).click()
+  const drawer = page.getByRole('dialog', { name: '后台导航' })
+  await expect(drawer.getByText('3、特效', { exact: true })).toBeVisible()
+  await drawer.locator('.sidebar-menu__group').nth(2).locator('.el-sub-menu__title').click()
+
+  const effectsMenuItem = drawer.getByRole('menuitem', { name: '3.1、场景特效' })
+  await expect(effectsMenuItem).toBeVisible()
+  await effectsMenuItem.click()
+
+  await expect(drawer).toBeHidden()
+  await expect(page).toHaveURL(/\/layers#effects$/)
+  await page.getByRole('button', { name: '打开3.1.1、天空盒' }).click()
+
+  const dialog = page.getByRole('dialog', { name: '3.1.1、天空盒' })
+  const globe = dialog.getByTestId('effects-demo-globe')
+  await expectCesiumReady(globe)
+  const panelBox = await page.locator('.feature-dialog--effects').boundingBox()
+  expect(panelBox).not.toBeNull()
+  expect(panelBox?.x).toBeGreaterThanOrEqual(0)
+  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(375)
+
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(dialog).toBeHidden()
 })
 
 test('旧空间分析地址保留原 URL 并显示 404 页面', async ({ page }) => {

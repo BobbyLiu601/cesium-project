@@ -3,6 +3,7 @@ import {
   Film,
   FolderOpened,
   Location,
+  MagicStick,
   MapLocation,
   TrendCharts,
 } from '@element-plus/icons-vue'
@@ -11,6 +12,11 @@ import type { Component } from 'vue'
 import amapImage from '@/assets/amap-cover.jpg'
 import elevationImage from '@/assets/elevation-cover.jpg'
 import tiandituImage from '@/assets/tianditu-cover.jpg'
+import heightFogCover from '@/assets/effect-covers/3-1-5-height-fog.jpg'
+import lightningCover from '@/assets/effect-covers/3-1-4-lightning.jpg'
+import nearGroundSkyboxCover from '@/assets/effect-covers/3-1-2-near-ground-skybox.jpg'
+import skyboxCover from '@/assets/effect-covers/3-1-1-skybox.jpg'
+import volumetricCloudCover from '@/assets/effect-covers/3-1-3-volumetric-cloud.jpg'
 import modelInterpolationCover from '@/assets/model-covers/model-interpolation.jpg'
 import windTurbineCover from '@/assets/model-covers/wind-turbine.jpg'
 import aspectAnalysisCover from '@/assets/spatial-covers/2-1-4-aspect-analysis.jpg'
@@ -57,7 +63,11 @@ export type ModelSceneId = 'model-interpolation' | 'wind-turbine'
 export type SpatialSceneId =
   'inundation-analysis-simple' | 'sunlight-analysis' | 'water-surface' | 'aspect-analysis'
 
-export type FeatureKind = 'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial'
+export type EffectSceneId =
+  'skybox' | 'near-ground-skybox' | 'volumetric-cloud' | 'lightning' | 'height-fog'
+
+export type FeatureKind =
+  'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial' | 'effects'
 
 export interface FeatureItem {
   id: string
@@ -75,10 +85,11 @@ export interface FeatureItem {
   sceneId?: VectorSceneId
   modelSceneId?: ModelSceneId
   spatialSceneId?: SpatialSceneId
+  effectSceneId?: EffectSceneId
 }
 
 export interface FeatureSection {
-  id: 'imagery' | 'terrain' | 'vector' | 'model' | 'spatial'
+  id: 'imagery' | 'terrain' | 'vector' | 'model' | 'spatial' | 'effects'
   code: string
   title: string
   icon: Component
@@ -86,7 +97,7 @@ export interface FeatureSection {
 }
 
 export interface MenuGroup {
-  id: 'layers' | 'spatial'
+  id: 'layers' | 'spatial' | 'effects'
   code: string
   title: string
   icon: Component
@@ -427,6 +438,70 @@ export const spatialSection: FeatureSection = {
   ],
 }
 
+export const effectSection: FeatureSection = {
+  id: 'effects',
+  code: '3.1',
+  title: '场景特效',
+  icon: MagicStick,
+  items: [
+    defineFeature({
+      id: 'skybox',
+      code: '3.1.1',
+      name: '天空盒',
+      imageSrc: skyboxCover,
+      imageAlt: '天空盒参考示例封面',
+      kind: 'effects',
+      effectSceneId: 'skybox',
+      routeName: 'effect-scene-skybox',
+      routePath: '/effects/scene/3-1-1-skybox',
+    }),
+    defineFeature({
+      id: 'near-ground-skybox',
+      code: '3.1.2',
+      name: '近地天空盒',
+      imageSrc: nearGroundSkyboxCover,
+      imageAlt: '近地天空盒参考示例封面',
+      kind: 'effects',
+      effectSceneId: 'near-ground-skybox',
+      routeName: 'effect-scene-near-ground-skybox',
+      routePath: '/effects/scene/3-1-2-near-ground-skybox',
+    }),
+    defineFeature({
+      id: 'volumetric-cloud',
+      code: '3.1.3',
+      name: '体积云',
+      imageSrc: volumetricCloudCover,
+      imageAlt: '体积云参考示例封面',
+      kind: 'effects',
+      effectSceneId: 'volumetric-cloud',
+      routeName: 'effect-scene-volumetric-cloud',
+      routePath: '/effects/scene/3-1-3-volumetric-cloud',
+    }),
+    defineFeature({
+      id: 'lightning',
+      code: '3.1.4',
+      name: '闪电',
+      imageSrc: lightningCover,
+      imageAlt: '闪电参考示例封面',
+      kind: 'effects',
+      effectSceneId: 'lightning',
+      routeName: 'effect-scene-lightning',
+      routePath: '/effects/scene/3-1-4-lightning',
+    }),
+    defineFeature({
+      id: 'height-fog',
+      code: '3.1.5',
+      name: '高度雾',
+      imageSrc: heightFogCover,
+      imageAlt: '高度雾参考示例封面',
+      kind: 'effects',
+      effectSceneId: 'height-fog',
+      routeName: 'effect-scene-height-fog',
+      routePath: '/effects/scene/3-1-5-height-fog',
+    }),
+  ],
+}
+
 export const layersMenuGroup: MenuGroup = {
   id: 'layers',
   code: '1',
@@ -443,9 +518,17 @@ export const spatialMenuGroup: MenuGroup = {
   sections: [spatialSection],
 }
 
-export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup]
+export const effectsMenuGroup: MenuGroup = {
+  id: 'effects',
+  code: '3',
+  title: '特效',
+  icon: MagicStick,
+  sections: [effectSection],
+}
 
-export const featureSections: FeatureSection[] = [...layerSections, spatialSection]
+export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup, effectsMenuGroup]
+
+export const featureSections: FeatureSection[] = [...layerSections, spatialSection, effectSection]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)
 export const contentAnchors = [...featureAnchors, ...featureSections.map((section) => section.id)]
@@ -473,8 +556,10 @@ export function getNavigationAnchorForContent(anchor: string) {
 }
 
 export function getMenuGroupIdForAnchor(anchor: string): MenuGroup['id'] {
-  return spatialSection.id === anchor ||
-    spatialSection.items.some((feature) => feature.id === anchor)
-    ? 'spatial'
-    : 'layers'
+  const menuGroup = menuGroups.find((group) =>
+    group.sections.some(
+      (section) => section.id === anchor || section.items.some((feature) => feature.id === anchor),
+    ),
+  )
+  return menuGroup?.id ?? 'layers'
 }

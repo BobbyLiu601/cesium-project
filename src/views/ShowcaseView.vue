@@ -6,6 +6,8 @@ import FeatureCard from '@/components/FeatureCard.vue'
 import FeatureDialog from '@/components/FeatureDialog.vue'
 import PageHeading from '@/components/PageHeading.vue'
 import {
+  effectSection,
+  effectsMenuGroup,
   formatMenuGroupTitle,
   getFeatureById,
   layerSections,
@@ -31,6 +33,7 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   vector: 'vector-grid',
   model: 'model-grid',
   spatial: 'spatial-grid',
+  effects: 'effects-grid',
 }
 
 async function openFeature(feature: FeatureItem) {
@@ -145,6 +148,42 @@ watch(
           <div class="feature-grid" :data-testid="gridTestIds.spatial">
             <FeatureCard
               v-for="feature in spatialSection.items"
+              :id="feature.id"
+              :key="feature.id"
+              :feature="feature"
+              :data-nav-anchor="feature.id"
+              @activate="openFeature(feature)"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section
+      id="effects"
+      class="showcase__section"
+      aria-labelledby="effects-heading"
+      data-navigation-anchor="effects"
+    >
+      <PageHeading
+        heading-id="effects-heading"
+        :icon="effectsMenuGroup.icon"
+        :level="2"
+        :title="formatMenuGroupTitle(effectsMenuGroup)"
+      />
+
+      <div class="showcase__group" :data-section-id="effectSection.id">
+        <div class="showcase__group-heading">
+          <h2 :id="`${effectSection.id}-group-heading`" class="showcase__group-title">
+            {{ effectSection.code }}、{{ effectSection.title }}
+          </h2>
+          <span class="showcase__group-count">{{ effectSection.items.length }} 项</span>
+        </div>
+
+        <div class="showcase__body">
+          <div class="feature-grid" :data-testid="gridTestIds.effects">
+            <FeatureCard
+              v-for="feature in effectSection.items"
               :id="feature.id"
               :key="feature.id"
               :feature="feature"

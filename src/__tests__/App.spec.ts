@@ -113,11 +113,12 @@ describe('App', () => {
     expect(wrapper.text()).toContain('三维效果展示')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('#spatial-heading').text()).toBe('2、空间分析')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(25)
-    expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(2)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(5)
+    expect(wrapper.get('#effects-heading').text()).toBe('3、特效')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(30)
+    expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(3)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(6)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
-    expect(wrapper.findAll('.el-sub-menu__icon-arrow').length).toBeGreaterThanOrEqual(2)
+    expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(3)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
@@ -129,7 +130,7 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(25)
+    expect(cards).toHaveLength(30)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
@@ -141,6 +142,11 @@ describe('App', () => {
     expect(cards[22]?.attributes('data-feature-id')).toBe('sunlight-analysis')
     expect(cards[23]?.attributes('data-feature-id')).toBe('water-surface')
     expect(cards[24]?.attributes('data-feature-id')).toBe('aspect-analysis')
+    expect(cards[25]?.attributes('data-feature-id')).toBe('skybox')
+    expect(cards[26]?.attributes('data-feature-id')).toBe('near-ground-skybox')
+    expect(cards[27]?.attributes('data-feature-id')).toBe('volumetric-cloud')
+    expect(cards[28]?.attributes('data-feature-id')).toBe('lightning')
+    expect(cards[29]?.attributes('data-feature-id')).toBe('height-fog')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -159,6 +165,9 @@ describe('App', () => {
     expect(
       wrapper.get('[data-testid="spatial-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(4)
+    expect(
+      wrapper.get('[data-testid="effects-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(5)
 
     for (const card of cards) {
       expect(card.element.tagName).toBe('BUTTON')
@@ -188,19 +197,25 @@ describe('App', () => {
     expect(cards[22]?.attributes('aria-label')).toBe('打开2.1.2、日照分析')
     expect(cards[23]?.attributes('aria-label')).toBe('打开2.1.3、水域面')
     expect(cards[24]?.attributes('aria-label')).toBe('打开2.1.4、坡向分析')
+    expect(cards[25]?.attributes('aria-label')).toBe('打开3.1.1、天空盒')
+    expect(cards[26]?.attributes('aria-label')).toBe('打开3.1.2、近地天空盒')
+    expect(cards[27]?.attributes('aria-label')).toBe('打开3.1.3、体积云')
+    expect(cards[28]?.attributes('aria-label')).toBe('打开3.1.4、闪电')
+    expect(cards[29]?.attributes('aria-label')).toBe('打开3.1.5、高度雾')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
     expect(
       wrapper.findAll('[data-testid="page-heading"]').map((heading) => heading.text()),
-    ).toEqual(['1、图层', '2、空间分析'])
+    ).toEqual(['1、图层', '2、空间分析', '3、特效'])
     expect(wrapper.findAll('.showcase__group-title').map((heading) => heading.text())).toEqual([
       '1.1、影像',
       '1.2、地形',
       '1.3、矢量',
       '1.4、模型',
       '2.1、空间分析',
+      '3.1、场景特效',
     ])
 
     wrapper.unmount()
@@ -703,6 +718,7 @@ describe('App', () => {
       vector: -60,
       model: 30,
       spatial: 40,
+      effects: 50,
     }
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({
@@ -732,6 +748,7 @@ describe('App', () => {
     ).toBe('1.3、矢量')
     expect(wrapper.findAll('.el-sub-menu')[0]?.classes()).toContain('is-opened')
     expect(wrapper.findAll('.el-sub-menu')[1]?.classes()).not.toContain('is-opened')
+    expect(wrapper.findAll('.el-sub-menu')[2]?.classes()).not.toContain('is-opened')
     expect(router.currentRoute.value.fullPath).toBe('/layers')
 
     positions.imagery = -360
@@ -739,6 +756,7 @@ describe('App', () => {
     positions.vector = -160
     positions.model = -100
     positions.spatial = -60
+    positions.effects = 40
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -755,17 +773,61 @@ describe('App', () => {
     ).toBe('2.1、空间分析')
     expect(wrapper.findAll('.el-sub-menu')[0]?.classes()).not.toContain('is-opened')
     expect(wrapper.findAll('.el-sub-menu')[1]?.classes()).toContain('is-opened')
+    expect(wrapper.findAll('.el-sub-menu')[2]?.classes()).not.toContain('is-opened')
+    expect(router.currentRoute.value.fullPath).toBe('/layers')
+
+    positions.imagery = -460
+    positions.terrain = -360
+    positions.vector = -260
+    positions.model = -160
+    positions.spatial = -60
+    positions.effects = 20
+    for (const [anchor, spy] of Object.entries(spies)) {
+      spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
+    }
+
+    await wrapper.get('main').trigger('scroll')
+    frameCallbacks.splice(0).forEach((callback) => callback(0))
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('[role="menuitem"]')
+        .find((item) => item.attributes('aria-current') === 'location')
+        ?.text(),
+    ).toBe('3.1、场景特效')
+    expect(wrapper.findAll('.el-sub-menu')[0]?.classes()).not.toContain('is-opened')
+    expect(wrapper.findAll('.el-sub-menu')[1]?.classes()).not.toContain('is-opened')
+    expect(wrapper.findAll('.el-sub-menu')[2]?.classes()).toContain('is-opened')
     expect(router.currentRoute.value.fullPath).toBe('/layers')
 
     wrapper.unmount()
   })
 
-  it('treats the removed effects route as an unknown address with the original URL preserved', async () => {
-    const wrapper = await mountAt('/effects')
+  it('opens a scene effect from its deep link and returns to the card anchor on close', async () => {
+    const wrapper = await mountAt('/effects/scene/3-1-1-skybox')
 
-    expect(router.currentRoute.value.fullPath).toBe('/effects')
-    expect(wrapper.get('h1').text()).toBe('页面不存在')
-    expect(wrapper.find('[data-testid="showcase-view"]').exists()).toBe(false)
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const dialog = wrapper.get('.feature-dialog--effects')
+    expect(dialog.text()).toContain('3.1.1、天空盒')
+    expect(wrapper.get('[data-testid="effects-demo-globe"]').attributes('data-scene-id')).toBe(
+      'skybox',
+    )
+    expect(wrapper.get('[data-testid="effects-demo-globe"]').attributes('data-cesium-state')).toBe(
+      'ready',
+    )
+
+    await wrapper.get('.feature-dialog--effects .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/layers#skybox')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-testid="effects-demo-globe"]').exists()).toBe(false)
+    expect(getActiveSession()).toBeUndefined()
 
     wrapper.unmount()
   })
