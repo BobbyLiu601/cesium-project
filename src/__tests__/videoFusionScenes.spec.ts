@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { unref } from 'vue'
 
 import {
   primitiveInstances,
@@ -116,7 +117,7 @@ describe('video fusion scenes', () => {
     expect(getPolygonMaterialImage(mockViewer.entities.values[1])).toBe(playback.element)
     expect(mockViewer.camera.viewBoundingSphere).toHaveBeenCalled()
     expect(statuses[statuses.length - 1]).toContain('立体立面与平面')
-    expect(scene.attribution).toContain('CC BY 3.0')
+    expect(unref(scene.attribution)).toContain('CC BY 3.0')
 
     scene.dispose()
 
@@ -200,6 +201,27 @@ describe('video fusion scenes', () => {
     scene.dispose()
 
     expect(primitiveInstances.every((primitive) => primitive.destroyed === true)).toBe(true)
+  })
+
+  it('shows the local attribution only while the fallback source is active', async () => {
+    const viewer = createViewer()
+    const { playback, emitSourceChange } = createPlayback()
+    const { setStatus } = collectStatus()
+
+    const scene = await createVideoFusionScene(viewer, 'video-projection-livestream', setStatus, {
+      playback,
+    })
+
+    expect(unref(scene.attribution)).toContain('CC BY 3.0')
+
+    emitSourceChange('live')
+    expect(unref(scene.attribution)).toContain('KBS Dokdo')
+    expect(unref(scene.attribution)).not.toContain('CC BY 3.0')
+
+    emitSourceChange('local')
+    expect(unref(scene.attribution)).toContain('CC BY 3.0')
+
+    scene.dispose()
   })
 
   it('disposes the scene when playback startup fails', async () => {

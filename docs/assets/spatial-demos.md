@@ -19,7 +19,7 @@
 | --------------- | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------- |
 | 2.2.1、视频纹理 | `public/spatial-analysis/video-fusion/sheboygan-falls-drone.mp4` | [Sheboygan Falls, Wisconsin; aerial drone video](https://commons.wikimedia.org/wiki/File:Sheboygan_Falls,_Wisconsin;_aerial_drone_video.webm)，作者 WLUK-TV FOX 11 | [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/) | 原视频 1280×720、98.164 秒；截取前 60 秒并移除音轨，MP4 为 16,360,812 字节 |
 
-`2.2.1` 在界面右下角显示视频作者、Wikimedia Commons 来源和 CC BY 3.0 许可。`2.2.2` 使用参考站原始第三方 HLS 直播流 `https://kbs-dokdo.gscdn.com/dokdo_300/definst/dokdo_300.stream/playlist.m3u8`，未复制到本地；加载失败时复用 `2.2.1` 的本地视频。该直播流的内容与可用性由第三方服务控制，不在本项目许可证覆盖范围内。
+`2.2.1` 在界面右下角显示视频作者、Wikimedia Commons 来源和 CC BY 3.0 许可。`2.2.2` 使用参考站原始第三方 HLS 直播流 `https://kbs-dokdo.gscdn.com/dokdo_300/definst/dokdo_300.stream/playlist.m3u8`，未复制到本地；直播成功时显示第三方直播来源，加载失败并切换到本地视频后才显示本地视频的 CC BY 3.0 署名。该直播流的内容与可用性由第三方服务控制，不在本项目许可证覆盖范围内。
 
 ## 模型来源
 

@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium'
+import { ref } from 'vue'
 
 import {
   createContinuousRenderTicker,
@@ -6,13 +7,17 @@ import {
   getPublicAssetUrl,
 } from '@/demos/spatial/shared'
 import type { SpatialScene, StatusReporter } from '@/demos/spatial/types'
+import { createProjectionGeometry, PROJECTION_CAMERA } from '@/demos/spatial/videoFusionGeometry'
 import {
   createVideoFusionPlayback,
+  type VideoFusionPlaybackMessages,
   type VideoFusionPlayback,
+  type VideoFusionSource,
 } from '@/demos/spatial/videoFusionPlayback'
 
 const LOCAL_VIDEO_PATH = 'spatial-analysis/video-fusion/sheboygan-falls-drone.mp4'
 const VIDEO_ATTRIBUTION = '航拍视频：WLUK-TV FOX 11 · Wikimedia Commons · CC BY 3.0'
+const LIVE_STREAM_ATTRIBUTION = '直播流：KBS Dokdo · 第三方内容，不在本项目许可范围内'
 const FACADE_POSITIONS = [
   114.25985245208585, 30.5752892693654, 14.23, 114.25923491594841, 30.5752027998838, 13.62,
   114.25922774520328, 30.5752225398922, 47.51, 114.25985290311769, 30.5753018567495, 47.57,
@@ -25,87 +30,12 @@ const PLANE_POSITIONS = [
   30.575196063095532,
 ] as const
 
-const PROJECTION_CAMERA = {
-  heading: 269.4,
-  pitch: -29,
-} as const
-
-const PROJECTION_VIEW = {
-  position: { longitude: 112.66669, latitude: 33.248659, height: 1_220 },
-  target: { longitude: 112.66669, latitude: 33.247659, height: 30 },
-  horizontalViewAngle: 60,
-  verticalViewAngle: 40,
-} as const
-
 export type VideoFusionSceneId = 'video-texture' | 'video-projection-livestream'
 
 export interface CreateVideoFusionSceneOptions {
   host?: HTMLElement
   playback?: VideoFusionPlayback
   signal?: AbortSignal
-}
-
-interface LocalOffset {
-  east: number
-  north: number
-  up: number
-}
-
-function getLocalOffset(
-  from: { longitude: number; latitude: number; height: number },
-  to: { longitude: number; latitude: number; height: number },
-): LocalOffset {
-  const meanLatitude = Cesium.Math.toRadians((from.latitude + to.latitude) / 2)
-  return {
-    east: (to.longitude - from.longitude) * 111_320 * Math.cos(Cesium.Math.toRadians(meanLatitude)),
-    north: (to.latitude - from.latitude) * 110_540,
-    up: to.height - from.height,
-  }
-}
-
-function getFrustumOrientation(
-  position: Cesium.Cartesian3,
-  offset: LocalOffset,
-): Cesium.Quaternion {
-  const direction = Cesium.Cartesian3.normalize(
-    new Cesium.Cartesian3(offset.east, offset.north, offset.up),
-    new Cesium.Cartesian3(),
-  )
-  let right = Cesium.Cartesian3.cross(direction, Cesium.Cartesian3.UNIT_Z, new Cesium.Cartesian3())
-
-  if (Cesium.Cartesian3.magnitudeSquared(right) < 1e-8) {
-    const heading = Math.atan2(offset.east, offset.north)
-    right = new Cesium.Cartesian3(Math.cos(heading), -Math.sin(heading), 0)
-  }
-
-  Cesium.Cartesian3.normalize(right, right)
-  const up = Cesium.Cartesian3.normalize(
-    Cesium.Cartesian3.cross(right, direction, new Cesium.Cartesian3()),
-    new Cesium.Cartesian3(),
-  )
-  const enuRotation = Cesium.Matrix4.getMatrix3(
-    Cesium.Transforms.eastNorthUpToFixedFrame(position),
-    new Cesium.Matrix3(),
-  )
-  const worldDirection = Cesium.Matrix3.multiplyByVector(
-    enuRotation,
-    direction,
-    new Cesium.Cartesian3(),
-  )
-  const worldUp = Cesium.Matrix3.multiplyByVector(enuRotation, up, new Cesium.Cartesian3())
-  const worldRight = Cesium.Matrix3.multiplyByVector(enuRotation, right, new Cesium.Cartesian3())
-  const orientationMatrix = new Cesium.Matrix3()
-
-  Cesium.Matrix3.setColumn(
-    orientationMatrix,
-    0,
-    Cesium.Cartesian3.negate(worldRight, new Cesium.Cartesian3()),
-    orientationMatrix,
-  )
-  Cesium.Matrix3.setColumn(orientationMatrix, 1, worldUp, orientationMatrix)
-  Cesium.Matrix3.setColumn(orientationMatrix, 2, worldDirection, orientationMatrix)
-
-  return Cesium.Quaternion.fromRotationMatrix(orientationMatrix)
 }
 
 function destroyPrimitive(viewer: Cesium.Viewer, primitive: Cesium.Primitive) {
@@ -177,24 +107,14 @@ function createProjectionScene(
   playback: VideoFusionPlayback,
   setStatus: StatusReporter,
 ): SpatialScene {
-  const viewPosition = Cesium.Cartesian3.fromDegrees(
-    PROJECTION_VIEW.position.longitude,
-    PROJECTION_VIEW.position.latitude,
-    PROJECTION_VIEW.position.height,
-  )
-  const offset = getLocalOffset(PROJECTION_VIEW.position, PROJECTION_VIEW.target)
-  const distance = Math.hypot(offset.east, offset.north, offset.up)
-  const horizontalFov = Cesium.Math.toRadians(PROJECTION_VIEW.horizontalViewAngle)
-  const verticalFov = Cesium.Math.toRadians(PROJECTION_VIEW.verticalViewAngle)
-  const aspectRatio = Math.tan(horizontalFov / 2) / Math.tan(verticalFov / 2)
-  const orientation = getFrustumOrientation(viewPosition, offset)
-  const projectionRadius =
-    distance * Math.hypot(Math.tan(horizontalFov / 2), Math.tan(verticalFov / 2))
-  const projectionTarget = Cesium.Cartesian3.fromDegrees(
-    PROJECTION_VIEW.target.longitude,
-    PROJECTION_VIEW.target.latitude,
-    PROJECTION_VIEW.target.height,
-  )
+  const {
+    cameraFrustum,
+    faceFrustum,
+    orientation,
+    origin: viewPosition,
+    projectionRadius,
+    projectionTarget,
+  } = createProjectionGeometry()
 
   // 保留参考视角朝向，同时按投射面自动取景，确保初始画面完整包含视频。
   viewer.camera.viewBoundingSphere(
@@ -206,21 +126,12 @@ function createProjectionScene(
     ),
   )
 
-  const cameraFrustum = new Cesium.PerspectiveFrustum({
-    fov: horizontalFov,
-    aspectRatio,
-    near: distance * 0.0001,
-    far: distance,
-  })
-  const faceFrustum = new Cesium.PerspectiveFrustum({
-    fov: horizontalFov,
-    aspectRatio,
-    near: distance - 0.01,
-    far: distance,
-  })
   let videoFace: Cesium.Primitive | undefined
   let videoFaceWidth = 0
   let videoFaceHeight = 0
+  const attribution = ref<string | undefined>(
+    playback.element.dataset.videoSource === 'live' ? LIVE_STREAM_ATTRIBUTION : VIDEO_ATTRIBUTION,
+  )
 
   function removeVideoFace() {
     if (!videoFace) {
@@ -298,7 +209,11 @@ function createProjectionScene(
   const handleVideoSizeChange = () => refreshVideoFace()
   playback.element.addEventListener('loadedmetadata', handleVideoSizeChange)
   playback.element.addEventListener('resize', handleVideoSizeChange)
-  const unsubscribeSourceChange = playback.subscribeSourceChange?.(refreshVideoFace)
+  const handleSourceChange = (source: VideoFusionSource) => {
+    refreshVideoFace()
+    attribution.value = source === 'live' ? LIVE_STREAM_ATTRIBUTION : VIDEO_ATTRIBUTION
+  }
+  const unsubscribeSourceChange = playback.subscribeSourceChange(handleSourceChange)
   const outline = new Cesium.Primitive({
     geometryInstances: new Cesium.GeometryInstance({
       geometry: new Cesium.FrustumOutlineGeometry({
@@ -321,17 +236,52 @@ function createProjectionScene(
 
   return {
     actions: [],
-    attribution: VIDEO_ATTRIBUTION,
+    attribution,
     dispose() {
       stopRenderTicker()
       playback.element.removeEventListener('loadedmetadata', handleVideoSizeChange)
       playback.element.removeEventListener('resize', handleVideoSizeChange)
-      unsubscribeSourceChange?.()
+      unsubscribeSourceChange()
       removeVideoFace()
       destroyPrimitive(viewer, outline)
       playback.dispose()
     },
   }
+}
+
+interface VideoFusionSceneDefinition {
+  createScene: (
+    viewer: Cesium.Viewer,
+    playback: VideoFusionPlayback,
+    setStatus: StatusReporter,
+  ) => SpatialScene
+  messages: VideoFusionPlaybackMessages
+  mode: 'local' | 'live-with-fallback'
+}
+
+const VIDEO_FUSION_SCENE_DEFINITIONS: Record<VideoFusionSceneId, VideoFusionSceneDefinition> = {
+  'video-projection-livestream': {
+    createScene: createProjectionScene,
+    messages: {
+      localPlaying: '正在连接直播流，当前播放本地回退视频',
+      localFailed: '本地回退视频播放失败，请关闭后重试',
+      liveConnecting: '正在连接直播流，当前播放本地回退视频',
+      livePlaying: '直播流已连接，视频正通过 60° × 40° 视锥投射',
+      liveFallback: '直播流不可用，已切换本地回退视频',
+    },
+    mode: 'live-with-fallback',
+  },
+  'video-texture': {
+    createScene: createTextureScene,
+    messages: {
+      localPlaying: '视频纹理正在循环播放本地城市航拍视频',
+      localFailed: '本地视频播放失败，请关闭后重试',
+      liveConnecting: '',
+      livePlaying: '',
+      liveFallback: '',
+    },
+    mode: 'local',
+  },
 }
 
 export async function createVideoFusionScene(
@@ -340,36 +290,19 @@ export async function createVideoFusionScene(
   setStatus: StatusReporter,
   options: CreateVideoFusionSceneOptions = {},
 ): Promise<SpatialScene> {
+  const definition = VIDEO_FUSION_SCENE_DEFINITIONS[sceneId]
   const playback =
     options.playback ??
     createVideoFusionPlayback({
       host: options.host ?? document.body,
       localVideoUrl: getPublicAssetUrl(LOCAL_VIDEO_PATH),
-      messages:
-        sceneId === 'video-texture'
-          ? {
-              localPlaying: '视频纹理正在循环播放本地城市航拍视频',
-              localFailed: '本地视频播放失败，请关闭后重试',
-              liveConnecting: '',
-              livePlaying: '',
-              liveFallback: '',
-            }
-          : {
-              localPlaying: '正在连接直播流，当前播放本地回退视频',
-              localFailed: '本地回退视频播放失败，请关闭后重试',
-              liveConnecting: '正在连接直播流，当前播放本地回退视频',
-              livePlaying: '直播流已连接，视频正通过 60° × 40° 视锥投射',
-              liveFallback: '直播流不可用，已切换本地回退视频',
-            },
-      mode: sceneId === 'video-texture' ? 'local' : 'live-with-fallback',
+      messages: definition.messages,
+      mode: definition.mode,
       setStatus,
       signal: options.signal,
     })
 
-  const scene =
-    sceneId === 'video-texture'
-      ? createTextureScene(viewer, playback, setStatus)
-      : createProjectionScene(viewer, playback, setStatus)
+  const scene = definition.createScene(viewer, playback, setStatus)
 
   try {
     await playback.start()

@@ -11,7 +11,7 @@ export interface VideoFusionPlayback {
   element: HTMLVideoElement
   start: () => Promise<void>
   dispose: () => void
-  subscribeSourceChange?: (listener: (source: VideoFusionSource) => void) => () => void
+  subscribeSourceChange: (listener: (source: VideoFusionSource) => void) => () => void
 }
 
 export interface VideoFusionPlaybackMessages {
@@ -40,6 +40,49 @@ function shouldUseNativeHls(video: HTMLVideoElement) {
   const isSafari =
     /Safari\//.test(userAgent) && !/(Chrome|Chromium|CriOS|Edg|OPR|Firefox)\//.test(userAgent)
   return isSafari && video.canPlayType('application/vnd.apple.mpegurl') !== ''
+}
+
+function waitForAbortableStart(
+  register: (finish: (error?: Error) => void) => () => void,
+  signal: AbortSignal,
+  timeoutMessage: string,
+) {
+  return new Promise<void>((resolve, reject) => {
+    let settled = false
+    let cleanup = () => {}
+    const finish = (error?: Error) => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      window.clearTimeout(timeoutId)
+      signal.removeEventListener('abort', handleAbort)
+      cleanup()
+      if (error) {
+        reject(error)
+      } else {
+        resolve()
+      }
+    }
+    const handleAbort = () => finish(new DOMException('直播流连接已取消', 'AbortError'))
+    const timeoutId = window.setTimeout(
+      () => finish(new Error(timeoutMessage)),
+      LIVE_STREAM_START_TIMEOUT_MS,
+    )
+
+    signal.addEventListener('abort', handleAbort, { once: true })
+    if (signal.aborted) {
+      handleAbort()
+      return
+    }
+
+    try {
+      cleanup = register(finish)
+    } catch (error) {
+      finish(error instanceof Error ? error : new Error(String(error)))
+    }
+  })
 }
 
 export function createVideoFusionPlayback({
@@ -74,6 +117,7 @@ export function createVideoFusionPlayback({
   let disposed = false
   let liveAttempt = 0
   let hls: import('hls.js').default | undefined
+  let removeNativeHlsRuntimeError: (() => void) | undefined
   const sourceListeners = new Set<(source: VideoFusionSource) => void>()
 
   const abortFromOutside = () => abortController.abort()
@@ -83,6 +127,8 @@ export function createVideoFusionPlayback({
   }
 
   function destroyHls() {
+    removeNativeHlsRuntimeError?.()
+    removeNativeHlsRuntimeError = undefined
     hls?.destroy()
     hls = undefined
   }
@@ -115,35 +161,21 @@ export function createVideoFusionPlayback({
   }
 
   function waitForNativeHls() {
-    return new Promise<void>((resolve, reject) => {
-      let settled = false
-      const finish = (error?: Error) => {
-        if (settled) {
-          return
-        }
-        settled = true
-        window.clearTimeout(timeoutId)
-        abortController.signal.removeEventListener('abort', handleAbort)
-        video.removeEventListener('loadeddata', handleReady)
-        video.removeEventListener('error', handleError)
-        if (error) {
-          reject(error)
-        } else {
-          resolve()
-        }
-      }
-      const handleReady = () => finish()
-      const handleError = () => finish(new Error('原生 HLS 直播流加载失败'))
-      const handleAbort = () => finish(new DOMException('直播流连接已取消', 'AbortError'))
-      const timeoutId = window.setTimeout(
-        () => finish(new Error('原生 HLS 直播流连接超时')),
-        LIVE_STREAM_START_TIMEOUT_MS,
-      )
+    return waitForAbortableStart(
+      (finish) => {
+        const handleReady = () => finish()
+        const handleError = () => finish(new Error('原生 HLS 直播流加载失败'))
 
-      video.addEventListener('loadeddata', handleReady, { once: true })
-      video.addEventListener('error', handleError, { once: true })
-      abortController.signal.addEventListener('abort', handleAbort, { once: true })
-    })
+        video.addEventListener('loadeddata', handleReady, { once: true })
+        video.addEventListener('error', handleError, { once: true })
+        return () => {
+          video.removeEventListener('loadeddata', handleReady)
+          video.removeEventListener('error', handleError)
+        }
+      },
+      abortController.signal,
+      '原生 HLS 直播流连接超时',
+    )
   }
 
   async function attachHls(attempt: number) {
@@ -160,41 +192,27 @@ export function createVideoFusionPlayback({
     hls = instance
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        let settled = false
-        const finish = (error?: Error) => {
-          if (settled) {
-            return
+      await waitForAbortableStart(
+        (finish) => {
+          const handleManifestParsed = () => finish()
+          const handleError = (_event: unknown, data: { fatal?: boolean; details?: string }) => {
+            if (data.fatal) {
+              finish(new Error(`HLS 直播流加载失败：${data.details ?? '未知错误'}`))
+            }
           }
-          settled = true
-          window.clearTimeout(timeoutId)
-          abortController.signal.removeEventListener('abort', handleAbort)
-          instance.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
-          instance.off(Hls.Events.ERROR, handleError)
-          if (error) {
-            reject(error)
-          } else {
-            resolve()
-          }
-        }
-        const handleManifestParsed = () => finish()
-        const handleError = (_event: unknown, data: { fatal?: boolean; details?: string }) => {
-          if (data.fatal) {
-            finish(new Error(`HLS 直播流加载失败：${data.details ?? '未知错误'}`))
-          }
-        }
-        const handleAbort = () => finish(new DOMException('直播流连接已取消', 'AbortError'))
-        const timeoutId = window.setTimeout(
-          () => finish(new Error('HLS 直播流连接超时')),
-          LIVE_STREAM_START_TIMEOUT_MS,
-        )
 
-        instance.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
-        instance.on(Hls.Events.ERROR, handleError)
-        abortController.signal.addEventListener('abort', handleAbort, { once: true })
-        instance.attachMedia(video)
-        instance.loadSource(VIDEO_FUSION_LIVE_STREAM_URL)
-      })
+          instance.on(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
+          instance.on(Hls.Events.ERROR, handleError)
+          instance.attachMedia(video)
+          instance.loadSource(VIDEO_FUSION_LIVE_STREAM_URL)
+          return () => {
+            instance.off(Hls.Events.MANIFEST_PARSED, handleManifestParsed)
+            instance.off(Hls.Events.ERROR, handleError)
+          }
+        },
+        abortController.signal,
+        'HLS 直播流连接超时',
+      )
 
       const handleRuntimeError = (_event: unknown, data: { fatal?: boolean; details?: string }) => {
         if (!data.fatal || disposed || attempt !== liveAttempt || abortController.signal.aborted) {
@@ -209,6 +227,21 @@ export function createVideoFusionPlayback({
       destroyHls()
       throw error
     }
+  }
+
+  function listenForNativeHlsRuntimeFailure(attempt: number) {
+    const handleRuntimeError = () => {
+      if (disposed || attempt !== liveAttempt || abortController.signal.aborted) {
+        return
+      }
+
+      console.error('原生 HLS 直播流运行时失败')
+      void switchToLocalAfterLiveFailure(attempt)
+    }
+
+    removeNativeHlsRuntimeError?.()
+    video.addEventListener('error', handleRuntimeError)
+    removeNativeHlsRuntimeError = () => video.removeEventListener('error', handleRuntimeError)
   }
 
   async function switchToLocalAfterLiveFailure(failedAttempt: number) {
@@ -229,7 +262,8 @@ export function createVideoFusionPlayback({
     destroyHls()
 
     try {
-      if (shouldUseNativeHls(video)) {
+      const usesNativeHls = shouldUseNativeHls(video)
+      if (usesNativeHls) {
         setVideoSource(VIDEO_FUSION_LIVE_STREAM_URL, 'live')
         await waitForNativeHls()
       } else {
@@ -244,6 +278,9 @@ export function createVideoFusionPlayback({
       if (!(await playVideo(false))) {
         await switchToLocalAfterLiveFailure(attempt)
         return
+      }
+      if (usesNativeHls) {
+        listenForNativeHlsRuntimeFailure(attempt)
       }
       setStatus(messages.livePlaying)
     } catch (error) {

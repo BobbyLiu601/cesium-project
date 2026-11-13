@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
 const CESIUM_READY_TIMEOUT = 15_000
@@ -1025,6 +1027,66 @@ test('四个空间分析深链均可打开、交互、全屏、关闭并返回�
   await expect(page.getByRole('button', { name: '打开2.1.4、坡向分析' })).toBeFocused()
 })
 
+test('视频投射可通过测试 HLS 流播放并显示直播来源', async ({ page }) => {
+  test.setTimeout(90_000)
+
+  const playlist = readFileSync(
+    new URL('./fixtures/video-fusion-hls/index.m3u8', import.meta.url),
+    'utf8',
+  )
+  const segments = new Map(
+    ['segment000', 'segment001'].map((name) => [
+      `${name}.ts`,
+      readFileSync(new URL(`./fixtures/video-fusion-hls/${name}.bin`, import.meta.url)),
+    ]),
+  )
+  const corsHeaders = {
+    'access-control-allow-headers': '*',
+    'access-control-allow-methods': 'GET, OPTIONS',
+    'access-control-allow-origin': '*',
+    'cache-control': 'no-store',
+  }
+
+  await page.route(/https:\/\/kbs-dokdo\.gscdn\.com\/.*\.m3u8(?:\?.*)?$/, (route) =>
+    route.fulfill({
+      body: playlist,
+      contentType: 'application/vnd.apple.mpegurl',
+      headers: corsHeaders,
+      status: 200,
+    }),
+  )
+  await page.route(/https:\/\/kbs-dokdo\.gscdn\.com\/.*\/segment\d+\.ts(?:\?.*)?$/, (route) => {
+    const name = new URL(route.request().url()).pathname.split('/').pop() ?? ''
+    const segment = segments.get(name)
+    if (!segment) {
+      return route.abort()
+    }
+
+    return route.fulfill({
+      body: segment,
+      contentType: 'video/mp2t',
+      headers: corsHeaders,
+      status: 200,
+    })
+  })
+
+  await page.goto('/spatial-analysis/2-2-2-video-projection-livestream')
+  const dialog = page.getByRole('dialog', { name: '2.2.2、视频投射(直播流)' })
+  const globe = dialog.getByTestId('spatial-demo-globe')
+  const video = globe.locator('video[data-video-fusion]')
+
+  await expectCesiumReady(globe)
+  await expect(video).toHaveAttribute('data-video-source', 'live', { timeout: 20_000 })
+  await expect(globe.getByText('直播流已连接，视频正通过 60° × 40° 视锥投射')).toBeVisible()
+  await expect(globe.getByTestId('video-attribution')).toContainText('KBS Dokdo')
+  await expect(globe.getByTestId('video-attribution')).not.toContainText('CC BY 3.0')
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThan(0)
+})
+
 test('两个视频融合深链可打开场景、全屏、关闭并返回对应卡片', async ({ page }) => {
   test.setTimeout(90_000)
 
@@ -1064,10 +1126,10 @@ test('两个视频融合深链可打开场景、全屏、关闭并返回对应�
   await expectCesiumReady(globe)
   await expect(globe).toHaveAttribute('data-scene-id', 'video-projection-livestream')
   await expect(globe.locator('canvas')).toBeVisible()
-  await expect(globe.getByTestId('video-attribution')).toContainText('CC BY 3.0')
   await expect(globe.getByText('直播流不可用，已切换本地回退视频', { exact: true })).toBeVisible({
     timeout: 20_000,
   })
+  await expect(globe.getByTestId('video-attribution')).toContainText('CC BY 3.0')
 
   video = globe.locator('video[data-video-fusion]')
   await expect(video).toHaveAttribute('data-video-source', 'local')

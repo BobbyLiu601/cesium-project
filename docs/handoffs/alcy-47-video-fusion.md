@@ -20,6 +20,7 @@
 - 展示页空间分析区块：`src/views/ShowcaseView.vue`
 - 场景分派：`src/demos/spatialScene.ts`
 - 视频播放与 HLS/回退适配：`src/demos/spatial/videoFusionPlayback.ts`
+- 投射视锥与屏幕取景几何：`src/demos/spatial/videoFusionGeometry.ts`
 - 视频纹理和视频投射场景：`src/demos/spatial/videoFusionScene.ts`
 - 视频来源标注：`src/demos/SpatialDemoGlobe.vue`
 
@@ -32,9 +33,10 @@
 ## 测试 seam
 
 - `CreateVideoFusionSceneOptions.playback` 允许单元测试注入播放器，不访问真实直播或视频文件。
-- `VideoFusionPlayback` 隔离了原生 HLS、动态 `hls.js`、12 秒启动超时、本地回退和资源清理。
-- Vitest 覆盖两个多边形材质、固定相机与视锥参数、Primitive 清理、HLS 成功、致命错误回退、播放后错误回退和延迟实例清理。
-- Playwright 覆盖菜单与卡片、两个深链、视频解码、全屏、关闭、焦点恢复、来源标注和直播失败后的本地回退提示。
+- `e2e/fixtures/video-fusion-hls/` 保存由本地视频生成的 2 秒 HLS 测试流，仅通过 Playwright 网络拦截提供给浏览器。
+- `VideoFusionPlayback` 隔离了原生 HLS、动态 `hls.js`、12 秒启动超时、统一的可中止等待生命周期、播放期错误回退和资源清理。
+- Vitest 使用真实 Cesium 数学验证投射面四个角均位于初始视口内，并覆盖坐标换算、两个多边形材质、固定相机与视锥参数、Primitive 清理、HLS 成功、Safari 播放期错误回退、致命错误回退和延迟实例清理。
+- Playwright 覆盖菜单与卡片、两个深链、视频解码、全屏、关闭、焦点恢复、动态来源标注、测试 HLS 直播成功路径和直播失败后的本地回退提示。
 
 ## 验收清单
 

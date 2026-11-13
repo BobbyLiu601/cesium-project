@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, unref, watch } from 'vue'
 import { ElButton, ElDatePicker, ElTimePicker } from 'element-plus'
 
 import type { SpatialSceneId } from '@/data/layers'
@@ -46,6 +46,7 @@ const { actions, resize, runAction, scene, sceneState, statusMessage } = useDemo
   sceneId: props.sceneId,
   scenePrefix: 'spatial-demo-globe',
 })
+const sceneAttribution = computed(() => unref(scene.value?.attribution))
 
 watch(sunlightRange, (range) => {
   if (!isSunlightScene.value) {
@@ -132,11 +133,11 @@ defineExpose({ resize })
     </div>
 
     <p
-      v-if="sceneState === 'ready' && scene?.attribution"
+      v-if="sceneState === 'ready' && sceneAttribution"
       class="spatial-demo-globe__attribution"
       data-testid="video-attribution"
     >
-      {{ scene.attribution }}
+      {{ sceneAttribution }}
     </p>
   </div>
 </template>

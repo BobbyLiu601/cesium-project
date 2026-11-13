@@ -1,3 +1,5 @@
+import type { Ref } from 'vue'
+
 import type { VideoFusionPlayback } from '@/demos/spatial/videoFusionPlayback'
 
 export interface SpatialAction {
@@ -14,7 +16,7 @@ export interface SunlightRange {
 
 export interface SpatialScene {
   actions: SpatialAction[]
-  attribution?: string
+  attribution?: string | Readonly<Ref<string | undefined>>
   dispose: () => void
   applySunlightRange?: (range: SunlightRange) => void
 }

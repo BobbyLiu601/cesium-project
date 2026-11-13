@@ -19,7 +19,7 @@ export interface DemoSceneAction {
 
 export interface DemoScene {
   actions: DemoSceneAction[]
-  attribution?: string
+  attribution?: string | Readonly<Ref<string | undefined>>
   dispose: () => void
 }
 

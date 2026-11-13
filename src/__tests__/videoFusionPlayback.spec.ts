@@ -144,7 +144,7 @@ describe('video fusion playback', () => {
   it('connects the live stream through the lazy HLS adapter', async () => {
     const { playback, statuses } = createHarness('live-with-fallback')
     const sources: string[] = []
-    const unsubscribe = playback.subscribeSourceChange?.((source) => sources.push(source))
+    const unsubscribe = playback.subscribeSourceChange((source) => sources.push(source))
 
     await playback.start()
     await vi.waitFor(() => {
@@ -161,7 +161,7 @@ describe('video fusion playback', () => {
     })
     expect(sources).toEqual(['live'])
 
-    unsubscribe?.()
+    unsubscribe()
     playback.dispose()
     expect(hls.destroyed).toBe(true)
   })
@@ -211,7 +211,7 @@ describe('video fusion playback', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { playback, statuses } = createHarness('live-with-fallback')
     const sources: string[] = []
-    playback.subscribeSourceChange?.((source) => sources.push(source))
+    playback.subscribeSourceChange((source) => sources.push(source))
 
     await playback.start()
     await vi.waitFor(() => {
@@ -232,6 +232,37 @@ describe('video fusion playback', () => {
     expect(sources).toEqual(['live', 'local'])
     expect(hls.destroyed).toBe(true)
     expect(consoleError).toHaveBeenCalled()
+
+    playback.dispose()
+  })
+
+  it('falls back when native HLS fails after playback starts', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue(
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Version/17.5 Safari/605.1.15',
+    )
+    vi.spyOn(HTMLMediaElement.prototype, 'canPlayType').mockReturnValue('maybe')
+    const { playback, statuses } = createHarness('live-with-fallback')
+    const sources: string[] = []
+    playback.subscribeSourceChange((source) => sources.push(source))
+
+    await playback.start()
+    await vi.waitFor(() => {
+      expect(playback.element.src).toContain(VIDEO_FUSION_LIVE_STREAM_URL)
+    })
+    playback.element.dispatchEvent(new Event('loadeddata'))
+    await vi.waitFor(() => {
+      expect(statuses[statuses.length - 1]).toBe(messages.livePlaying)
+    })
+
+    playback.element.dispatchEvent(new Event('error'))
+
+    await vi.waitFor(() => {
+      expect(playback.element.dataset.videoSource).toBe('local')
+      expect(statuses[statuses.length - 1]).toBe(messages.liveFallback)
+    })
+    expect(sources).toEqual(['live', 'local'])
+    expect(consoleError).toHaveBeenCalledWith('原生 HLS 直播流运行时失败')
 
     playback.dispose()
   })
