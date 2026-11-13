@@ -12,8 +12,8 @@ import {
   CesiumTerrainProvider,
   EllipsoidTerrainProvider,
   Viewer,
+  billboardCollectionInstances,
   cesiumMockState,
-  cloudCollectionInstances,
   postProcessStageInstances,
   resetCesiumMock,
   scenePrimitiveRemoves,
@@ -139,26 +139,28 @@ describe('scene effects', () => {
     const { setStatus, statuses } = collectStatus()
 
     const scene = await createEffectsScene(asSceneViewer(viewer), 'volumetric-cloud', setStatus)
-    const collection = cloudCollectionInstances[0]!
-    const cloud = collection.clouds[0]!
+    const collection = billboardCollectionInstances[0]!
+    const cloud = collection.items[0]!
+    const initialColor = cloud.color as { alpha: number }
 
-    expect(collection.options.noiseDetail).toBe(16)
-    expect(cloud.slice).toBe(0.36)
-    expect(cloud.brightness).toBe(1)
-    expect(cloud.scale).toMatchObject({ x: 600, y: 350 })
+    expect(billboardCollectionInstances).toHaveLength(1)
+    expect(collection.items).toHaveLength(1)
+    expect(cloud).toMatchObject({ height: 350, sizeInMeters: true, width: 600 })
+    expect(cloud.image).toEqual(expect.stringContaining('cumulus-cloud.png'))
+    expect(initialColor.alpha).toBeCloseTo(0.88)
     expect(viewer.camera.flyTo).toHaveBeenCalledOnce()
     expect(statuses[statuses.length - 1]).toContain('可实时调整尺寸与亮度')
 
     scene.cloudControls?.setScale(120, 80)
     scene.cloudControls?.setBrightness(0.42)
 
-    expect(cloud.scale).toMatchObject({ x: 120, y: 80 })
-    expect(cloud.brightness).toBe(0.42)
+    expect(cloud).toMatchObject({ height: 80, width: 120 })
+    expect((cloud.color as { alpha: number }).alpha).toBeCloseTo((0.32 + 0.42 * 0.68) * 0.88)
 
     scene.cloudControls?.setScale(1, 9_999)
     scene.cloudControls?.setBrightness(-1)
-    expect(cloud.scale).toMatchObject({ x: 5, y: 1_500 })
-    expect(cloud.brightness).toBe(0)
+    expect(cloud).toMatchObject({ height: 1_500, width: 5 })
+    expect((cloud.color as { alpha: number }).alpha).toBeCloseTo(0.32 * 0.88)
 
     scene.dispose()
     expect(collection.show).toBe(false)
