@@ -4,6 +4,7 @@ import { ElButton, ElSlider } from 'element-plus'
 
 import type { EffectSceneId } from '@/data/layers'
 import { createEffectsScene, type EffectsScene, type ThunderAudioState } from '@/demos/effectsScene'
+import { DEFAULT_CLOUD_SCALE } from '@/demos/effects/volumetricCloudScene'
 import { useDemoGlobe } from '@/demos/useDemoGlobe'
 
 const props = defineProps<{
@@ -11,8 +12,8 @@ const props = defineProps<{
 }>()
 
 const container = ref<HTMLDivElement | null>(null)
-const cloudX = ref(25)
-const cloudY = ref(12)
+const cloudX = ref<number>(DEFAULT_CLOUD_SCALE.x)
+const cloudY = ref<number>(DEFAULT_CLOUD_SCALE.y)
 const cloudBrightness = ref(1)
 
 const { actions, resize, runAction, scene, sceneState, statusMessage } = useDemoGlobe({
@@ -95,7 +96,11 @@ defineExpose({ resize })
       {{ statusMessage }}
     </div>
 
-    <div v-if="sceneState === 'ready'" class="effects-demo-globe__toolbar">
+    <div
+      v-if="sceneState === 'ready'"
+      class="effects-demo-globe__toolbar"
+      :class="{ 'effects-demo-globe__toolbar--cloud': isCloudScene }"
+    >
       <p class="effects-demo-globe__status" aria-live="polite">{{ statusMessage }}</p>
 
       <div v-if="actions.length" class="effects-demo-globe__actions">
@@ -200,6 +205,10 @@ defineExpose({ resize })
   backdrop-filter: blur(10px);
 }
 
+.effects-demo-globe__toolbar--cloud {
+  width: min(360px, calc(100% - 32px));
+}
+
 .effects-demo-globe__status {
   margin: 0;
   font-size: 13px;
@@ -293,6 +302,10 @@ defineExpose({ resize })
     left: 10px;
     width: calc(100% - 20px);
     padding: 10px;
+  }
+
+  .effects-demo-globe__toolbar--cloud {
+    width: calc(100% - 20px);
   }
 
   .effects-demo-globe__status {

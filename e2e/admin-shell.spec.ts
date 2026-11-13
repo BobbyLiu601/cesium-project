@@ -1078,20 +1078,22 @@ test('体积云控件实时更新 X、Y 尺寸与亮度', async ({ page }) => {
 
   const controls = globe.locator('.effects-demo-globe__control')
   await expect(controls.nth(0)).toContainText('X 轴尺寸')
-  await expect(controls.nth(0)).toContainText('25')
-  await expect(controls.nth(1)).toContainText('12')
+  await expect(controls.nth(0)).toContainText('600')
+  await expect(controls.nth(1)).toContainText('350')
   await expect(controls.nth(2)).toContainText('1.00')
 
   await controls.nth(0).getByRole('slider').press('ArrowRight')
-  await expect(controls.nth(0).locator('strong')).toHaveText('26')
+  await expect(controls.nth(0).locator('strong')).toHaveText('601')
 
   await controls.nth(1).getByRole('slider').press('ArrowRight')
-  await expect(controls.nth(1).locator('strong')).toHaveText('13')
+  await expect(controls.nth(1).locator('strong')).toHaveText('351')
 
   await controls.nth(2).getByRole('slider').press('ArrowLeft')
   await expect(controls.nth(2).locator('strong')).toHaveText('0.99')
 
   await expect(globe.getByText(/可实时调整尺寸与亮度/)).toBeVisible()
+  const toolbarBox = await globe.locator('.effects-demo-globe__toolbar').boundingBox()
+  expect(toolbarBox?.width).toBeLessThan(400)
 })
 
 test('近地天空盒可在近地全景与标准大气之间切换', async ({ page }) => {
@@ -1117,7 +1119,7 @@ test('闪电场景进入后自动尝试播放雷声，受阻时可手动重试',
   const dialog = page.getByRole('dialog', { name: '3.1.4、闪电' })
   const globe = dialog.getByTestId('effects-demo-globe')
   await expectCesiumReady(globe)
-  await expect(globe.getByText(/雨幕与周期闪电持续播放/)).toBeVisible()
+  await expect(globe.getByText(/程序化雨幕与分叉闪电/)).toBeVisible()
   await expect(globe).toHaveAttribute('data-audio-state', /^(playing|blocked|error)$/)
 
   const audioState = await globe.getAttribute('data-audio-state')
