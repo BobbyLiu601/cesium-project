@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   Cesium3DTileset,
@@ -34,19 +34,64 @@ function collectStatus() {
   }
 }
 
+function getRenderedHeights() {
+  return primitiveInstances.flatMap((primitive) => {
+    const geometryInstances = primitive.options.geometryInstances
+    if (!Array.isArray(geometryInstances)) {
+      return []
+    }
+
+    return geometryInstances.flatMap((geometryInstance) => {
+      const positions = (
+        geometryInstance as {
+          options?: {
+            geometry?: {
+              options?: {
+                positions?: Array<{ height?: number }>
+              }
+            }
+          }
+        }
+      ).options?.geometry?.options?.positions
+
+      return Array.isArray(positions)
+        ? positions
+            .map((position) => position.height)
+            .filter((height): height is number => typeof height === 'number')
+        : []
+    })
+  })
+}
+
+function captureRejection(promise: Promise<unknown>) {
+  return promise.then(
+    () => {
+      throw new Error('Expected the scene creation to reject')
+    },
+    (error: unknown) => error,
+  )
+}
+
 describe('spatial scenes', () => {
   beforeEach(() => {
     resetCesiumMock()
   })
 
-  it('raises the simple inundation surface from 1000m to 3600m and stops', async () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('raises the simple inundation volume from 1000m to 3600m and stops', async () => {
     const now = vi.spyOn(performance, 'now').mockReturnValue(0)
     const viewer = createViewer()
     const { setStatus, statuses } = collectStatus()
     const scene = await createSpatialScene(viewer, 'inundation-analysis-simple', setStatus)
     const entity = (viewer as unknown as Viewer).entities.values[0]!
-    const waterHeight = entity.polygon?.height as { getValue: () => number }
+    const waterHeight = entity.polygon?.extrudedHeight as { getValue: () => number }
 
+    expect(entity.polygon?.height).toBeUndefined()
+    expect(entity.polygon?.perPositionHeight).toBe(true)
     expect(waterHeight.getValue()).toBe(1_000)
     now.mockReturnValue(2_250)
     expect(waterHeight.getValue()).toBeCloseTo(2_300)
@@ -105,8 +150,34 @@ describe('spatial scenes', () => {
 
     scene.dispose()
     expect(scenePrimitiveRemoves).toContain(tileset)
+    expect(tileset.destroyed).toBe(true)
     expect(mockViewer.entities.values).toHaveLength(0)
     expect(mockViewer.shadows).toBe(false)
+  })
+
+  it('destroys a sunlight tileset that resolves after the load timeout', async () => {
+    vi.useFakeTimers()
+    let resolveTileset!: (tileset: Cesium3DTileset) => void
+    cesiumMockState.cesium3DTilesetPromise = new Promise((resolve) => {
+      resolveTileset = resolve
+    })
+
+    const viewer = createViewer()
+    const { setStatus } = collectStatus()
+    const pending = createSpatialScene(viewer, 'sunlight-analysis', setStatus)
+    const rejection = captureRejection(pending)
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    await expect(rejection).resolves.toMatchObject({
+      message: '日照分析 3D Tiles 模型加载超时',
+    })
+    expect(scenePrimitiveAdds).toHaveLength(0)
+
+    const lateTileset = new Cesium3DTileset('late-tileset', {})
+    resolveTileset(lateTileset)
+    await Promise.resolve()
+
+    expect(lateTileset.destroyed).toBe(true)
   })
 
   it('renders the animated water surface as a water-material primitive', async () => {
@@ -147,6 +218,61 @@ describe('spatial scenes', () => {
     expect(mockViewer.entities.values).toHaveLength(0)
   })
 
+  it('renders the aspect surface from varied detailed terrain heights', async () => {
+    sampleTerrainMostDetailed.mockImplementationOnce((_provider, positions) =>
+      Promise.resolve(
+        positions.map((_position, index) => ({
+          height: 1_000 + Math.floor(index / 30) * 5 + (index % 30),
+        })),
+      ),
+    )
+    const viewer = createViewer()
+    const { setStatus, statuses } = collectStatus()
+    const scene = await createSpatialScene(viewer, 'aspect-analysis', setStatus)
+    const renderedHeights = getRenderedHeights()
+
+    expect(statuses[statuses.length - 1]).toContain('已加载参考区域地形')
+    expect(statuses[statuses.length - 1]).not.toContain('本地山体高程')
+    expect(renderedHeights.length).toBeGreaterThan(0)
+    expect(Math.max(...renderedHeights)).toBeGreaterThan(1_000)
+    expect(primitiveInstances.length).toBeGreaterThanOrEqual(1)
+
+    scene.dispose()
+  })
+
+  it('falls back when detailed terrain sampling times out and ignores the late result', async () => {
+    vi.useFakeTimers()
+    let resolveSamples!: (samples: Array<{ height: number }>) => void
+    sampleTerrainMostDetailed.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSamples = resolve
+        }),
+    )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const viewer = createViewer()
+    const { setStatus, statuses } = collectStatus()
+    const pending = createSpatialScene(viewer, 'aspect-analysis', setStatus)
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(sampleTerrainMostDetailed).toHaveBeenCalledOnce()
+    const primitiveCountBeforeSampling = primitiveInstances.length
+
+    await vi.advanceTimersByTimeAsync(15_000)
+    const scene = await pending
+
+    expect(primitiveInstances.length).toBeGreaterThan(primitiveCountBeforeSampling)
+    expect(statuses[statuses.length - 1]).toContain('地形采样失败')
+    expect(consoleError).toHaveBeenCalled()
+
+    const primitiveCountAfterFallback = primitiveInstances.length
+    resolveSamples(Array.from({ length: 30 * 30 }, () => ({ height: 500 })))
+    await Promise.resolve()
+    expect(primitiveInstances).toHaveLength(primitiveCountAfterFallback)
+
+    scene.dispose()
+  })
+
   it('falls back to ellipsoid terrain and keeps aspect cells when terrain fails', async () => {
     cesiumMockState.cesiumTerrainProviderOutcome = 'failure'
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -179,5 +305,32 @@ describe('spatial scenes', () => {
     controller.abort()
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' })
     resolveTerrain(new CesiumTerrainProvider('https://data.mars3d.cn/terrain'))
+  })
+
+  it('aborts while detailed terrain sampling is still pending', async () => {
+    let resolveSamples!: (samples: Array<{ height: number }>) => void
+    sampleTerrainMostDetailed.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSamples = resolve
+        }),
+    )
+    const viewer = createViewer()
+    const controller = new AbortController()
+    const { setStatus } = collectStatus()
+    const pending = createSpatialScene(viewer, 'aspect-analysis', setStatus, {
+      signal: controller.signal,
+    })
+    const rejection = captureRejection(pending)
+
+    await vi.waitFor(() => {
+      expect(sampleTerrainMostDetailed).toHaveBeenCalledOnce()
+    })
+    controller.abort()
+    await expect(rejection).resolves.toMatchObject({ name: 'AbortError' })
+
+    resolveSamples(Array.from({ length: 30 * 30 }, () => ({ height: 500 })))
+    await Promise.resolve()
+    expect(scenePrimitiveAdds).toHaveLength(0)
   })
 })

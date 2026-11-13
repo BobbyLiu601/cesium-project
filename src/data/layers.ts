@@ -435,7 +435,7 @@ export const layersMenuGroup: MenuGroup = {
   sections: layerSections,
 }
 
-const spatialMenuGroup: MenuGroup = {
+export const spatialMenuGroup: MenuGroup = {
   id: 'spatial',
   code: '2',
   title: '空间分析',

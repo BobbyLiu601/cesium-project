@@ -794,7 +794,7 @@ describe('App', () => {
     expect(globe.attributes('data-cesium-state')).toBe('ready')
     expect(globe.text()).toContain('1000 米')
     expect(viewerInstances[0]?.entities.values).toHaveLength(1)
-    expect(viewerInstances[0]?.entities.values[0]?.polygon?.height).toBeDefined()
+    expect(viewerInstances[0]?.entities.values[0]?.polygon?.extrudedHeight).toBeDefined()
 
     await wrapper.get('.feature-dialog--spatial .el-dialog__headerbtn').trigger('click')
     await flushPromises()

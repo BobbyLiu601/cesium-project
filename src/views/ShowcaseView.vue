@@ -11,6 +11,7 @@ import {
   layerSections,
   layersMenuGroup,
   spatialSection,
+  spatialMenuGroup,
   type FeatureItem,
   type FeatureSection,
 } from '@/data/layers'
@@ -127,9 +128,9 @@ watch(
     >
       <PageHeading
         heading-id="spatial-heading"
-        :icon="spatialSection.icon"
+        :icon="spatialMenuGroup.icon"
         :level="2"
-        :title="formatMenuGroupTitle({ code: '2', title: spatialSection.title })"
+        :title="formatMenuGroupTitle(spatialMenuGroup)"
       />
 
       <div class="showcase__group" :data-section-id="spatialSection.id">

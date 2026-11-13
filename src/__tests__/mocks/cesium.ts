@@ -231,6 +231,7 @@ export const cesiumMockState = {
   elevationProviderPromise: undefined as Promise<MockElevationTerrainProvider> | undefined,
   cesiumTerrainProviderOutcome: 'success' as 'success' | 'failure',
   cesiumTerrainProviderPromise: undefined as Promise<MockCesiumTerrainProvider> | undefined,
+  cesium3DTilesetPromise: undefined as Promise<MockCesium3DTileset> | undefined,
   geoJsonOutcome: 'success' as 'success' | 'failure',
 }
 
@@ -845,6 +846,7 @@ export interface MockCesium3DTileset {
   shadows: number
   url: string
   destroy: () => void
+  isDestroyed: () => boolean
 }
 
 export class Cesium3DTileset implements MockCesium3DTileset {
@@ -862,12 +864,17 @@ export class Cesium3DTileset implements MockCesium3DTileset {
 
   static fromUrl(url: string, options: Record<string, unknown> = {}) {
     cesium3DTilesetRequests.push({ url, options })
+    if (cesiumMockState.cesium3DTilesetPromise) {
+      return cesiumMockState.cesium3DTilesetPromise
+    }
     return Promise.resolve(new Cesium3DTileset(url, options))
   }
 
   destroy = () => {
     this.destroyed = true
   }
+
+  isDestroyed = () => this.destroyed
 }
 
 export class Color {
@@ -1096,6 +1103,7 @@ export function resetCesiumMock() {
   cesiumMockState.elevationProviderPromise = undefined
   cesiumMockState.cesiumTerrainProviderOutcome = 'success'
   cesiumMockState.cesiumTerrainProviderPromise = undefined
+  cesiumMockState.cesium3DTilesetPromise = undefined
   cesiumMockState.geoJsonOutcome = 'success'
   GroundPrimitive.supportsMaterials.mockClear()
   GroundPrimitive.initializeTerrainHeights.mockClear()
