@@ -489,7 +489,9 @@ export class NearFarScalar {
 }
 
 export class BillboardCollection {
+  destroyed = false
   items: Record<string, unknown>[] = []
+  show = true
 
   constructor(public options?: Record<string, unknown>) {
     billboardCollectionInstances.push(this)
@@ -499,6 +501,12 @@ export class BillboardCollection {
     this.items.push(options)
     return options
   }
+
+  destroy = vi.fn<() => void>(() => {
+    this.destroyed = true
+  })
+
+  isDestroyed = vi.fn<() => boolean>(() => this.destroyed)
 }
 
 export class PostProcessStage {
