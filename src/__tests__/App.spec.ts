@@ -113,9 +113,9 @@ describe('App', () => {
     expect(wrapper.text()).toContain('三维效果展示')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('#spatial-heading').text()).toBe('2、空间分析')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(25)
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(27)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(2)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(5)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(6)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
     expect(wrapper.findAll('.el-sub-menu__icon-arrow').length).toBeGreaterThanOrEqual(2)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
@@ -129,7 +129,7 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(25)
+    expect(cards).toHaveLength(27)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
@@ -141,6 +141,8 @@ describe('App', () => {
     expect(cards[22]?.attributes('data-feature-id')).toBe('sunlight-analysis')
     expect(cards[23]?.attributes('data-feature-id')).toBe('water-surface')
     expect(cards[24]?.attributes('data-feature-id')).toBe('aspect-analysis')
+    expect(cards[25]?.attributes('data-feature-id')).toBe('video-texture')
+    expect(cards[26]?.attributes('data-feature-id')).toBe('video-projection-livestream')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -159,6 +161,9 @@ describe('App', () => {
     expect(
       wrapper.get('[data-testid="spatial-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(4)
+    expect(
+      wrapper.get('[data-testid="video-fusion-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(2)
 
     for (const card of cards) {
       expect(card.element.tagName).toBe('BUTTON')
@@ -188,6 +193,8 @@ describe('App', () => {
     expect(cards[22]?.attributes('aria-label')).toBe('打开2.1.2、日照分析')
     expect(cards[23]?.attributes('aria-label')).toBe('打开2.1.3、水域面')
     expect(cards[24]?.attributes('aria-label')).toBe('打开2.1.4、坡向分析')
+    expect(cards[25]?.attributes('aria-label')).toBe('打开2.2.1、视频纹理')
+    expect(cards[26]?.attributes('aria-label')).toBe('打开2.2.2、视频投射(直播流)')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
@@ -201,6 +208,7 @@ describe('App', () => {
       '1.3、矢量',
       '1.4、模型',
       '2.1、空间分析',
+      '2.2、视频融合',
     ])
 
     wrapper.unmount()
@@ -703,6 +711,7 @@ describe('App', () => {
       vector: -60,
       model: 30,
       spatial: 40,
+      'video-fusion': 100,
     }
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({

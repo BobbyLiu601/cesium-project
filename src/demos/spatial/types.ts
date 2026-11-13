@@ -1,3 +1,5 @@
+import type { VideoFusionPlayback } from '@/demos/spatial/videoFusionPlayback'
+
 export interface SpatialAction {
   id: string
   label: string
@@ -12,6 +14,7 @@ export interface SunlightRange {
 
 export interface SpatialScene {
   actions: SpatialAction[]
+  attribution?: string
   dispose: () => void
   applySunlightRange?: (range: SunlightRange) => void
 }
@@ -19,6 +22,8 @@ export interface SpatialScene {
 export type StatusReporter = (message: string) => void
 
 export interface CreateSpatialSceneOptions {
+  host?: HTMLElement
   signal?: AbortSignal
   sunlight?: SunlightRange
+  videoPlayback?: VideoFusionPlayback
 }

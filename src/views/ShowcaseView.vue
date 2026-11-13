@@ -10,7 +10,6 @@ import {
   getFeatureById,
   layerSections,
   layersMenuGroup,
-  spatialSection,
   spatialMenuGroup,
   type FeatureItem,
   type FeatureSection,
@@ -31,6 +30,7 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   vector: 'vector-grid',
   model: 'model-grid',
   spatial: 'spatial-grid',
+  'video-fusion': 'video-fusion-grid',
 }
 
 async function openFeature(feature: FeatureItem) {
@@ -120,12 +120,7 @@ watch(
       </div>
     </section>
 
-    <section
-      id="spatial"
-      class="showcase__section"
-      aria-labelledby="spatial-heading"
-      data-navigation-anchor="spatial"
-    >
+    <section class="showcase__section" aria-labelledby="spatial-heading">
       <PageHeading
         heading-id="spatial-heading"
         :icon="spatialMenuGroup.icon"
@@ -133,18 +128,25 @@ watch(
         :title="formatMenuGroupTitle(spatialMenuGroup)"
       />
 
-      <div class="showcase__group" :data-section-id="spatialSection.id">
+      <div
+        v-for="section in spatialMenuGroup.sections"
+        :id="section.id"
+        :key="section.id"
+        class="showcase__group"
+        :data-section-id="section.id"
+        :data-navigation-anchor="section.id"
+      >
         <div class="showcase__group-heading">
-          <h2 :id="`${spatialSection.id}-group-heading`" class="showcase__group-title">
-            {{ spatialSection.code }}、{{ spatialSection.title }}
+          <h2 :id="`${section.id}-group-heading`" class="showcase__group-title">
+            {{ section.code }}、{{ section.title }}
           </h2>
-          <span class="showcase__group-count">{{ spatialSection.items.length }} 项</span>
+          <span class="showcase__group-count">{{ section.items.length }} 项</span>
         </div>
 
         <div class="showcase__body">
-          <div class="feature-grid" :data-testid="gridTestIds.spatial">
+          <div class="feature-grid" :data-testid="gridTestIds[section.id]">
             <FeatureCard
-              v-for="feature in spatialSection.items"
+              v-for="feature in section.items"
               :id="feature.id"
               :key="feature.id"
               :feature="feature"

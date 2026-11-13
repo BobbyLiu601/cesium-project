@@ -37,8 +37,9 @@ const { actions, resize, runAction, scene, sceneState, statusMessage } = useDemo
   errorLabel: 'Cesium 空间分析示例初始化失败',
   errorStatus: '空间分析场景加载失败，请关闭后重试。',
   initialStatus: '正在准备 Cesium 空间分析场景…',
-  loadScene: ({ viewer, setStatus, signal }) =>
+  loadScene: ({ viewer, host, setStatus, signal }) =>
     createSpatialScene(viewer, props.sceneId, setStatus, {
+      host,
       signal,
       sunlight: sunlightRange.value,
     }),
@@ -129,6 +130,14 @@ defineExpose({ resize })
       ></span>
       <span class="spatial-demo-globe__legend-max">{{ aspectLegend.maxLabel }}</span>
     </div>
+
+    <p
+      v-if="sceneState === 'ready' && scene?.attribution"
+      class="spatial-demo-globe__attribution"
+      data-testid="video-attribution"
+    >
+      {{ scene.attribution }}
+    </p>
   </div>
 </template>
 
@@ -251,6 +260,22 @@ defineExpose({ resize })
   background: #07111f;
 }
 
+.spatial-demo-globe__attribution {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  z-index: 6;
+  max-width: calc(100% - 20px);
+  margin: 0;
+  padding: 3px 7px;
+  font-size: 10px;
+  line-height: 1.4;
+  color: rgb(230 240 248 / 78%);
+  background: rgb(7 17 31 / 58%);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
 @media (max-width: 767px) {
   .spatial-demo-globe__toolbar {
     top: 10px;
@@ -267,6 +292,12 @@ defineExpose({ resize })
     bottom: 10px;
     left: 10px;
     max-width: calc(100% - 20px);
+  }
+
+  .spatial-demo-globe__attribution {
+    right: 6px;
+    bottom: 6px;
+    font-size: 9px;
   }
 }
 </style>

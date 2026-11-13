@@ -19,6 +19,7 @@ export interface DemoSceneAction {
 
 export interface DemoScene {
   actions: DemoSceneAction[]
+  attribution?: string
   dispose: () => void
 }
 

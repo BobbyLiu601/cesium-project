@@ -746,6 +746,8 @@ export class CesiumTerrainProvider implements MockCesiumTerrainProvider {
 }
 
 export interface MockPrimitive {
+  destroyed?: boolean
+  isDestroyed?: () => boolean
   options: Record<string, unknown>
 }
 
@@ -754,7 +756,7 @@ export interface MockMaterial {
     fabric: {
       type: string
       uniforms: Record<string, unknown>
-      source: string
+      source?: string
     }
     translucent?: boolean
   }
@@ -769,7 +771,7 @@ export class Material implements MockMaterial {
       fabric: {
         type: string
         uniforms: Record<string, unknown>
-        source: string
+        source?: string
       }
       translucent?: boolean
     },
@@ -796,6 +798,10 @@ export class MaterialAppearance {
     },
   }
 
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class ImageMaterialProperty {
   constructor(public options: Record<string, unknown>) {}
 }
 
@@ -834,9 +840,36 @@ export class GroundPrimitive implements MockPrimitive {
 }
 
 export class Primitive implements MockPrimitive {
+  destroyed = false
+
   constructor(public options: Record<string, unknown>) {
     primitiveInstances.push(this)
   }
+
+  destroy = () => {
+    this.destroyed = true
+  }
+
+  isDestroyed = () => this.destroyed
+}
+
+export class PerspectiveFrustum {
+  constructor(
+    public options: {
+      fov?: number
+      aspectRatio?: number
+      near?: number
+      far?: number
+    } = {},
+  ) {}
+}
+
+export class FrustumGeometry {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class FrustumOutlineGeometry {
+  constructor(public options: Record<string, unknown>) {}
 }
 
 export interface MockCesium3DTileset {

@@ -17,6 +17,8 @@ import aspectAnalysisCover from '@/assets/spatial-covers/2-1-4-aspect-analysis.j
 import inundationAnalysisCover from '@/assets/spatial-covers/2-1-1-inundation-analysis-simple.jpg'
 import sunlightAnalysisCover from '@/assets/spatial-covers/2-1-2-sunlight-analysis.jpg'
 import waterSurfaceCover from '@/assets/spatial-covers/2-1-3-water-surface.jpg'
+import videoProjectionCover from '@/assets/spatial-covers/2-2-2-video-projection-livestream.jpg'
+import videoTextureCover from '@/assets/spatial-covers/2-2-1-video-texture.jpg'
 import allPrimitiveCover from '@/assets/vector-covers/all-primitive.jpg'
 import billboardCover from '@/assets/vector-covers/billboard.jpg'
 import billboardCollectionCover from '@/assets/vector-covers/billboard-collection.jpg'
@@ -55,7 +57,12 @@ export type VectorSceneId =
 export type ModelSceneId = 'model-interpolation' | 'wind-turbine'
 
 export type SpatialSceneId =
-  'inundation-analysis-simple' | 'sunlight-analysis' | 'water-surface' | 'aspect-analysis'
+  | 'inundation-analysis-simple'
+  | 'sunlight-analysis'
+  | 'water-surface'
+  | 'aspect-analysis'
+  | 'video-texture'
+  | 'video-projection-livestream'
 
 export type FeatureKind = 'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial'
 
@@ -78,7 +85,7 @@ export interface FeatureItem {
 }
 
 export interface FeatureSection {
-  id: 'imagery' | 'terrain' | 'vector' | 'model' | 'spatial'
+  id: 'imagery' | 'terrain' | 'vector' | 'model' | 'spatial' | 'video-fusion'
   code: string
   title: string
   icon: Component
@@ -427,6 +434,37 @@ export const spatialSection: FeatureSection = {
   ],
 }
 
+export const videoFusionSection: FeatureSection = {
+  id: 'video-fusion',
+  code: '2.2',
+  title: '视频融合',
+  icon: Film,
+  items: [
+    defineFeature({
+      id: 'video-texture',
+      code: '2.2.1',
+      name: '视频纹理',
+      imageSrc: videoTextureCover,
+      imageAlt: '视频纹理参考示例封面',
+      kind: 'spatial',
+      spatialSceneId: 'video-texture',
+      routeName: 'spatial-analysis-video-texture',
+      routePath: '/spatial-analysis/2-2-1-video-texture',
+    }),
+    defineFeature({
+      id: 'video-projection-livestream',
+      code: '2.2.2',
+      name: '视频投射(直播流)',
+      imageSrc: videoProjectionCover,
+      imageAlt: '视频投射参考示例封面',
+      kind: 'spatial',
+      spatialSceneId: 'video-projection-livestream',
+      routeName: 'spatial-analysis-video-projection-livestream',
+      routePath: '/spatial-analysis/2-2-2-video-projection-livestream',
+    }),
+  ],
+}
+
 export const layersMenuGroup: MenuGroup = {
   id: 'layers',
   code: '1',
@@ -440,12 +478,16 @@ export const spatialMenuGroup: MenuGroup = {
   code: '2',
   title: '空间分析',
   icon: TrendCharts,
-  sections: [spatialSection],
+  sections: [spatialSection, videoFusionSection],
 }
 
 export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup]
 
-export const featureSections: FeatureSection[] = [...layerSections, spatialSection]
+export const featureSections: FeatureSection[] = [
+  ...layerSections,
+  spatialSection,
+  videoFusionSection,
+]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)
 export const contentAnchors = [...featureAnchors, ...featureSections.map((section) => section.id)]
@@ -473,8 +515,9 @@ export function getNavigationAnchorForContent(anchor: string) {
 }
 
 export function getMenuGroupIdForAnchor(anchor: string): MenuGroup['id'] {
-  return spatialSection.id === anchor ||
-    spatialSection.items.some((feature) => feature.id === anchor)
+  return spatialMenuGroup.sections.some(
+    (section) => section.id === anchor || section.items.some((feature) => feature.id === anchor),
+  )
     ? 'spatial'
     : 'layers'
 }

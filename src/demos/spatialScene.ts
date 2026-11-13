@@ -6,6 +6,7 @@ import { createInundationScene } from '@/demos/spatial/inundationScene'
 import { setSceneDefaults, throwIfAborted } from '@/demos/spatial/shared'
 import { createSunlightScene } from '@/demos/spatial/sunlightScene'
 import type { CreateSpatialSceneOptions, SpatialScene, StatusReporter } from '@/demos/spatial/types'
+import { createVideoFusionScene } from '@/demos/spatial/videoFusionScene'
 import { createWaterSurfaceScene } from '@/demos/spatial/waterSurfaceScene'
 
 const DEFAULT_SUNLIGHT_RANGE = {
@@ -45,5 +46,12 @@ export async function createSpatialScene(
       return createWaterSurfaceScene(viewer, setStatus)
     case 'aspect-analysis':
       return createAspectScene(viewer, setStatus, options.signal)
+    case 'video-texture':
+    case 'video-projection-livestream':
+      return createVideoFusionScene(viewer, sceneId, setStatus, {
+        host: options.host,
+        playback: options.videoPlayback,
+        signal: options.signal,
+      })
   }
 }

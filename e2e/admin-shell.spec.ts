@@ -108,6 +108,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '1.4、模型' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '2、空间分析' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '2.1、空间分析' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '2.2、视频融合' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -149,8 +150,20 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开2.1.4、坡向分析' })).toContainText(
     '2.1.4、坡向分析',
   )
+  await expect(page.getByRole('button', { name: '打开2.2.1、视频纹理' })).toContainText(
+    '2.2.1、视频纹理',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开2.2.1、视频纹理' }).locator('img'),
+  ).toHaveAttribute('src', /2-2-1-video-texture/)
+  await expect(page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' })).toContainText(
+    '2.2.2、视频投射(直播流)',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' }).locator('img'),
+  ).toHaveAttribute('src', /2-2-2-video-projection-livestream/)
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(25)
+  await expect(page.getByTestId('feature-card')).toHaveCount(27)
   expect(
     await page
       .getByTestId('feature-card')
@@ -181,6 +194,8 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'sunlight-analysis',
     'water-surface',
     'aspect-analysis',
+    'video-texture',
+    'video-projection-livestream',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -765,7 +780,7 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '2.1、空间分析' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '2.2、视频融合' })).toHaveAttribute(
     'aria-current',
     'location',
   )
@@ -899,6 +914,7 @@ test('空间分析菜单通过向下箭头分组并锚定坡向分析内容', as
     .nth(1)
     .locator('.el-sub-menu__title')
     .click()
+  await expect(page.getByRole('menuitem', { name: '2.2、视频融合' })).toBeVisible()
   const spatialMenuItem = page.getByRole('menuitem', { name: '2.1、空间分析' })
   await spatialMenuItem.click()
 
@@ -1007,6 +1023,62 @@ test('四个空间分析深链均可打开、交互、全屏、关闭并返回�
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(page).toHaveURL(/\/layers#aspect-analysis$/)
   await expect(page.getByRole('button', { name: '打开2.1.4、坡向分析' })).toBeFocused()
+})
+
+test('两个视频融合深链可打开场景、全屏、关闭并返回对应卡片', async ({ page }) => {
+  test.setTimeout(90_000)
+
+  await page.goto('/spatial-analysis/2-2-1-video-texture')
+  let dialog = page.getByRole('dialog', { name: '2.2.1、视频纹理' })
+  let globe = dialog.getByTestId('spatial-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-scene-id', 'video-texture')
+  await expect(globe.getByText(/立体立面与平面/)).toBeVisible()
+  await expect(globe.locator('canvas')).toBeVisible()
+  await expect(globe.getByTestId('video-attribution')).toContainText('CC BY 3.0')
+
+  let video = globe.locator('video[data-video-fusion]')
+  await expect(video).toHaveCount(1)
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState), {
+      timeout: 20_000,
+    })
+    .toBeGreaterThanOrEqual(2)
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.videoWidth))
+    .toBeGreaterThan(0)
+
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(page.locator('.feature-dialog--spatial')).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page).toHaveURL(/\/layers#video-texture$/)
+  await expect(page.getByRole('button', { name: '打开2.2.1、视频纹理' })).toBeFocused()
+
+  await page.route('**/hls__js.js*', (route) => route.abort())
+  await page.route('https://kbs-dokdo.gscdn.com/**', (route) => route.abort())
+  await page.goto('/spatial-analysis/2-2-2-video-projection-livestream')
+  dialog = page.getByRole('dialog', { name: '2.2.2、视频投射(直播流)' })
+  globe = dialog.getByTestId('spatial-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-scene-id', 'video-projection-livestream')
+  await expect(globe.locator('canvas')).toBeVisible()
+  await expect(globe.getByTestId('video-attribution')).toContainText('CC BY 3.0')
+  await expect(globe.getByText('直播流不可用，已切换本地回退视频', { exact: true })).toBeVisible({
+    timeout: 20_000,
+  })
+
+  video = globe.locator('video[data-video-fusion]')
+  await expect(video).toHaveAttribute('data-video-source', 'local')
+
+  await dialog.getByRole('button', { name: '全屏' }).click()
+  await expect(page.locator('.feature-dialog--spatial')).toHaveClass(/is-fullscreen/)
+  await dialog.getByRole('button', { name: '退出全屏' }).click()
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page).toHaveURL(/\/layers#video-projection-livestream$/)
+  await expect(page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' })).toBeFocused()
 })
 
 test('旧 /effects 地址保留原 URL 并显示 404 页面', async ({ page }) => {
