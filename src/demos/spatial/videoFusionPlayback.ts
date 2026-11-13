@@ -5,10 +5,13 @@ export const VIDEO_FUSION_LIVE_STREAM_URL =
 
 const LIVE_STREAM_START_TIMEOUT_MS = 12_000
 
+export type VideoFusionSource = 'local' | 'live'
+
 export interface VideoFusionPlayback {
   element: HTMLVideoElement
   start: () => Promise<void>
   dispose: () => void
+  subscribeSourceChange?: (listener: (source: VideoFusionSource) => void) => () => void
 }
 
 export interface VideoFusionPlaybackMessages {
@@ -71,6 +74,7 @@ export function createVideoFusionPlayback({
   let disposed = false
   let liveAttempt = 0
   let hls: import('hls.js').default | undefined
+  const sourceListeners = new Set<(source: VideoFusionSource) => void>()
 
   const abortFromOutside = () => abortController.abort()
   signal?.addEventListener('abort', abortFromOutside, { once: true })
@@ -83,8 +87,17 @@ export function createVideoFusionPlayback({
     hls = undefined
   }
 
-  function setVideoSource(source: string, sourceType: 'local' | 'live') {
+  function markVideoSource(sourceType: VideoFusionSource) {
+    if (video.dataset.videoSource === sourceType) {
+      return
+    }
+
     video.dataset.videoSource = sourceType
+    sourceListeners.forEach((listener) => listener(sourceType))
+  }
+
+  function setVideoSource(source: string, sourceType: VideoFusionSource) {
+    markVideoSource(sourceType)
     video.src = source
   }
 
@@ -227,7 +240,7 @@ export function createVideoFusionPlayback({
         return
       }
 
-      video.dataset.videoSource = 'live'
+      markVideoSource('live')
       if (!(await playVideo(false))) {
         await switchToLocalAfterLiveFailure(attempt)
         return
@@ -247,6 +260,10 @@ export function createVideoFusionPlayback({
 
   return {
     element: video,
+    subscribeSourceChange(listener) {
+      sourceListeners.add(listener)
+      return () => sourceListeners.delete(listener)
+    },
     async start() {
       if (disposed) {
         return
@@ -261,6 +278,7 @@ export function createVideoFusionPlayback({
       liveAttempt += 1
       abortController.abort()
       signal?.removeEventListener('abort', abortFromOutside)
+      sourceListeners.clear()
       destroyHls()
       video.pause()
       video.removeAttribute('src')

@@ -11,7 +11,7 @@ import {
   createVideoFusionScene,
   type CreateVideoFusionSceneOptions,
 } from '../demos/spatial/videoFusionScene'
-import type { VideoFusionPlayback } from '../demos/spatial/videoFusionPlayback'
+import type { VideoFusionPlayback, VideoFusionSource } from '../demos/spatial/videoFusionPlayback'
 
 vi.mock('cesium', async () => import('./mocks/cesium'))
 
@@ -33,19 +33,37 @@ function createPlayback(): {
   playback: VideoFusionPlayback
   start: ReturnType<typeof vi.fn<() => Promise<void>>>
   dispose: ReturnType<typeof vi.fn<() => void>>
+  emitSourceChange: (source: VideoFusionSource) => void
 } {
   const start = vi.fn<() => Promise<void>>(() => Promise.resolve())
   const dispose = vi.fn<() => void>()
+  let sourceListener: ((source: VideoFusionSource) => void) | undefined
 
   return {
     playback: {
       dispose,
       element: document.createElement('video'),
       start,
+      subscribeSourceChange: vi.fn<(listener: (source: VideoFusionSource) => void) => () => void>(
+        (listener) => {
+          sourceListener = listener
+          return () => {
+            sourceListener = undefined
+          }
+        },
+      ),
     },
     start,
     dispose,
+    emitSourceChange(source) {
+      sourceListener?.(source)
+    },
   }
+}
+
+function setVideoDimensions(element: HTMLVideoElement, width: number, height: number) {
+  Object.defineProperty(element, 'videoWidth', { configurable: true, value: width })
+  Object.defineProperty(element, 'videoHeight', { configurable: true, value: height })
 }
 
 function getPrimitiveFrustum(index: number) {
@@ -54,6 +72,13 @@ function getPrimitiveFrustum(index: number) {
     | undefined
 
   return geometryInstance?.options?.geometry?.options?.frustum?.options
+}
+
+function getPrimitiveMaterialImage(index: number) {
+  const appearance = primitiveInstances[index]?.options.appearance as
+    { options?: { material?: { uniforms?: { image?: unknown } } } } | undefined
+
+  return appearance?.options?.material?.uniforms?.image
 }
 
 function getPolygonMaterialImage(entity: { polygon?: Record<string, unknown> } | undefined) {
@@ -99,7 +124,7 @@ describe('video fusion scenes', () => {
     expect(mockViewer.entities.values).toHaveLength(0)
   })
 
-  it('draws a fixed 60 by 40 degree projection frustum and cleans it up', async () => {
+  it('frames and draws the projection face after video metadata is available', async () => {
     const viewer = createViewer()
     const { playback, start, dispose } = createPlayback()
     const { setStatus, statuses } = collectStatus()
@@ -110,27 +135,36 @@ describe('video fusion scenes', () => {
     const mockViewer = viewer as unknown as Viewer
 
     expect(start).toHaveBeenCalledOnce()
-    expect(mockViewer.camera.setView).toHaveBeenCalledOnce()
-    expect(mockViewer.camera.setView.mock.calls[0]?.[0]).toMatchObject({
-      destination: {
-        height: 1_300,
-        latitude: 33.248737,
-        longitude: 112.681287,
-      },
-      orientation: {
-        heading: expect.closeTo(4.702, 3),
-        pitch: expect.closeTo(-0.506, 3),
-        roll: 0,
+    expect(mockViewer.camera.viewBoundingSphere).toHaveBeenCalledOnce()
+    const [projectionSphere, projectionOffset] =
+      mockViewer.camera.viewBoundingSphere.mock.calls[0] ?? []
+    expect(projectionSphere).toMatchObject({
+      center: {
+        height: 30,
+        latitude: 33.247659,
+        longitude: 112.66669,
       },
     })
+    expect((projectionSphere as { radius?: number } | undefined)?.radius).toBeGreaterThan(800)
+    expect(projectionOffset).toMatchObject({
+      heading: expect.closeTo(4.702, 3),
+      pitch: expect.closeTo(-0.506, 3),
+      range: 0,
+    })
+    expect(primitiveInstances).toHaveLength(1)
+
+    setVideoDimensions(playback.element, 1_280, 720)
+    playback.element.dispatchEvent(new Event('loadedmetadata'))
+
     expect(primitiveInstances).toHaveLength(2)
     expect(scenePrimitiveAdds).toHaveLength(2)
 
-    const faceFrustum = getPrimitiveFrustum(0)
-    const outlineFrustum = getPrimitiveFrustum(1)
+    const outlineFrustum = getPrimitiveFrustum(0)
+    const faceFrustum = getPrimitiveFrustum(1)
     expect(faceFrustum?.fov).toBeCloseTo(Math.PI / 3)
     expect(faceFrustum?.aspectRatio).toBeCloseTo(Math.tan(Math.PI / 6) / Math.tan(Math.PI / 9))
     expect((faceFrustum?.far ?? 0) - (faceFrustum?.near ?? 0)).toBeCloseTo(0.01, 1)
+    expect(getPrimitiveMaterialImage(1)).toBe(playback.element)
     expect(outlineFrustum?.near).toBeCloseTo((outlineFrustum?.far ?? 0) * 0.0001, 4)
     expect(outlineFrustum?.far).toBeGreaterThan(1_000)
     expect(statuses[statuses.length - 1]).toContain('60° × 40° 视锥')
@@ -140,6 +174,32 @@ describe('video fusion scenes', () => {
     expect(scenePrimitiveRemoves).toHaveLength(2)
     expect(primitiveInstances.every((primitive) => primitive.destroyed === true)).toBe(true)
     expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it('rebuilds the projection face when the playback source changes dimensions', async () => {
+    const viewer = createViewer()
+    const { playback, emitSourceChange } = createPlayback()
+    const { setStatus } = collectStatus()
+
+    const scene = await createVideoFusionScene(viewer, 'video-projection-livestream', setStatus, {
+      playback,
+    })
+
+    setVideoDimensions(playback.element, 1_280, 720)
+    playback.element.dispatchEvent(new Event('loadedmetadata'))
+    const firstFace = primitiveInstances[1]
+    expect(scenePrimitiveAdds).toHaveLength(2)
+
+    setVideoDimensions(playback.element, 960, 540)
+    emitSourceChange('live')
+
+    expect(firstFace?.destroyed).toBe(true)
+    expect(scenePrimitiveAdds).toHaveLength(3)
+    expect(scenePrimitiveRemoves).toHaveLength(1)
+
+    scene.dispose()
+
+    expect(primitiveInstances.every((primitive) => primitive.destroyed === true)).toBe(true)
   })
 
   it('disposes the scene when playback startup fails', async () => {

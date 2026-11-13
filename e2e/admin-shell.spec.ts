@@ -1071,6 +1071,14 @@ test('两个视频融合深链可打开场景、全屏、关闭并返回对应�
 
   video = globe.locator('video[data-video-fusion]')
   await expect(video).toHaveAttribute('data-video-source', 'local')
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.readyState), {
+      timeout: 20_000,
+    })
+    .toBeGreaterThanOrEqual(2)
+  await expect
+    .poll(() => video.evaluate((element: HTMLVideoElement) => element.videoWidth))
+    .toBeGreaterThan(0)
 
   await dialog.getByRole('button', { name: '全屏' }).click()
   await expect(page.locator('.feature-dialog--spatial')).toHaveClass(/is-fullscreen/)

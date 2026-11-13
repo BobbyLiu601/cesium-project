@@ -143,6 +143,8 @@ describe('video fusion playback', () => {
 
   it('connects the live stream through the lazy HLS adapter', async () => {
     const { playback, statuses } = createHarness('live-with-fallback')
+    const sources: string[] = []
+    const unsubscribe = playback.subscribeSourceChange?.((source) => sources.push(source))
 
     await playback.start()
     await vi.waitFor(() => {
@@ -157,7 +159,9 @@ describe('video fusion playback', () => {
       expect(playback.element.dataset.videoSource).toBe('live')
       expect(statuses[statuses.length - 1]).toBe(messages.livePlaying)
     })
+    expect(sources).toEqual(['live'])
 
+    unsubscribe?.()
     playback.dispose()
     expect(hls.destroyed).toBe(true)
   })
@@ -206,6 +210,8 @@ describe('video fusion playback', () => {
   it('falls back when the live stream fails after playback starts', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const { playback, statuses } = createHarness('live-with-fallback')
+    const sources: string[] = []
+    playback.subscribeSourceChange?.((source) => sources.push(source))
 
     await playback.start()
     await vi.waitFor(() => {
@@ -223,6 +229,7 @@ describe('video fusion playback', () => {
       expect(playback.element.dataset.videoSource).toBe('local')
       expect(statuses[statuses.length - 1]).toBe(messages.liveFallback)
     })
+    expect(sources).toEqual(['live', 'local'])
     expect(hls.destroyed).toBe(true)
     expect(consoleError).toHaveBeenCalled()
 

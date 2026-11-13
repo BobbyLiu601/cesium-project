@@ -13,9 +13,6 @@ import {
 
 const LOCAL_VIDEO_PATH = 'spatial-analysis/video-fusion/sheboygan-falls-drone.mp4'
 const VIDEO_ATTRIBUTION = '航拍视频：WLUK-TV FOX 11 · Wikimedia Commons · CC BY 3.0'
-const TRANSPARENT_PIXEL =
-  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-
 const FACADE_POSITIONS = [
   114.25985245208585, 30.5752892693654, 14.23, 114.25923491594841, 30.5752027998838, 13.62,
   114.25922774520328, 30.5752225398922, 47.51, 114.25985290311769, 30.5753018567495, 47.57,
@@ -29,7 +26,6 @@ const PLANE_POSITIONS = [
 ] as const
 
 const PROJECTION_CAMERA = {
-  destination: { longitude: 112.681287, latitude: 33.248737, height: 1_300 },
   heading: 269.4,
   pitch: -29,
 } as const
@@ -67,13 +63,49 @@ function getLocalOffset(
   }
 }
 
-function getHeadingPitch(offset: LocalOffset) {
-  const horizontalDistance = Math.hypot(offset.east, offset.north)
-  return {
-    distance: Math.hypot(horizontalDistance, offset.up),
-    heading: Cesium.Math.toDegrees(Math.atan2(offset.east, offset.north)),
-    pitch: Cesium.Math.toDegrees(Math.atan2(offset.up, horizontalDistance)),
+function getFrustumOrientation(
+  position: Cesium.Cartesian3,
+  offset: LocalOffset,
+): Cesium.Quaternion {
+  const direction = Cesium.Cartesian3.normalize(
+    new Cesium.Cartesian3(offset.east, offset.north, offset.up),
+    new Cesium.Cartesian3(),
+  )
+  let right = Cesium.Cartesian3.cross(direction, Cesium.Cartesian3.UNIT_Z, new Cesium.Cartesian3())
+
+  if (Cesium.Cartesian3.magnitudeSquared(right) < 1e-8) {
+    const heading = Math.atan2(offset.east, offset.north)
+    right = new Cesium.Cartesian3(Math.cos(heading), -Math.sin(heading), 0)
   }
+
+  Cesium.Cartesian3.normalize(right, right)
+  const up = Cesium.Cartesian3.normalize(
+    Cesium.Cartesian3.cross(right, direction, new Cesium.Cartesian3()),
+    new Cesium.Cartesian3(),
+  )
+  const enuRotation = Cesium.Matrix4.getMatrix3(
+    Cesium.Transforms.eastNorthUpToFixedFrame(position),
+    new Cesium.Matrix3(),
+  )
+  const worldDirection = Cesium.Matrix3.multiplyByVector(
+    enuRotation,
+    direction,
+    new Cesium.Cartesian3(),
+  )
+  const worldUp = Cesium.Matrix3.multiplyByVector(enuRotation, up, new Cesium.Cartesian3())
+  const worldRight = Cesium.Matrix3.multiplyByVector(enuRotation, right, new Cesium.Cartesian3())
+  const orientationMatrix = new Cesium.Matrix3()
+
+  Cesium.Matrix3.setColumn(
+    orientationMatrix,
+    0,
+    Cesium.Cartesian3.negate(worldRight, new Cesium.Cartesian3()),
+    orientationMatrix,
+  )
+  Cesium.Matrix3.setColumn(orientationMatrix, 1, worldUp, orientationMatrix)
+  Cesium.Matrix3.setColumn(orientationMatrix, 2, worldDirection, orientationMatrix)
+
+  return Cesium.Quaternion.fromRotationMatrix(orientationMatrix)
 }
 
 function destroyPrimitive(viewer: Cesium.Viewer, primitive: Cesium.Primitive) {
@@ -81,6 +113,13 @@ function destroyPrimitive(viewer: Cesium.Viewer, primitive: Cesium.Primitive) {
   if (!primitive.isDestroyed()) {
     primitive.destroy()
   }
+}
+
+function createVideoPlaceholder(width: number, height: number) {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  return canvas
 }
 
 function createTextureScene(
@@ -138,33 +177,35 @@ function createProjectionScene(
   playback: VideoFusionPlayback,
   setStatus: StatusReporter,
 ): SpatialScene {
-  viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(
-      PROJECTION_CAMERA.destination.longitude,
-      PROJECTION_CAMERA.destination.latitude,
-      PROJECTION_CAMERA.destination.height,
-    ),
-    orientation: {
-      heading: Cesium.Math.toRadians(PROJECTION_CAMERA.heading),
-      pitch: Cesium.Math.toRadians(PROJECTION_CAMERA.pitch),
-      roll: 0,
-    },
-  })
-
   const viewPosition = Cesium.Cartesian3.fromDegrees(
     PROJECTION_VIEW.position.longitude,
     PROJECTION_VIEW.position.latitude,
     PROJECTION_VIEW.position.height,
   )
   const offset = getLocalOffset(PROJECTION_VIEW.position, PROJECTION_VIEW.target)
-  const { distance, heading, pitch } = getHeadingPitch(offset)
+  const distance = Math.hypot(offset.east, offset.north, offset.up)
   const horizontalFov = Cesium.Math.toRadians(PROJECTION_VIEW.horizontalViewAngle)
   const verticalFov = Cesium.Math.toRadians(PROJECTION_VIEW.verticalViewAngle)
   const aspectRatio = Math.tan(horizontalFov / 2) / Math.tan(verticalFov / 2)
-  const orientation = Cesium.Transforms.headingPitchRollQuaternion(
-    viewPosition,
-    new Cesium.HeadingPitchRoll(Cesium.Math.toRadians(heading), Cesium.Math.toRadians(pitch), 0),
+  const orientation = getFrustumOrientation(viewPosition, offset)
+  const projectionRadius =
+    distance * Math.hypot(Math.tan(horizontalFov / 2), Math.tan(verticalFov / 2))
+  const projectionTarget = Cesium.Cartesian3.fromDegrees(
+    PROJECTION_VIEW.target.longitude,
+    PROJECTION_VIEW.target.latitude,
+    PROJECTION_VIEW.target.height,
   )
+
+  // 保留参考视角朝向，同时按投射面自动取景，确保初始画面完整包含视频。
+  viewer.camera.viewBoundingSphere(
+    new Cesium.BoundingSphere(projectionTarget, projectionRadius),
+    new Cesium.HeadingPitchRange(
+      Cesium.Math.toRadians(PROJECTION_CAMERA.heading),
+      Cesium.Math.toRadians(PROJECTION_CAMERA.pitch),
+      0,
+    ),
+  )
+
   const cameraFrustum = new Cesium.PerspectiveFrustum({
     fov: horizontalFov,
     aspectRatio,
@@ -177,34 +218,87 @@ function createProjectionScene(
     near: distance - 0.01,
     far: distance,
   })
-  const imageMaterial = new Cesium.Material({
-    fabric: {
-      type: 'Image',
-      uniforms: {
-        color: Cesium.Color.WHITE,
-        image: TRANSPARENT_PIXEL,
+  let videoFace: Cesium.Primitive | undefined
+  let videoFaceWidth = 0
+  let videoFaceHeight = 0
+
+  function removeVideoFace() {
+    if (!videoFace) {
+      return
+    }
+
+    destroyPrimitive(viewer, videoFace)
+    videoFace = undefined
+    videoFaceWidth = 0
+    videoFaceHeight = 0
+    viewer.scene.requestRender()
+  }
+
+  function addVideoFace() {
+    if (videoFace) {
+      return
+    }
+
+    const { videoWidth, videoHeight } = playback.element
+    if (videoWidth <= 0 || videoHeight <= 0) {
+      return
+    }
+
+    const imageMaterial = new Cesium.Material({
+      fabric: {
+        type: 'Image',
+        uniforms: {
+          color: Cesium.Color.WHITE,
+          image: createVideoPlaceholder(videoWidth, videoHeight),
+        },
       },
-    },
-  })
-  imageMaterial.uniforms.image = playback.element
-  const videoFace = new Cesium.Primitive({
-    geometryInstances: new Cesium.GeometryInstance({
-      geometry: new Cesium.FrustumGeometry({
-        frustum: faceFrustum,
-        origin: viewPosition,
-        orientation,
+    })
+    imageMaterial.uniforms.image = playback.element
+    const primitive = new Cesium.Primitive({
+      geometryInstances: new Cesium.GeometryInstance({
+        geometry: new Cesium.FrustumGeometry({
+          frustum: faceFrustum,
+          origin: viewPosition,
+          orientation,
+        }),
       }),
-    }),
-    appearance: new Cesium.EllipsoidSurfaceAppearance({
-      material: imageMaterial,
-      flat: true,
-      renderState: {
-        cull: { enabled: false },
-        depthTest: { enabled: false },
-      },
-    }),
-    asynchronous: false,
-  })
+      appearance: new Cesium.EllipsoidSurfaceAppearance({
+        material: imageMaterial,
+        flat: true,
+        renderState: {
+          cull: { enabled: false },
+          depthTest: { enabled: false },
+        },
+      }),
+      asynchronous: false,
+    })
+    viewer.scene.primitives.add(primitive)
+    videoFace = primitive
+    videoFaceWidth = videoWidth
+    videoFaceHeight = videoHeight
+    viewer.scene.requestRender()
+  }
+
+  function refreshVideoFace() {
+    const { videoWidth, videoHeight } = playback.element
+    if (videoFace && videoFaceWidth === videoWidth && videoFaceHeight === videoHeight) {
+      return
+    }
+
+    if (videoFace) {
+      removeVideoFace()
+    }
+
+    if (videoWidth > 0 && videoHeight > 0) {
+      addVideoFace()
+    }
+  }
+
+  refreshVideoFace()
+  const handleVideoSizeChange = () => refreshVideoFace()
+  playback.element.addEventListener('loadedmetadata', handleVideoSizeChange)
+  playback.element.addEventListener('resize', handleVideoSizeChange)
+  const unsubscribeSourceChange = playback.subscribeSourceChange?.(refreshVideoFace)
   const outline = new Cesium.Primitive({
     geometryInstances: new Cesium.GeometryInstance({
       geometry: new Cesium.FrustumOutlineGeometry({
@@ -221,7 +315,6 @@ function createProjectionScene(
     }),
     asynchronous: false,
   })
-  viewer.scene.primitives.add(videoFace)
   viewer.scene.primitives.add(outline)
   setStatus('已绘制 60° × 40° 视锥，正在连接直播流')
   const stopRenderTicker = createContinuousRenderTicker(viewer)
@@ -231,7 +324,10 @@ function createProjectionScene(
     attribution: VIDEO_ATTRIBUTION,
     dispose() {
       stopRenderTicker()
-      destroyPrimitive(viewer, videoFace)
+      playback.element.removeEventListener('loadedmetadata', handleVideoSizeChange)
+      playback.element.removeEventListener('resize', handleVideoSizeChange)
+      unsubscribeSourceChange?.()
+      removeVideoFace()
       destroyPrimitive(viewer, outline)
       playback.dispose()
     },

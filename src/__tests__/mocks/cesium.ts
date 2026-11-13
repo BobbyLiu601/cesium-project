@@ -971,10 +971,23 @@ export const Matrix4 = {
   fromRotationTranslation: vi.fn<(rotation: unknown, translation: unknown) => unknown>(() => ({
     type: 'rotation-translation',
   })),
+  getMatrix3: vi.fn<(_matrix: unknown, result: unknown) => unknown>((_matrix, result) => result),
 }
 
-export const Matrix3 = {
-  fromQuaternion: vi.fn<(quaternion: unknown) => unknown>(() => ({ type: 'rotation' })),
+export class Matrix3 {
+  static fromQuaternion = vi.fn<(quaternion: unknown) => unknown>(() => ({ type: 'rotation' }))
+  static multiplyByVector = vi.fn<(_matrix: unknown, vector: unknown, result: unknown) => unknown>(
+    (_matrix, _vector, result) => result,
+  )
+  static setColumn = vi.fn<
+    (_matrix: unknown, index: number, vector: unknown, result: unknown) => unknown
+  >((_matrix, _index, _vector, result) => result)
+}
+
+export class Quaternion {
+  static fromRotationMatrix = vi.fn<(_matrix: unknown) => unknown>(() => ({
+    type: 'quaternion',
+  }))
 }
 
 export class ArcGISTiledElevationTerrainProvider implements MockElevationTerrainProvider {
@@ -1001,6 +1014,8 @@ export class ArcGISTiledElevationTerrainProvider implements MockElevationTerrain
 }
 
 export class Cartesian3 {
+  static UNIT_Z = new Cartesian3(0, 0, 1)
+
   static fromDegrees(longitude: number, latitude: number, height?: number) {
     return { longitude, latitude, height }
   }
@@ -1026,6 +1041,38 @@ export class Cartesian3 {
     public y: number,
     public z: number,
   ) {}
+
+  static magnitudeSquared(value: Cartesian3) {
+    return value.x ** 2 + value.y ** 2 + value.z ** 2
+  }
+
+  static cross(left: Cartesian3, right: Cartesian3, result = new Cartesian3(0, 0, 0)) {
+    result.x = left.y * right.z - left.z * right.y
+    result.y = left.z * right.x - left.x * right.z
+    result.z = left.x * right.y - left.y * right.x
+    return result
+  }
+
+  static normalize(value: Cartesian3, result = new Cartesian3(0, 0, 0)) {
+    const magnitude = globalThis.Math.sqrt(Cartesian3.magnitudeSquared(value))
+    if (magnitude === 0) {
+      result.x = 0
+      result.y = 0
+      result.z = 0
+      return result
+    }
+    result.x = value.x / magnitude
+    result.y = value.y / magnitude
+    result.z = value.z / magnitude
+    return result
+  }
+
+  static negate(value: Cartesian3, result = new Cartesian3(0, 0, 0)) {
+    result.x = -value.x
+    result.y = -value.y
+    result.z = -value.z
+    return result
+  }
 }
 
 export class Rectangle {
@@ -1145,6 +1192,10 @@ export function resetCesiumMock() {
   Transforms.headingPitchRollToFixedFrame.mockClear()
   Matrix4.fromRotationTranslation.mockClear()
   Matrix3.fromQuaternion.mockClear()
+  Matrix3.multiplyByVector.mockClear()
+  Matrix3.setColumn.mockClear()
+  Matrix4.getMatrix3.mockClear()
+  Quaternion.fromRotationMatrix.mockClear()
   SceneTransforms.worldToWindowCoordinates.mockClear()
   sampleTerrainMostDetailed.mockClear()
   buildModuleUrl.mockClear()
