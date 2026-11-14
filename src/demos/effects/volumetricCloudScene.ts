@@ -13,7 +13,7 @@ interface CloudPuffConfig {
   scaleX: number
   scaleY: number
   brightness: number
-  opacity: number
+  alpha: number
   rotation: number
 }
 
@@ -35,7 +35,7 @@ const CLOUD_PUFFS: readonly CloudPuffConfig[] = [
     scaleX: 1,
     scaleY: 1,
     brightness: 1,
-    opacity: 0.88,
+    alpha: 0.88,
     rotation: 0,
   },
 ]
@@ -44,14 +44,10 @@ interface CreateVolumetricCloudSceneOptions {
   setStatus: (message: string) => void
 }
 
-function createCloudColor(brightness: number, opacity: number) {
+function createCloudColor(brightness: number, alpha: number) {
   const clamped = Math.min(1, Math.max(0, brightness))
-  return new Cesium.Color(
-    0.9 + clamped * 0.1,
-    0.93 + clamped * 0.07,
-    1,
-    (0.32 + clamped * 0.68) * opacity,
-  )
+  const luminance = 0.1 + clamped * 0.9
+  return new Cesium.Color(luminance, luminance, luminance, alpha)
 }
 
 export function createVolumetricCloudScene(
@@ -61,7 +57,7 @@ export function createVolumetricCloudScene(
   const collection = new Cesium.BillboardCollection({ scene: viewer.scene })
   const clouds = CLOUD_PUFFS.map((puff) => {
     const billboard = collection.add({
-      color: createCloudColor(DEFAULT_CLOUD_BRIGHTNESS * puff.brightness, puff.opacity),
+      color: createCloudColor(DEFAULT_CLOUD_BRIGHTNESS * puff.brightness, puff.alpha),
       height: DEFAULT_CLOUD_SCALE.y * puff.scaleY,
       image: cloudSpriteUrl,
       position: Cesium.Cartesian3.fromDegrees(
@@ -102,7 +98,7 @@ export function createVolumetricCloudScene(
     setBrightness: (brightness) => {
       const clamped = Math.min(1, Math.max(0, brightness))
       clouds.forEach(({ billboard, config }) => {
-        billboard.color = createCloudColor(clamped * config.brightness, config.opacity)
+        billboard.color = createCloudColor(clamped * config.brightness, config.alpha)
       })
       refresh()
     },

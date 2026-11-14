@@ -141,12 +141,13 @@ describe('scene effects', () => {
     const scene = await createEffectsScene(asSceneViewer(viewer), 'volumetric-cloud', setStatus)
     const collection = billboardCollectionInstances[0]!
     const cloud = collection.items[0]!
-    const initialColor = cloud.color as { alpha: number }
+    const initialColor = cloud.color as { alpha: number; blue: number; green: number; red: number }
 
     expect(billboardCollectionInstances).toHaveLength(1)
     expect(collection.items).toHaveLength(1)
     expect(cloud).toMatchObject({ height: 350, sizeInMeters: true, width: 600 })
     expect(cloud.image).toEqual(expect.stringContaining('cumulus-cloud.png'))
+    expect(initialColor).toMatchObject({ blue: 1, green: 1, red: 1 })
     expect(initialColor.alpha).toBeCloseTo(0.88)
     expect(viewer.camera.flyTo).toHaveBeenCalledOnce()
     expect(statuses[statuses.length - 1]).toContain('可实时调整尺寸与亮度')
@@ -155,12 +156,16 @@ describe('scene effects', () => {
     scene.cloudControls?.setBrightness(0.42)
 
     expect(cloud).toMatchObject({ height: 80, width: 120 })
-    expect((cloud.color as { alpha: number }).alpha).toBeCloseTo((0.32 + 0.42 * 0.68) * 0.88)
+    const adjustedColor = cloud.color as { alpha: number; blue: number; green: number; red: number }
+    expect(adjustedColor.alpha).toBeCloseTo(0.88)
+    expect(adjustedColor.red).toBeCloseTo(0.478)
+    expect(adjustedColor.green).toBeCloseTo(0.478)
+    expect(adjustedColor.blue).toBeCloseTo(0.478)
 
     scene.cloudControls?.setScale(1, 9_999)
     scene.cloudControls?.setBrightness(-1)
     expect(cloud).toMatchObject({ height: 1_500, width: 5 })
-    expect((cloud.color as { alpha: number }).alpha).toBeCloseTo(0.32 * 0.88)
+    expect(cloud.color).toMatchObject({ alpha: 0.88, blue: 0.1, green: 0.1, red: 0.1 })
 
     scene.dispose()
     expect(collection.show).toBe(false)
