@@ -13,7 +13,7 @@ import { ElButton, ElDialog } from 'element-plus'
 import { FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 
 import { disposeActiveSession } from '@/components/cesiumGlobeSession'
-import type { FeatureItem } from '@/data/layers'
+import type { FeatureItem, FeatureKind } from '@/data/layers'
 
 const props = defineProps<{
   modelValue: boolean
@@ -24,6 +24,26 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   closed: []
 }>()
+
+const scenePropResolvers: Partial<
+  Record<FeatureKind, (feature: FeatureItem) => Record<string, unknown>>
+> = {
+  amap: () => ({ imagery: 'amap' }),
+  effects: (feature) => (feature.effectSceneId ? { sceneId: feature.effectSceneId } : {}),
+  model: (feature) => (feature.modelSceneId ? { sceneId: feature.modelSceneId } : {}),
+  spatial: (feature) => (feature.spatialSceneId ? { sceneId: feature.spatialSceneId } : {}),
+  vector: (feature) => (feature.sceneId ? { sceneId: feature.sceneId } : {}),
+}
+
+const sceneModuleLoaders: Record<FeatureKind, () => Promise<{ default: Component }>> = {
+  amap: () => import('@/components/CesiumGlobe.vue'),
+  effects: () => import('@/demos/EffectsDemoGlobe.vue'),
+  elevation: () => import('@/components/ElevationGlobe.vue'),
+  model: () => import('@/demos/ModelDemoGlobe.vue'),
+  spatial: () => import('@/demos/SpatialDemoGlobe.vue'),
+  tianditu: () => import('@/components/CesiumGlobe.vue'),
+  vector: () => import('@/demos/VectorDemoGlobe.vue'),
+}
 
 const sceneRef = ref<{ resize: () => void } | null>(null)
 const isFullscreen = ref(false)
@@ -42,29 +62,7 @@ const dialogVisible = computed({
   },
 })
 
-const sceneProps = computed(() => {
-  if (props.feature.kind === 'vector') {
-    return { sceneId: props.feature.sceneId }
-  }
-
-  if (props.feature.kind === 'model' && props.feature.modelSceneId) {
-    return { sceneId: props.feature.modelSceneId }
-  }
-
-  if (props.feature.kind === 'spatial' && props.feature.spatialSceneId) {
-    return { sceneId: props.feature.spatialSceneId }
-  }
-
-  if (props.feature.kind === 'effects' && props.feature.effectSceneId) {
-    return { sceneId: props.feature.effectSceneId }
-  }
-
-  if (props.feature.kind === 'amap') {
-    return { imagery: 'amap' as const }
-  }
-
-  return {}
-})
+const sceneProps = computed(() => scenePropResolvers[props.feature.kind]?.(props.feature) ?? {})
 
 async function loadScene() {
   if (sceneReady.value || loadFailed.value) {
@@ -73,18 +71,7 @@ async function loadScene() {
 
   pendingSceneLoad ??= (async () => {
     try {
-      const module =
-        props.feature.kind === 'vector'
-          ? await import('@/demos/VectorDemoGlobe.vue')
-          : props.feature.kind === 'model'
-            ? await import('@/demos/ModelDemoGlobe.vue')
-            : props.feature.kind === 'spatial'
-              ? await import('@/demos/SpatialDemoGlobe.vue')
-              : props.feature.kind === 'effects'
-                ? await import('@/demos/EffectsDemoGlobe.vue')
-                : props.feature.kind === 'elevation'
-                  ? await import('@/components/ElevationGlobe.vue')
-                  : await import('@/components/CesiumGlobe.vue')
+      const module = await sceneModuleLoaders[props.feature.kind]()
 
       loadedSceneComponent = markRaw(module.default)
       sceneReady.value = true

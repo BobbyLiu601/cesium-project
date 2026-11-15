@@ -20,12 +20,56 @@ export interface CreateEffectsSceneOptions {
   signal?: AbortSignal
 }
 
-const statusLabels: Record<EffectSceneId, string> = {
-  'height-fog': '正在准备高度雾场景…',
-  lightning: '正在准备雨幕与闪电场景…',
-  'near-ground-skybox': '正在准备近地天空盒…',
-  skybox: '正在准备六面天空盒…',
-  'volumetric-cloud': '正在准备体积云场景…',
+export interface EffectSceneControls {
+  audio: boolean
+  cloud: boolean
+  nearGround: boolean
+}
+
+export interface EffectSceneDefinition {
+  controls: EffectSceneControls
+  initialStatus: string
+  create: (
+    viewer: Viewer,
+    setStatus: (message: string) => void,
+    options: CreateEffectsSceneOptions,
+  ) => EffectsScene | Promise<EffectsScene>
+}
+
+export const EFFECT_SCENE_DEFINITIONS: Record<EffectSceneId, EffectSceneDefinition> = {
+  'height-fog': {
+    controls: { audio: false, cloud: false, nearGround: false },
+    create: (viewer, setStatus, options) =>
+      createHeightFogScene(viewer, {
+        setStatus,
+        signal: options.signal,
+      }),
+    initialStatus: '正在准备高度雾场景…',
+  },
+  lightning: {
+    controls: { audio: true, cloud: false, nearGround: false },
+    create: (viewer, setStatus, options) =>
+      createLightningScene(viewer, {
+        createAudio: options.createAudio,
+        setStatus,
+      }),
+    initialStatus: '正在准备雨幕与闪电场景…',
+  },
+  'near-ground-skybox': {
+    controls: { audio: false, cloud: false, nearGround: true },
+    create: (viewer, setStatus) => createNearGroundSkyboxScene(viewer, { setStatus }),
+    initialStatus: '正在准备近地天空盒…',
+  },
+  skybox: {
+    controls: { audio: false, cloud: false, nearGround: false },
+    create: (viewer, setStatus) => createSkyboxScene(viewer, setStatus),
+    initialStatus: '正在准备六面天空盒…',
+  },
+  'volumetric-cloud': {
+    controls: { audio: false, cloud: true, nearGround: false },
+    create: (viewer, setStatus) => createVolumetricCloudScene(viewer, { setStatus }),
+    initialStatus: '正在准备体积云场景…',
+  },
 }
 
 export async function createEffectsScene(
@@ -34,24 +78,7 @@ export async function createEffectsScene(
   setStatus: (message: string) => void,
   options: CreateEffectsSceneOptions = {},
 ): Promise<EffectsScene> {
-  setStatus(statusLabels[sceneId])
-
-  switch (sceneId) {
-    case 'skybox':
-      return createSkyboxScene(viewer, setStatus)
-    case 'near-ground-skybox':
-      return createNearGroundSkyboxScene(viewer, { setStatus })
-    case 'volumetric-cloud':
-      return createVolumetricCloudScene(viewer, { setStatus })
-    case 'lightning':
-      return createLightningScene(viewer, {
-        createAudio: options.createAudio,
-        setStatus,
-      })
-    case 'height-fog':
-      return createHeightFogScene(viewer, {
-        setStatus,
-        signal: options.signal,
-      })
-  }
+  const definition = EFFECT_SCENE_DEFINITIONS[sceneId]
+  setStatus(definition.initialStatus)
+  return definition.create(viewer, setStatus, options)
 }

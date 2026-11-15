@@ -3,7 +3,12 @@ import { computed, ref, watch } from 'vue'
 import { ElButton, ElSlider } from 'element-plus'
 
 import type { EffectSceneId } from '@/data/layers'
-import { createEffectsScene, type EffectsScene, type ThunderAudioState } from '@/demos/effectsScene'
+import {
+  EFFECT_SCENE_DEFINITIONS,
+  createEffectsScene,
+  type EffectsScene,
+  type ThunderAudioState,
+} from '@/demos/effectsScene'
 import { DEFAULT_CLOUD_SCALE } from '@/demos/effects/volumetricCloudScene'
 import { useDemoGlobe } from '@/demos/useDemoGlobe'
 
@@ -30,27 +35,27 @@ const { actions, resize, runAction, scene, sceneState, statusMessage } = useDemo
 })
 
 const effectScene = computed(() => scene.value as EffectsScene | undefined)
-const isCloudScene = computed(() => props.sceneId === 'volumetric-cloud')
-const isNearGroundScene = computed(() => props.sceneId === 'near-ground-skybox')
-const nearGroundMode = computed(
-  () => effectScene.value?.nearGroundControls?.mode.value ?? 'near-ground',
-)
-const audioState = computed<ThunderAudioState | undefined>(
-  () => effectScene.value?.audioState?.value,
-)
-
-const audioMessage = computed(() => {
-  switch (audioState.value) {
-    case 'playing':
-      return '雷声自动播放中，循环音轨已开启'
-    case 'blocked':
-      return '浏览器阻止了自动播放，请点击“重新播放雷声”'
-    case 'error':
-      return '当前浏览器无法播放雷声'
-    default:
-      return '正在尝试自动播放雷声…'
-  }
+const effectDefinition = computed(() => EFFECT_SCENE_DEFINITIONS[props.sceneId])
+const isCloudScene = computed(() => effectDefinition.value.controls.cloud)
+const isNearGroundScene = computed(() => effectDefinition.value.controls.nearGround)
+const nearGroundMode = computed(() => {
+  const mode = effectScene.value?.nearGroundMode
+  return mode?.value ?? 'near-ground'
 })
+const audioState = computed<ThunderAudioState | undefined>(() => {
+  const activeScene = effectScene.value
+  return activeScene ? activeScene.audioState?.value : undefined
+})
+const canRetryAudio = computed(() => audioState.value === 'blocked')
+
+const audioMessages: Record<ThunderAudioState, string> = {
+  blocked: '浏览器阻止了自动播放，请点击“重新播放雷声”',
+  error: '当前浏览器无法播放雷声，已保留闪电画面',
+  idle: '正在尝试自动播放雷声…',
+  playing: '雷声自动播放中，循环音轨已开启',
+}
+
+const audioMessage = computed(() => (audioState.value ? audioMessages[audioState.value] : ''))
 
 function applyCloudParameters() {
   const controls = effectScene.value?.cloudControls
@@ -148,12 +153,7 @@ defineExpose({ resize })
         <p :role="audioState === 'blocked' || audioState === 'error' ? 'alert' : undefined">
           {{ audioMessage }}
         </p>
-        <ElButton
-          v-if="audioState === 'blocked' || audioState === 'error'"
-          size="small"
-          type="primary"
-          @click="retryAudio"
-        >
+        <ElButton v-if="canRetryAudio" size="small" type="primary" @click="retryAudio">
           重新播放雷声
         </ElButton>
       </div>

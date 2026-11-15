@@ -104,7 +104,7 @@ describe('scene effects', () => {
     const scene = createNearGroundSkyboxScene(asSceneViewer(viewer), { setStatus })
     const skyBox = skyBoxInstances[0]!
 
-    expect(scene.nearGroundControls?.mode.value).toBe('near-ground')
+    expect(scene.nearGroundMode?.value).toBe('near-ground')
     expect(viewer.scene.skyBox).toBe(skyBox)
     expect(viewer.scene.skyAtmosphere?.show).toBe(false)
     expect(viewer.scene.postRender.listeners.size).toBe(1)
@@ -112,7 +112,7 @@ describe('scene effects', () => {
     viewer.camera.positionCartographic.height = NEAR_GROUND_SKYBOX_THRESHOLD + 1
     viewer.scene.postRender.raiseEvent()
 
-    expect(scene.nearGroundControls?.mode.value).toBe('atmosphere')
+    expect(scene.nearGroundMode?.value).toBe('atmosphere')
     expect(viewer.scene.skyBox).toBe(originalSkyBox)
     expect(viewer.scene.skyAtmosphere?.show).toBe(true)
     expect(statuses[statuses.length - 1]).toContain('恢复标准天空与大气')
@@ -124,7 +124,7 @@ describe('scene effects', () => {
       }
     })
     await scene.actions[0]?.run()
-    expect(scene.nearGroundControls?.mode.value).toBe('near-ground')
+    expect(scene.nearGroundMode?.value).toBe('near-ground')
     expect(viewer.scene.skyBox).toBe(skyBox)
 
     scene.dispose()
@@ -222,19 +222,14 @@ describe('scene effects', () => {
   it('reports blocked thunder playback and succeeds when retried', async () => {
     const play = vi
       .fn<() => Promise<void>>()
-      .mockRejectedValueOnce(new Error('autoplay blocked'))
+      .mockRejectedValueOnce(new DOMException('autoplay blocked', 'NotAllowedError'))
       .mockResolvedValueOnce(undefined)
-    const audioElement = {
-      load: vi.fn<() => void>(),
-      loop: false,
-      pause: vi.fn<() => void>(),
+    const engine = {
+      dispose: vi.fn<() => void>(),
       play,
-      preload: '',
-      removeAttribute: vi.fn<(name: string) => void>(),
-      volume: 1,
-    } as unknown as HTMLAudioElement
+    }
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const audio = createThunderAudio({ createElement: () => audioElement })
+    const audio = createThunderAudio({ createEngine: () => engine })
 
     await audio.play()
     expect(audio.state.value).toBe('blocked')
@@ -242,15 +237,21 @@ describe('scene effects', () => {
 
     await audio.play()
     expect(audio.state.value).toBe('playing')
-    expect(audioElement.loop).toBe(true)
-    expect(audioElement.preload).toBe('auto')
-    expect(audioElement.volume).toBe(0.72)
+    expect(engine.play).toHaveBeenCalledTimes(2)
 
     audio.dispose()
-    expect(audioElement.pause).toHaveBeenCalledOnce()
-    expect(audioElement.removeAttribute).toHaveBeenCalledWith('src')
-    expect(audioElement.load).toHaveBeenCalledOnce()
+    expect(engine.dispose).toHaveBeenCalledOnce()
     expect(audio.state.value).toBe('idle')
+  })
+
+  it('reports unsupported Web Audio as a non-retryable error', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const audio = createThunderAudio({ createEngine: () => undefined })
+
+    await audio.play()
+
+    expect(audio.state.value).toBe('error')
+    expect(consoleWarn).toHaveBeenCalledOnce()
   })
 
   it('loads terrain for height fog and destroys its post-process stage on dispose', async () => {

@@ -17,15 +17,9 @@ export interface VolumetricCloudControls {
 
 export type NearGroundMode = 'near-ground' | 'atmosphere'
 
-export interface NearGroundSkyboxControls {
-  mode: Ref<NearGroundMode>
-  focusLow: () => void
-  focusHigh: () => void
-}
-
 export interface EffectsScene extends DemoScene {
   audioState?: Ref<ThunderAudioState>
   cloudControls?: VolumetricCloudControls
-  nearGroundControls?: NearGroundSkyboxControls
+  nearGroundMode?: Ref<NearGroundMode>
   retryAudio?: () => Promise<void>
 }

@@ -2,6 +2,39 @@ import * as Cesium from 'cesium'
 
 const TERRAIN_TIMEOUT_MS = 9_000
 
+export interface SceneSkyBoxSources {
+  negativeX: string
+  negativeY: string
+  negativeZ: string
+  positiveX: string
+  positiveY: string
+  positiveZ: string
+}
+
+export function prepareSceneSkyBox(viewer: Cesium.Viewer, sources: SceneSkyBoxSources) {
+  const originalSkyBox = viewer.scene.skyBox
+  const skyBox = new Cesium.SkyBox({ sources })
+
+  return {
+    dispose: () => {
+      if (viewer.scene.skyBox === skyBox) {
+        viewer.scene.skyBox = originalSkyBox
+      }
+      if (typeof skyBox.isDestroyed !== 'function' || !skyBox.isDestroyed()) {
+        skyBox.destroy?.()
+      }
+    },
+    install: () => {
+      viewer.scene.skyBox = skyBox
+    },
+    originalSkyBox,
+    restoreOriginal: () => {
+      viewer.scene.skyBox = originalSkyBox
+    },
+    skyBox,
+  }
+}
+
 export function createEffectAbortError() {
   return new DOMException('场景特效加载已取消', 'AbortError')
 }

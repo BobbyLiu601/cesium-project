@@ -6,6 +6,7 @@ import negativeZ from '@/assets/skyboxes/sky/negative-z.jpg'
 import positiveX from '@/assets/skyboxes/sky/positive-x.jpg'
 import positiveY from '@/assets/skyboxes/sky/positive-y.jpg'
 import positiveZ from '@/assets/skyboxes/sky/positive-z.jpg'
+import { prepareSceneSkyBox } from '@/demos/effects/shared'
 import type { EffectsScene } from '@/demos/effects/types'
 
 export interface EffectStatusReporter {
@@ -16,19 +17,16 @@ export function createSkyboxScene(
   viewer: Cesium.Viewer,
   setStatus: EffectStatusReporter,
 ): EffectsScene {
-  const originalSkyBox = viewer.scene.skyBox
-  const skyBox = new Cesium.SkyBox({
-    sources: {
-      negativeX,
-      negativeY,
-      negativeZ,
-      positiveX,
-      positiveY,
-      positiveZ,
-    },
+  const sceneSkyBox = prepareSceneSkyBox(viewer, {
+    negativeX,
+    negativeY,
+    negativeZ,
+    positiveX,
+    positiveY,
+    positiveZ,
   })
 
-  viewer.scene.skyBox = skyBox
+  sceneSkyBox.install()
   viewer.scene.globe.depthTestAgainstTerrain = true
   viewer.camera.setView({
     destination: Cesium.Cartesian3.fromDegrees(-95.166493, 39.9060534, 20_000_000),
@@ -37,11 +35,6 @@ export function createSkyboxScene(
 
   return {
     actions: [],
-    dispose: () => {
-      viewer.scene.skyBox = originalSkyBox
-      if (typeof skyBox.isDestroyed !== 'function' || !skyBox.isDestroyed()) {
-        skyBox.destroy?.()
-      }
-    },
+    dispose: sceneSkyBox.dispose,
   }
 }

@@ -841,6 +841,25 @@ describe('App', () => {
     wrapper.unmount()
   })
 
+  it('does not offer an ineffective thunder retry when Web Audio is unavailable', async () => {
+    const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const wrapper = await mountAt('/effects/scene/3-1-4-lightning')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    const globe = wrapper.get('[data-testid="effects-demo-globe"]')
+    await vi.waitFor(() => {
+      expect(globe.attributes('data-audio-state')).toBe('error')
+    })
+
+    expect(globe.text()).toContain('当前浏览器无法播放雷声')
+    expect(globe.findAll('button').some((button) => button.text() === '重新播放雷声')).toBe(false)
+    expect(consoleWarn).toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
   it('does not redirect the renamed spatial-analysis addresses', async () => {
     const wrapper = await mountAt('/spatial-analysis/2-1-13-aspect-analysis')
 

@@ -7,7 +7,8 @@ import negativeZ from '@/assets/skyboxes/near-ground/negative-z.jpg'
 import positiveX from '@/assets/skyboxes/near-ground/positive-x.jpg'
 import positiveY from '@/assets/skyboxes/near-ground/positive-y.jpg'
 import positiveZ from '@/assets/skyboxes/near-ground/positive-z.jpg'
-import type { EffectsScene, NearGroundMode, NearGroundSkyboxControls } from '@/demos/effects/types'
+import { prepareSceneSkyBox } from '@/demos/effects/shared'
+import type { EffectsScene, NearGroundMode } from '@/demos/effects/types'
 
 export const NEAR_GROUND_SKYBOX_THRESHOLD = 225_705
 
@@ -19,17 +20,14 @@ export function createNearGroundSkyboxScene(
   viewer: Cesium.Viewer,
   { setStatus }: CreateNearGroundSkyboxSceneOptions,
 ): EffectsScene {
-  const originalSkyBox = viewer.scene.skyBox
   const originalAtmosphereVisibility = viewer.scene.skyAtmosphere?.show ?? true
-  const nearGroundSkyBox = new Cesium.SkyBox({
-    sources: {
-      negativeX,
-      negativeY,
-      negativeZ,
-      positiveX,
-      positiveY,
-      positiveZ,
-    },
+  const sceneSkyBox = prepareSceneSkyBox(viewer, {
+    negativeX,
+    negativeY,
+    negativeZ,
+    positiveX,
+    positiveY,
+    positiveZ,
   })
   const mode = ref<NearGroundMode>('near-ground')
 
@@ -44,7 +42,8 @@ export function createNearGroundSkyboxScene(
       )
     }
 
-    viewer.scene.skyBox = nextMode === 'near-ground' ? nearGroundSkyBox : originalSkyBox
+    viewer.scene.skyBox =
+      nextMode === 'near-ground' ? sceneSkyBox.skyBox : sceneSkyBox.originalSkyBox
     if (viewer.scene.skyAtmosphere) {
       viewer.scene.skyAtmosphere.show = nextMode !== 'near-ground'
     }
@@ -80,12 +79,6 @@ export function createNearGroundSkyboxScene(
     viewer.scene.requestRender()
   }
 
-  const controls: NearGroundSkyboxControls = {
-    focusHigh,
-    focusLow,
-    mode,
-  }
-
   viewer.scene.globe.depthTestAgainstTerrain = true
   viewer.scene.postRender.addEventListener(updateVisibility)
   focusLow()
@@ -106,14 +99,12 @@ export function createNearGroundSkyboxScene(
     ],
     dispose: () => {
       viewer.scene.postRender.removeEventListener(updateVisibility)
-      viewer.scene.skyBox = originalSkyBox
+      sceneSkyBox.restoreOriginal()
       if (viewer.scene.skyAtmosphere) {
         viewer.scene.skyAtmosphere.show = originalAtmosphereVisibility
       }
-      if (typeof nearGroundSkyBox.isDestroyed !== 'function' || !nearGroundSkyBox.isDestroyed()) {
-        nearGroundSkyBox.destroy?.()
-      }
+      sceneSkyBox.dispose()
     },
-    nearGroundControls: controls,
+    nearGroundMode: mode,
   }
 }
