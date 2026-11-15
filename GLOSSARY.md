@@ -71,3 +71,27 @@ _Avoid_: 服务端秘密、私有 API Key
 **构建时注入**：
 在构建阶段将配置写入静态产物；修改后必须重新构建，不等同于浏览器运行时读取配置。
 _Avoid_: 运行时配置、服务端注入
+
+**执行模式（Execution Mode）**：
+Multica 描述任务如何使用本地 Git 仓库的策略；当前包括 in-place 和 worktree 两种模式。
+_Avoid_: 工作模式、目录类型
+
+**in-place 执行模式（in_place）**：
+所有任务直接使用同一个本地工作目录，并按目录互斥串行执行。
+_Avoid_: 原地模式、共享目录模式
+
+**worktree 执行模式（worktree）**：
+每个任务使用独立 Git 工作树，并与同一 Issue 的后续轮次共享平台任务分支。
+_Avoid_: 克隆模式、并行目录模式
+
+**任务工作树（Task Worktree）**：
+Multica 为单个任务或会话创建的独立 Git 工作树，用于隔离文件修改和并发执行。
+_Avoid_: 临时目录、副本目录
+
+**平台任务分支（Platform Task Branch）**：
+worktree 模式下由 Multica 创建并跨轮次复用的 Git 分支，是任务续写的归属依据。
+_Avoid_: 内部占位分支、随机分支
+
+**交付分支（Delivery Branch）**：
+项目用于审查和交付的 Git 分支；worktree 模式下与对应平台任务分支指向同一提交。
+_Avoid_: 发布分支、合并分支

@@ -74,12 +74,16 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 
 ## Git 分支与交付
 
-- 一个 Issue 使用一个任务分支；同一 Issue 的多轮执行复用该分支。只读调查、问答和评审不创建分支。
-- 开始修改前确认工作区干净，执行 `git fetch origin`，从最新的 `origin/main` 创建任务分支。`main` 有未提交改动时停止并询问，不自动 stash、提交或迁移这些改动。
-- 分支名使用 `<type>/<issue-key>-<slug>`，`type` 取 `feat`、`fix`、`docs`、`chore`、`refactor` 或 `test`，其余部分使用小写 ASCII 和连字符。例如：`fix/alcy-35-git-branch-policy`。
-- 每次有文件改动的执行必须在交付前提交到任务分支，覆盖代码、文档和配置。提交应围绕一个完整目的；任务过程中可以保留临时状态，但交付时不得遗留应提交的未提交改动。
-- 任务完成后默认推送任务分支并设置其 upstream，交付分支名和提交哈希。`main` 保持不变，不自动创建 PR，也不自动合并。
-- 已推送的任务分支不因每次交付自动 rebase。只有用户要求同步或明确授权合并时，才 rebase 到最新 `origin/main`，解决冲突后重新运行 `pnpm verify`；需要更新已推送的任务分支时只用 `git push --force-with-lease origin <任务分支>`，不得强制推送 `main`，不得使用 `git reset --hard`。
+- 一个 Issue 使用一条持续的工作线；同一 Issue 的多轮执行复用同一组任务分支。只读调查、问答和评审不创建分支。
+- 开始修改前确认工作区干净，执行 `git fetch origin`，从最新的 `origin/main` 准备任务。`in_place` 模式创建交付分支；`worktree` 模式由 Multica 创建平台任务分支。`main` 有未提交改动时停止并询问，不自动 stash、提交或迁移这些改动。
+- 交付分支名使用 `<type>/<issue-key>-<slug>`，`type` 取 `feat`、`fix`、`docs`、`chore`、`refactor` 或 `test`，其余部分使用小写 ASCII 和连字符。例如：`fix/alcy-35-git-branch-policy`。
+- `in_place` 执行模式直接使用交付分支。`worktree` 执行模式由 Multica 创建并复用平台任务分支；该分支是后续轮次的归属依据，不得手工改名、删除或替换。交付时另行维护指向同一提交的交付分支，详见 ADR 0007。
+- 交付分支首次创建时从平台任务分支当前提交建立；已存在时只允许快进到平台任务分支。两者无法快进到同一提交时停止并询问，不使用强推掩盖分叉。
+- 新 worktree 不继承 `.env`、`node_modules`、`.cache` 等被忽略文件。执行任务先运行 `pnpm install --frozen-lockfile`；需要真实天地图 token 时由执行者临时提供，不自动复制本地密钥。
+- 每次有文件改动的执行必须在交付前提交到当前平台任务分支或交付分支，覆盖代码、文档和配置。提交应围绕一个完整目的；任务过程中可以保留临时状态，但交付时不得遗留应提交的未提交改动。
+- 任务完成后默认推送交付分支并设置其 upstream，交付平台任务分支名、交付分支名和相同提交哈希。`main` 保持不变，不自动创建 PR，也不自动合并。
+- 已推送的交付分支不因每次交付自动 rebase。只有用户要求同步或明确授权合并时，才 rebase 到最新 `origin/main`，解决冲突后重新运行 `pnpm verify`；需要更新已推送的交付分支时只用 `git push --force-with-lease origin <交付分支>`，不得强制推送 `main`，不得使用 `git reset --hard`。
+- 不手工 rebase 或强推 Multica 管理的工作树分支；需要同步时先确认平台仍能按归属记录续写。
 
 ### 本地 Git 守卫
 
