@@ -11,8 +11,10 @@ import {
   CircleEmitter,
   ConeEmitter,
   Viewer,
+  cesiumMockState,
   particleEmitterInstances,
   particleSystemInstances,
+  particleTextureRequests,
   resetCesiumMock,
   scenePrimitiveRemoves,
 } from './mocks/cesium'
@@ -106,11 +108,11 @@ describe('particle scenes', () => {
 
   it.each(particleCases)(
     'creates the $id scene with reference parameters and pause semantics',
-    ({ id, texture, emitter, emitterValue, startColor, endColor, gravity, height }) => {
+    async ({ id, texture, emitter, emitterValue, startColor, endColor, gravity, height }) => {
       const viewer = createViewer()
       const { setStatus, statuses } = collectStatus()
 
-      const scene = createParticleScene(asSceneViewer(viewer), id, setStatus)
+      const scene = await createParticleScene(asSceneViewer(viewer), id, setStatus)
       const system = particleSystemInstances[0]!
       const options = system.options as Record<string, unknown>
       const createdEmitter = particleEmitterInstances[0]!
@@ -143,6 +145,7 @@ describe('particle scenes', () => {
       expect(viewer.clock.shouldAnimate).toBe(true)
       expect(viewer.scene.requestRenderMode).toBe(false)
       expect(viewer.scene.globe.depthTestAgainstTerrain).toBe(false)
+      expect(particleTextureRequests[0]).toContain(texture)
       expect(entity.position?.getValue()).toMatchObject({ height })
       expect(viewer.camera.setView).toHaveBeenCalledWith({
         destination: {
@@ -184,9 +187,13 @@ describe('particle scenes', () => {
     },
   )
 
-  it('applies the water jet gravity callback in the reference direction', () => {
+  it('applies the water jet gravity callback in the reference direction', async () => {
     const viewer = createViewer()
-    const scene = createParticleScene(asSceneViewer(viewer), 'particle-water-gun', () => undefined)
+    const scene = await createParticleScene(
+      asSceneViewer(viewer),
+      'particle-water-gun',
+      () => undefined,
+    )
     const options = particleSystemInstances[0]!.options as {
       updateCallback: (particle: { position: Cartesian3; velocity: Cartesian3 }, dt: number) => void
     }
@@ -204,13 +211,17 @@ describe('particle scenes', () => {
     scene.dispose()
   })
 
-  it('restores the previous clock and render state after dispose', () => {
+  it('restores the previous clock and render state after dispose', async () => {
     const viewer = createViewer()
     viewer.clock.shouldAnimate = true
     viewer.scene.requestRenderMode = false
     viewer.scene.globe.depthTestAgainstTerrain = true
 
-    const scene = createParticleScene(asSceneViewer(viewer), 'particle-smoke', () => undefined)
+    const scene = await createParticleScene(
+      asSceneViewer(viewer),
+      'particle-smoke',
+      () => undefined,
+    )
 
     expect(viewer.scene.globe.depthTestAgainstTerrain).toBe(false)
     scene.dispose()
@@ -218,6 +229,20 @@ describe('particle scenes', () => {
     expect(viewer.clock.shouldAnimate).toBe(true)
     expect(viewer.scene.requestRenderMode).toBe(false)
     expect(viewer.scene.globe.depthTestAgainstTerrain).toBe(true)
+  })
+
+  it('rejects before creating scene resources when the local texture cannot load', async () => {
+    const viewer = createViewer()
+    cesiumMockState.particleTextureOutcome = 'failure'
+
+    await expect(
+      createParticleScene(asSceneViewer(viewer), 'particle-fire', () => undefined),
+    ).rejects.toThrow('mock particle texture failure')
+
+    expect(particleSystemInstances).toHaveLength(0)
+    expect(viewer.entities.values).toHaveLength(0)
+    expect(viewer.scene.preUpdate.listeners.size).toBe(0)
+    expect(viewer.camera.setView).not.toHaveBeenCalled()
   })
 })
 

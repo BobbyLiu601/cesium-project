@@ -90,12 +90,26 @@ function createGravityCallback(mode: Exclude<GravityMode, 'none'>) {
   }
 }
 
-export function createParticleScene(
+async function loadParticleTexture(image: string) {
+  const request = Cesium.Resource.fetchImage({
+    preferImageBitmap: false,
+    url: image,
+  })
+  if (!request) {
+    throw new Error('粒子纹理请求未能启动')
+  }
+
+  await request
+}
+
+export async function createParticleScene(
   viewer: Cesium.Viewer,
   sceneId: ParticleSceneId,
   setStatus: (message: string) => void,
-): ParticleEffectsScene {
+): Promise<ParticleEffectsScene> {
   const definition = PARTICLE_SCENE_DEFINITIONS[sceneId]
+  await loadParticleTexture(definition.image)
+
   const originalRequestRenderMode = viewer.scene.requestRenderMode
   const originalShouldAnimate = viewer.clock.shouldAnimate
   const originalDepthTest = viewer.scene.globe.depthTestAgainstTerrain

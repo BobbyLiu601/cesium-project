@@ -13,7 +13,7 @@ const props = defineProps<{
 
 const container = ref<HTMLDivElement | null>(null)
 
-const { resize, scene, sceneState, statusMessage } = useDemoGlobe({
+const { imageryState, resize, scene, sceneState, statusMessage } = useDemoGlobe({
   actionErrorLabel: '粒子效果示例操作失败',
   container,
   creditTestId: 'particle-credit-container',
@@ -51,6 +51,7 @@ defineExpose({ resize })
     data-testid="particle-demo-globe"
     :data-scene-id="sceneId"
     :data-cesium-state="sceneState"
+    :data-imagery-state="imageryState"
     :data-paused="paused"
   >
     <div ref="container" class="particle-demo-globe__canvas"></div>
@@ -63,6 +64,9 @@ defineExpose({ resize })
 
     <div v-if="sceneState === 'ready'" class="particle-demo-globe__toolbar">
       <p class="particle-demo-globe__status" aria-live="polite">{{ statusMessage }}</p>
+      <p v-if="imageryState === 'unavailable'" class="particle-demo-globe__imagery-note">
+        天地图影像不可用，粒子效果已独立加载
+      </p>
       <ElButton
         class="particle-demo-globe__toggle"
         size="small"
@@ -131,6 +135,14 @@ defineExpose({ resize })
   font-size: 13px;
   line-height: 1.55;
   color: #e4edf5;
+}
+
+.particle-demo-globe__imagery-note {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #f0c88b;
 }
 
 .particle-demo-globe__notice {
