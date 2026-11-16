@@ -65,25 +65,26 @@ GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.git
 
 ## 常用命令
 
-| 命令                  | 说明                                                      |
-| --------------------- | --------------------------------------------------------- |
-| `pnpm dev`            | 启动开发服务器                                            |
-| `pnpm build`          | 类型检查、构建生产版本并执行包体门禁                      |
-| `pnpm build:pages`    | 使用 Pages 基路径构建并生成 `404.html`                    |
-| `pnpm preview`        | 本地预览生产构建                                          |
-| `pnpm lint`           | 运行 oxlint 与 ESLint                                     |
-| `pnpm format`         | 使用 Prettier 格式化代码                                  |
-| `pnpm format:check`   | 检查格式是否符合 Prettier 规则                            |
-| `pnpm type-check`     | 使用 vue-tsc 做类型检查                                   |
-| `pnpm test`           | 运行单元测试                                              |
-| `pnpm test:unit`      | 运行单元测试（与 `pnpm test` 等价）                       |
-| `pnpm test:e2e`       | 运行 Playwright 浏览器测试                                |
-| `pnpm check:secrets`  | 扫描工作区中的疑似凭据                                    |
-| `pnpm check:template` | 校验 Vue 模板的按钮内容模型                               |
-| `pnpm check:bundle`   | 检查生产构建的 Cesium 边界与入口包体                      |
-| `pnpm check:pages`    | 检查 Pages 产物基路径、子路由回退和 Cesium 静态资源       |
-| `pnpm verify`         | 运行 lint、格式、类型、测试、密钥扫描、生产构建与包体门禁 |
-| `pnpm verify:pages`   | 构建 Pages 产物并执行 Pages 专用检查                      |
+| 命令                   | 说明                                                      |
+| ---------------------- | --------------------------------------------------------- |
+| `pnpm dev`             | 启动开发服务器                                            |
+| `pnpm build`           | 类型检查、构建生产版本并执行包体门禁                      |
+| `pnpm build:pages`     | 使用 Pages 基路径构建并生成 `404.html`                    |
+| `pnpm preview`         | 本地预览生产构建                                          |
+| `pnpm lint`            | 运行 oxlint 与 ESLint                                     |
+| `pnpm format`          | 使用 Prettier 格式化代码                                  |
+| `pnpm format:check`    | 检查格式是否符合 Prettier 规则                            |
+| `pnpm type-check`      | 使用 vue-tsc 做类型检查                                   |
+| `pnpm test`            | 运行单元测试                                              |
+| `pnpm test:unit`       | 运行单元测试（与 `pnpm test` 等价）                       |
+| `pnpm test:e2e`        | 运行 Playwright 浏览器测试                                |
+| `pnpm check:secrets`   | 扫描工作区中的疑似凭据                                    |
+| `pnpm check:template`  | 校验 Vue 模板的按钮内容模型                               |
+| `pnpm check:bundle`    | 检查生产构建的 Cesium 边界与入口包体                      |
+| `pnpm check:pages`     | 检查 Pages 产物基路径、子路由回退和 Cesium 静态资源       |
+| `pnpm finalize:branch` | 把临时 fallback 合并回持久任务分支并在安全时删除          |
+| `pnpm verify`          | 运行 lint、格式、类型、测试、密钥扫描、生产构建与包体门禁 |
+| `pnpm verify:pages`    | 构建 Pages 产物并执行 Pages 专用检查                      |
 
 ## 目录结构
 
@@ -113,6 +114,7 @@ GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.git
 - 新增页面时在 `src/views/` 中创建视图，并在 `src/router/index.ts` 注册路由。
 - 测试优先覆盖用户可观察行为，应用装配与路由使用应用级 seam 验证。
 - `pnpm install` 会安装 pre-commit 密钥扫描；完整扫描、包体门禁和模板校验都接入 `pnpm verify`。
+- `worktree` 任务的 fallback 分支在交付前使用 `pnpm finalize:branch` 收敛；未合并的 fallback 不允许推送。
 - CI 额外使用固定版本的 actionlint 检查 GitHub Actions workflow；Windows 本地不要求安装 Go。
 - 完整编码、验证与提交约定见 `docs/CODING_STANDARDS.md`。
 
