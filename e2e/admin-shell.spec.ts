@@ -113,6 +113,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '2.2、视频融合' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3、特效' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.1、场景特效' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '3.3、粒子效果' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -167,7 +168,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' }).locator('img'),
   ).toHaveAttribute('src', /2-2-2-video-projection-livestream/)
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(32)
+  await expect(page.getByTestId('feature-card')).toHaveCount(37)
   await expect(page.getByRole('button', { name: '打开3.1.1、天空盒' })).toContainText(
     '3.1.1、天空盒',
   )
@@ -180,6 +181,27 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开3.1.4、闪电' })).toContainText('3.1.4、闪电')
   await expect(page.getByRole('button', { name: '打开3.1.5、高度雾' })).toContainText(
     '3.1.5、高度雾',
+  )
+  await expect(page.getByRole('button', { name: '打开3.3.1、火焰' })).toContainText('3.3.1、火焰')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.1、火焰' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-1-fire/)
+  await expect(page.getByRole('button', { name: '打开3.3.2、水枪' })).toContainText('3.3.2、水枪')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.2、水枪' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-2-water-gun/)
+  await expect(page.getByRole('button', { name: '打开3.3.3、爆炸' })).toContainText('3.3.3、爆炸')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.3、爆炸' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-3-explosion/)
+  await expect(page.getByRole('button', { name: '打开3.3.4、喷雾' })).toContainText('3.3.4、喷雾')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.4、喷雾' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-4-spray/)
+  await expect(page.getByRole('button', { name: '打开3.3.5、烟' })).toContainText('3.3.5、烟')
+  await expect(page.getByRole('button', { name: '打开3.3.5、烟' }).locator('img')).toHaveAttribute(
+    'src',
+    /3-3-5-smoke/,
   )
   expect(
     await page
@@ -218,6 +240,11 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'volumetric-cloud',
     'lightning',
     'height-fog',
+    'particle-fire',
+    'particle-water-gun',
+    'particle-explosion',
+    'particle-spray',
+    'particle-smoke',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -804,7 +831,7 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '3.1、场景特效' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '3.3、粒子效果' })).toHaveAttribute(
     'aria-current',
     'location',
   )
@@ -1217,6 +1244,56 @@ test('五个场景特效深链均可打开并在关闭后返回对应卡片', as
     await expect(dialog).toBeHidden()
     await expect(page).toHaveURL(new RegExp(`/layers#${effect.id}$`))
     await expect(page.getByRole('button', { name: `打开${effect.title}` })).toBeFocused()
+  }
+})
+
+test('五个粒子效果深链可播放、暂停/继续并在关闭后返回对应卡片', async ({ page }) => {
+  test.setTimeout(180_000)
+
+  const particles = [
+    { id: 'particle-fire', route: '/effects/particle-effects/3-3-1-fire', title: '3.3.1、火焰' },
+    {
+      id: 'particle-water-gun',
+      route: '/effects/particle-effects/3-3-2-water-gun',
+      title: '3.3.2、水枪',
+    },
+    {
+      id: 'particle-explosion',
+      route: '/effects/particle-effects/3-3-3-explosion',
+      title: '3.3.3、爆炸',
+    },
+    {
+      id: 'particle-spray',
+      route: '/effects/particle-effects/3-3-4-spray',
+      title: '3.3.4、喷雾',
+    },
+    {
+      id: 'particle-smoke',
+      route: '/effects/particle-effects/3-3-5-smoke',
+      title: '3.3.5、烟',
+    },
+  ] as const
+
+  for (const particle of particles) {
+    await page.goto(particle.route)
+    const dialog = page.getByRole('dialog', { name: particle.title })
+    const globe = dialog.getByTestId('particle-demo-globe')
+    await expect(dialog).toBeVisible()
+    await expectCesiumReady(globe)
+    await expect(globe).toHaveAttribute('data-scene-id', particle.id)
+    await expect(globe).toHaveAttribute('data-paused', 'false')
+    await expect(globe.locator('canvas')).toBeVisible()
+
+    const pauseButton = globe.getByRole('button', { name: '暂停粒子效果' })
+    await pauseButton.click()
+    await expect(globe).toHaveAttribute('data-paused', 'true')
+    await globe.getByRole('button', { name: '继续粒子效果' }).click()
+    await expect(globe).toHaveAttribute('data-paused', 'false')
+
+    await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`/layers#${particle.id}$`))
+    await expect(page.getByRole('button', { name: `打开${particle.title}` })).toBeFocused()
   }
 })
 

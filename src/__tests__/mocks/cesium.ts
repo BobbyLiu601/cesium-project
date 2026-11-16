@@ -21,6 +21,7 @@ export interface MockViewer {
     flyTo: ReturnType<typeof vi.fn<(options: unknown) => void>>
   }
   scene: {
+    requestRenderMode: boolean
     requestRender: ReturnType<typeof vi.fn<() => void>>
     backgroundColor: unknown
     canvas: HTMLCanvasElement
@@ -70,6 +71,7 @@ export interface MockEntity {
   id: string
   name?: string
   show?: boolean
+  computeModelMatrix?: (time?: unknown, result?: unknown) => unknown
   position?: {
     getValue: (time?: unknown) => unknown
   }
@@ -159,6 +161,13 @@ export class MockEntityCollection {
           return [key, { getValue: () => rawValue }]
         }),
       )
+    }
+    if (typeof created.computeModelMatrix !== 'function') {
+      created.computeModelMatrix = (time?: unknown, result?: unknown) => ({
+        position: created.position?.getValue(time),
+        result,
+        type: 'model-matrix',
+      })
     }
     this.values.push(created)
     return created
@@ -257,6 +266,8 @@ export const terrainSampleRequests: unknown[][] = []
 export const modelInstances: MockModel[] = []
 export const postProcessStageInstances: PostProcessStage[] = []
 export const skyBoxInstances: SkyBox[] = []
+export const particleSystemInstances: ParticleSystem[] = []
+export const particleEmitterInstances: Array<ConeEmitter | CircleEmitter> = []
 export const cesiumMockState = {
   failNextViewer: false,
   failNextImageryLayer: false,
@@ -326,6 +337,7 @@ export class Viewer implements MockViewer {
   }
 
   scene = {
+    requestRenderMode: true,
     requestRender: vi.fn<() => void>(),
     backgroundColor: undefined as unknown,
     canvas: document.createElement('canvas'),
@@ -551,6 +563,34 @@ export class CloudCollection {
     this.clouds.push(cloud)
     return cloud
   })
+
+  destroy = vi.fn<() => void>(() => {
+    this.destroyed = true
+  })
+
+  isDestroyed = vi.fn<() => boolean>(() => this.destroyed)
+}
+
+export class ConeEmitter {
+  constructor(public angle: number) {
+    particleEmitterInstances.push(this)
+  }
+}
+
+export class CircleEmitter {
+  constructor(public radius: number) {
+    particleEmitterInstances.push(this)
+  }
+}
+
+export class ParticleSystem {
+  destroyed = false
+  modelMatrix: unknown
+  emitterModelMatrix: unknown
+
+  constructor(public options: Record<string, unknown>) {
+    particleSystemInstances.push(this)
+  }
 
   destroy = vi.fn<() => void>(() => {
     this.destroyed = true
@@ -1031,6 +1071,7 @@ export class Color {
   static DODGERBLUE = new Color(0.12, 0.56, 1, 1)
   static WHITE = new Color(1, 1, 1, 1)
   static MAGENTA = new Color(1, 0, 1, 1)
+  static BLACK = new Color(0, 0, 0, 1)
 
   static fromCssColorString(value: string) {
     return new Color(0.5, 0.5, 0.5, value.length > 8 ? 0.7 : 1)
@@ -1073,6 +1114,10 @@ export const Transforms = {
 
 export const Matrix4 = {
   IDENTITY: {},
+  fromTranslation: vi.fn<(translation: unknown) => unknown>((translation) => ({
+    translation,
+    type: 'translation',
+  })),
   fromRotationTranslation: vi.fn<(rotation: unknown, translation: unknown) => unknown>(() => ({
     type: 'rotation-translation',
   })),
@@ -1139,6 +1184,20 @@ export class Cartesian3 {
       positions.push(Cartesian3.fromDegrees(values[index]!, values[index + 1]!, values[index + 2]!))
     }
     return positions
+  }
+
+  static fromElements(x: number, y: number, z: number, result = new Cartesian3(0, 0, 0)) {
+    result.x = x
+    result.y = y
+    result.z = z
+    return result
+  }
+
+  static add(left: Cartesian3, right: Cartesian3, result = new Cartesian3(0, 0, 0)) {
+    result.x = left.x + right.x
+    result.y = left.y + right.y
+    result.z = left.z + right.z
+    return result
   }
 
   static magnitude(vector: Cartesian3) {
@@ -1285,6 +1344,8 @@ export function resetCesiumMock() {
   modelInstances.length = 0
   postProcessStageInstances.length = 0
   skyBoxInstances.length = 0
+  particleSystemInstances.length = 0
+  particleEmitterInstances.length = 0
   cesium3DTilesetInstances.length = 0
   cesium3DTilesetRequests.length = 0
   cesiumMockState.failNextViewer = false
@@ -1302,6 +1363,7 @@ export function resetCesiumMock() {
   Transforms.eastNorthUpToFixedFrame.mockClear()
   Transforms.headingPitchRollQuaternion.mockClear()
   Transforms.headingPitchRollToFixedFrame.mockClear()
+  Matrix4.fromTranslation.mockClear()
   Matrix4.fromRotationTranslation.mockClear()
   Matrix3.fromQuaternion.mockClear()
   Matrix3.multiplyByVector.mockClear()
