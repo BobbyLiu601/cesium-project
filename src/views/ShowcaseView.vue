@@ -6,7 +6,6 @@ import FeatureCard from '@/components/FeatureCard.vue'
 import FeatureDialog from '@/components/FeatureDialog.vue'
 import PageHeading from '@/components/PageHeading.vue'
 import {
-  effectSection,
   effectsMenuGroup,
   formatMenuGroupTitle,
   getFeatureById,
@@ -34,6 +33,7 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   spatial: 'spatial-grid',
   'video-fusion': 'video-fusion-grid',
   effects: 'effects-grid',
+  'special-shapes': 'special-shapes-grid',
 }
 
 async function openFeature(feature: FeatureItem) {
@@ -161,12 +161,7 @@ watch(
       </div>
     </section>
 
-    <section
-      id="effects"
-      class="showcase__section"
-      aria-labelledby="effects-heading"
-      data-navigation-anchor="effects"
-    >
+    <section class="showcase__section" aria-labelledby="effects-heading">
       <PageHeading
         heading-id="effects-heading"
         :icon="effectsMenuGroup.icon"
@@ -174,18 +169,25 @@ watch(
         :title="formatMenuGroupTitle(effectsMenuGroup)"
       />
 
-      <div class="showcase__group" :data-section-id="effectSection.id">
+      <div
+        v-for="section in effectsMenuGroup.sections"
+        :id="section.id"
+        :key="section.id"
+        class="showcase__group"
+        :data-section-id="section.id"
+        :data-navigation-anchor="section.id"
+      >
         <div class="showcase__group-heading">
-          <h2 :id="`${effectSection.id}-group-heading`" class="showcase__group-title">
-            {{ effectSection.code }}、{{ effectSection.title }}
+          <h2 :id="`${section.id}-group-heading`" class="showcase__group-title">
+            {{ section.code }}、{{ section.title }}
           </h2>
-          <span class="showcase__group-count">{{ effectSection.items.length }} 项</span>
+          <span class="showcase__group-count">{{ section.items.length }} 项</span>
         </div>
 
         <div class="showcase__body">
-          <div class="feature-grid" :data-testid="gridTestIds.effects">
+          <div class="feature-grid" :data-testid="gridTestIds[section.id]">
             <FeatureCard
-              v-for="feature in effectSection.items"
+              v-for="feature in section.items"
               :id="feature.id"
               :key="feature.id"
               :feature="feature"

@@ -32,6 +32,8 @@ const scenePropResolvers: Partial<
   effects: (feature) => (feature.effectSceneId ? { sceneId: feature.effectSceneId } : {}),
   model: (feature) => (feature.modelSceneId ? { sceneId: feature.modelSceneId } : {}),
   spatial: (feature) => (feature.spatialSceneId ? { sceneId: feature.spatialSceneId } : {}),
+  'special-shapes': (feature) =>
+    feature.specialShapeSceneId ? { sceneId: feature.specialShapeSceneId } : {},
   vector: (feature) => (feature.sceneId ? { sceneId: feature.sceneId } : {}),
 }
 
@@ -41,6 +43,7 @@ const sceneModuleLoaders: Record<FeatureKind, () => Promise<{ default: Component
   elevation: () => import('@/components/ElevationGlobe.vue'),
   model: () => import('@/demos/ModelDemoGlobe.vue'),
   spatial: () => import('@/demos/SpatialDemoGlobe.vue'),
+  'special-shapes': () => import('@/demos/SpecialShapesDemoGlobe.vue'),
   tianditu: () => import('@/components/CesiumGlobe.vue'),
   vector: () => import('@/demos/VectorDemoGlobe.vue'),
 }

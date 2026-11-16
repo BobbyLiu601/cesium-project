@@ -79,6 +79,10 @@ export interface MockEntity {
   point?: Record<string, unknown>
   label?: Record<string, unknown>
   billboard?: Record<string, unknown>
+  cylinder?: Record<string, unknown>
+  ellipse?: Record<string, unknown>
+  ellipsoid?: Record<string, unknown>
+  wall?: Record<string, unknown>
   model?: {
     uri?: string
     scale?: number
@@ -116,6 +120,8 @@ export class MockEvent<T extends (...args: never[]) => unknown> {
     this.listeners.forEach((listener) => listener(...args))
   }
 }
+
+export class Event<T extends (...args: never[]) => unknown = () => void> extends MockEvent<T> {}
 
 export class MockPostProcessStageCollection {
   stages: PostProcessStage[] = []
@@ -257,6 +263,10 @@ export const terrainSampleRequests: unknown[][] = []
 export const modelInstances: MockModel[] = []
 export const postProcessStageInstances: PostProcessStage[] = []
 export const skyBoxInstances: SkyBox[] = []
+export const materialTypeDefinitions: Array<{
+  type: string
+  uniforms: Record<string, unknown>
+}> = []
 export const cesiumMockState = {
   failNextViewer: false,
   failNextImageryLayer: false,
@@ -742,6 +752,10 @@ export class Cartographic {
   static fromRadians(longitude: number, latitude: number, height = 0) {
     return new Cartographic(longitude, latitude, height)
   }
+
+  static fromCartesian(cartesian: Cartesian3) {
+    return new Cartographic(cartesian.x, cartesian.y, cartesian.z)
+  }
 }
 
 export class Cartesian2 {
@@ -869,6 +883,27 @@ export interface MockMaterial {
 }
 
 export class Material implements MockMaterial {
+  static _materialCache = {
+    addMaterial: vi.fn<
+      (
+        type: string,
+        material: {
+          fabric: {
+            type: string
+            uniforms: Record<string, unknown>
+            source?: string
+          }
+          translucent?: boolean
+        },
+      ) => void
+    >((type, material) => {
+      materialTypeDefinitions.push({
+        type,
+        uniforms: material.fabric.uniforms,
+      })
+    }),
+  }
+
   uniforms: Record<string, unknown>
 
   constructor(
@@ -907,6 +942,10 @@ export class MaterialAppearance {
 }
 
 export class ImageMaterialProperty {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class StripeMaterialProperty {
   constructor(public options: Record<string, unknown>) {}
 }
 
@@ -969,6 +1008,10 @@ export class PerspectiveFrustum {
   ) {}
 }
 
+export const VertexFormat = {
+  POSITION_ONLY: {},
+}
+
 export class FrustumGeometry {
   constructor(public options: Record<string, unknown>) {}
 }
@@ -1025,6 +1068,9 @@ export class Color {
 
   static YELLOW = new Color(1, 1, 0, 1)
   static CYAN = new Color(0, 1, 1, 1)
+  static BLUE = new Color(0, 0, 1, 1)
+  static CORAL = new Color(1, 0.5, 0.31, 1)
+  static GREEN = new Color(0, 0.5, 0, 1)
   static ORANGE = new Color(1, 0.65, 0, 1)
   static LIME = new Color(0, 1, 0, 1)
   static RED = new Color(1, 0, 0, 1)
@@ -1077,6 +1123,14 @@ export const Matrix4 = {
     type: 'rotation-translation',
   })),
   getMatrix3: vi.fn<(_matrix: unknown, result: unknown) => unknown>((_matrix, result) => result),
+  multiplyByPoint: vi.fn<(_matrix: unknown, point: Cartesian3, result: Cartesian3) => Cartesian3>(
+    (_matrix, point, result) => {
+      result.x = point.x
+      result.y = point.y
+      result.z = point.z
+      return result
+    },
+  ),
 }
 
 export class Matrix3 {
@@ -1090,6 +1144,9 @@ export class Matrix3 {
 }
 
 export class Quaternion {
+  static fromHeadingPitchRoll = vi.fn<(_headingPitchRoll: unknown) => unknown>(() => ({
+    type: 'quaternion',
+  }))
   static fromRotationMatrix = vi.fn<(_matrix: unknown) => unknown>(() => ({
     type: 'quaternion',
   }))
@@ -1120,6 +1177,7 @@ export class ArcGISTiledElevationTerrainProvider implements MockElevationTerrain
 
 export class Cartesian3 {
   static UNIT_Z = new Cartesian3(0, 0, 1)
+  static ZERO = new Cartesian3(0, 0, 0)
 
   static fromDegrees(longitude: number, latitude: number, height?: number) {
     return { longitude, latitude, height }
@@ -1139,6 +1197,10 @@ export class Cartesian3 {
       positions.push(Cartesian3.fromDegrees(values[index]!, values[index + 1]!, values[index + 2]!))
     }
     return positions
+  }
+
+  static fromElements(x: number, y: number, z: number) {
+    return new Cartesian3(x, y, z)
   }
 
   static magnitude(vector: Cartesian3) {
@@ -1182,6 +1244,52 @@ export class Cartesian3 {
     result.z = -value.z
     return result
   }
+
+  static subtract(left: Cartesian3, right: Cartesian3, result = new Cartesian3(0, 0, 0)) {
+    result.x = left.x - right.x
+    result.y = left.y - right.y
+    result.z = left.z - right.z
+    return result
+  }
+
+  static distance(left: Cartesian3, right: Cartesian3) {
+    return globalThis.Math.hypot(left.x - right.x, left.y - right.y, left.z - right.z)
+  }
+}
+
+export class LinearSpline {
+  constructor(
+    public options: {
+      points: Cartesian3[]
+      times: number[]
+    },
+  ) {}
+
+  evaluate(time: number) {
+    return evaluateMockSpline(this.options.points, time)
+  }
+}
+
+export class CatmullRomSpline extends LinearSpline {}
+
+function evaluateMockSpline(points: Cartesian3[], time: number) {
+  if (points.length === 0) {
+    return new Cartesian3(0, 0, 0)
+  }
+  if (points.length === 1) {
+    return points[0]!
+  }
+
+  const scaled = globalThis.Math.min(1, globalThis.Math.max(0, time)) * (points.length - 1)
+  const index = globalThis.Math.min(points.length - 2, globalThis.Math.floor(scaled))
+  const fraction = scaled - index
+  const start = points[index]!
+  const end = points[index + 1]!
+  return new Cartesian3(
+    start.x + (end.x - start.x) * fraction,
+    start.y + (end.y - start.y) * fraction,
+    start.z + (end.z - start.z) * fraction,
+  )
 }
 
 export class Rectangle {
@@ -1285,6 +1393,7 @@ export function resetCesiumMock() {
   modelInstances.length = 0
   postProcessStageInstances.length = 0
   skyBoxInstances.length = 0
+  materialTypeDefinitions.length = 0
   cesium3DTilesetInstances.length = 0
   cesium3DTilesetRequests.length = 0
   cesiumMockState.failNextViewer = false
@@ -1307,7 +1416,10 @@ export function resetCesiumMock() {
   Matrix3.multiplyByVector.mockClear()
   Matrix3.setColumn.mockClear()
   Matrix4.getMatrix3.mockClear()
+  Matrix4.multiplyByPoint.mockClear()
+  Quaternion.fromHeadingPitchRoll.mockClear()
   Quaternion.fromRotationMatrix.mockClear()
+  Material._materialCache.addMaterial.mockClear()
   SceneTransforms.worldToWindowCoordinates.mockClear()
   sampleTerrainMostDetailed.mockClear()
   buildModuleUrl.mockClear()

@@ -19,6 +19,17 @@ import skyboxCover from '@/assets/effect-covers/3-1-1-skybox.jpg'
 import volumetricCloudCover from '@/assets/effect-covers/3-1-3-volumetric-cloud.jpg'
 import modelInterpolationCover from '@/assets/model-covers/model-interpolation.jpg'
 import windTurbineCover from '@/assets/model-covers/wind-turbine.jpg'
+import curveInterpolationCover from '@/assets/special-shape-covers/3-2-6-curve-interpolation.jpg'
+import electronicFence2Cover from '@/assets/special-shape-covers/3-2-10-electronic-fence-2.jpg'
+import electronicFenceCover from '@/assets/special-shape-covers/3-2-9-electronic-fence.jpg'
+import frustumCover from '@/assets/special-shape-covers/3-2-1-frustum.jpg'
+import manualFrustumCover from '@/assets/special-shape-covers/3-2-2-manual-frustum.jpg'
+import movingFrustumCover from '@/assets/special-shape-covers/3-2-3-moving-frustum.jpg'
+import outlineConeCover from '@/assets/special-shape-covers/3-2-7-cone.jpg'
+import radarConeCover from '@/assets/special-shape-covers/3-2-4-cone.jpg'
+import radarMaskScanCover from '@/assets/special-shape-covers/3-2-11-radar-mask-scan.jpg'
+import radarScanCover from '@/assets/special-shape-covers/3-2-8-radar-scan.jpg'
+import solidWallCover from '@/assets/special-shape-covers/3-2-5-solid-wall.jpg'
 import aspectAnalysisCover from '@/assets/spatial-covers/2-1-4-aspect-analysis.jpg'
 import inundationAnalysisCover from '@/assets/spatial-covers/2-1-1-inundation-analysis-simple.jpg'
 import sunlightAnalysisCover from '@/assets/spatial-covers/2-1-2-sunlight-analysis.jpg'
@@ -73,8 +84,21 @@ export type SpatialSceneId =
 export type EffectSceneId =
   'skybox' | 'near-ground-skybox' | 'volumetric-cloud' | 'lightning' | 'height-fog'
 
+export type SpecialShapeSceneId =
+  | 'frustum'
+  | 'manual-frustum'
+  | 'moving-frustum'
+  | 'cone'
+  | 'solid-wall'
+  | 'curve-interpolation'
+  | 'outline-cone'
+  | 'radar-scan'
+  | 'electronic-fence'
+  | 'electronic-fence-2'
+  | 'radar-mask-scan'
+
 export type FeatureKind =
-  'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial' | 'effects'
+  'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial' | 'effects' | 'special-shapes'
 
 export interface FeatureItem {
   id: string
@@ -93,10 +117,19 @@ export interface FeatureItem {
   modelSceneId?: ModelSceneId
   spatialSceneId?: SpatialSceneId
   effectSceneId?: EffectSceneId
+  specialShapeSceneId?: SpecialShapeSceneId
 }
 
 export interface FeatureSection {
-  id: 'imagery' | 'terrain' | 'vector' | 'model' | 'spatial' | 'video-fusion' | 'effects'
+  id:
+    | 'imagery'
+    | 'terrain'
+    | 'vector'
+    | 'model'
+    | 'spatial'
+    | 'video-fusion'
+    | 'effects'
+    | 'special-shapes'
   code: string
   title: string
   icon: Component
@@ -540,6 +573,136 @@ export const effectSection: FeatureSection = {
   ],
 }
 
+export const specialShapeSection: FeatureSection = {
+  id: 'special-shapes',
+  code: '3.2',
+  title: '特殊形状',
+  icon: MagicStick,
+  items: [
+    defineFeature({
+      id: 'frustum',
+      code: '3.2.1',
+      name: '视锥体',
+      imageSrc: frustumCover,
+      imageAlt: '视锥体参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'frustum',
+      routeName: 'special-shape-frustum',
+      routePath: '/effects/special-shapes/3-2-1-frustum',
+    }),
+    defineFeature({
+      id: 'manual-frustum',
+      code: '3.2.2',
+      name: '手动视锥体',
+      imageSrc: manualFrustumCover,
+      imageAlt: '手动视锥体参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'manual-frustum',
+      routeName: 'special-shape-manual-frustum',
+      routePath: '/effects/special-shapes/3-2-2-manual-frustum',
+    }),
+    defineFeature({
+      id: 'moving-frustum',
+      code: '3.2.3',
+      name: '移动的视锥体',
+      imageSrc: movingFrustumCover,
+      imageAlt: '移动的视锥体参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'moving-frustum',
+      routeName: 'special-shape-moving-frustum',
+      routePath: '/effects/special-shapes/3-2-3-moving-frustum',
+    }),
+    defineFeature({
+      id: 'radar-cone',
+      code: '3.2.4',
+      name: '圆锥体',
+      imageSrc: radarConeCover,
+      imageAlt: '雷达条纹圆锥体参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'cone',
+      routeName: 'special-shape-radar-cone',
+      routePath: '/effects/special-shapes/3-2-4-cone',
+    }),
+    defineFeature({
+      id: 'solid-wall',
+      code: '3.2.5',
+      name: '立体墙',
+      imageSrc: solidWallCover,
+      imageAlt: '立体墙参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'solid-wall',
+      routeName: 'special-shape-solid-wall',
+      routePath: '/effects/special-shapes/3-2-5-solid-wall',
+    }),
+    defineFeature({
+      id: 'curve-interpolation',
+      code: '3.2.6',
+      name: '曲线插值',
+      imageSrc: curveInterpolationCover,
+      imageAlt: '曲线插值参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'curve-interpolation',
+      routeName: 'special-shape-curve-interpolation',
+      routePath: '/effects/special-shapes/3-2-6-curve-interpolation',
+    }),
+    defineFeature({
+      id: 'outline-cone',
+      code: '3.2.7',
+      name: '圆锥体',
+      imageSrc: outlineConeCover,
+      imageAlt: '带描边圆锥体参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'outline-cone',
+      routeName: 'special-shape-outline-cone',
+      routePath: '/effects/special-shapes/3-2-7-cone',
+    }),
+    defineFeature({
+      id: 'radar-scan',
+      code: '3.2.8',
+      name: '雷达扫描',
+      imageSrc: radarScanCover,
+      imageAlt: '雷达扫描参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'radar-scan',
+      routeName: 'special-shape-radar-scan',
+      routePath: '/effects/special-shapes/3-2-8-radar-scan',
+    }),
+    defineFeature({
+      id: 'electronic-fence',
+      code: '3.2.9',
+      name: '电子围栏',
+      imageSrc: electronicFenceCover,
+      imageAlt: '电子围栏参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'electronic-fence',
+      routeName: 'special-shape-electronic-fence',
+      routePath: '/effects/special-shapes/3-2-9-electronic-fence',
+    }),
+    defineFeature({
+      id: 'electronic-fence-2',
+      code: '3.2.10',
+      name: '电子围栏2',
+      imageSrc: electronicFence2Cover,
+      imageAlt: '电子围栏2参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'electronic-fence-2',
+      routeName: 'special-shape-electronic-fence-2',
+      routePath: '/effects/special-shapes/3-2-10-electronic-fence-2',
+    }),
+    defineFeature({
+      id: 'radar-mask-scan',
+      code: '3.2.11',
+      name: '雷达遮罩扫描',
+      imageSrc: radarMaskScanCover,
+      imageAlt: '雷达遮罩扫描参考示例封面',
+      kind: 'special-shapes',
+      specialShapeSceneId: 'radar-mask-scan',
+      routeName: 'special-shape-radar-mask-scan',
+      routePath: '/effects/special-shapes/3-2-11-radar-mask-scan',
+    }),
+  ],
+}
+
 export const layersMenuGroup: MenuGroup = {
   id: 'layers',
   code: '1',
@@ -561,7 +724,7 @@ export const effectsMenuGroup: MenuGroup = {
   code: '3',
   title: '特效',
   icon: MagicStick,
-  sections: [effectSection],
+  sections: [effectSection, specialShapeSection],
 }
 
 export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup, effectsMenuGroup]
@@ -571,6 +734,7 @@ export const featureSections: FeatureSection[] = [
   spatialSection,
   videoFusionSection,
   effectSection,
+  specialShapeSection,
 ]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)

@@ -114,9 +114,9 @@ describe('App', () => {
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('#spatial-heading').text()).toBe('2、空间分析')
     expect(wrapper.get('#effects-heading').text()).toBe('3、特效')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(32)
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(43)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(3)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(7)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(8)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
     expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(3)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
@@ -130,7 +130,7 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(32)
+    expect(cards).toHaveLength(43)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
@@ -149,6 +149,17 @@ describe('App', () => {
     expect(cards[29]?.attributes('data-feature-id')).toBe('volumetric-cloud')
     expect(cards[30]?.attributes('data-feature-id')).toBe('lightning')
     expect(cards[31]?.attributes('data-feature-id')).toBe('height-fog')
+    expect(cards[32]?.attributes('data-feature-id')).toBe('frustum')
+    expect(cards[33]?.attributes('data-feature-id')).toBe('manual-frustum')
+    expect(cards[34]?.attributes('data-feature-id')).toBe('moving-frustum')
+    expect(cards[35]?.attributes('data-feature-id')).toBe('radar-cone')
+    expect(cards[36]?.attributes('data-feature-id')).toBe('solid-wall')
+    expect(cards[37]?.attributes('data-feature-id')).toBe('curve-interpolation')
+    expect(cards[38]?.attributes('data-feature-id')).toBe('outline-cone')
+    expect(cards[39]?.attributes('data-feature-id')).toBe('radar-scan')
+    expect(cards[40]?.attributes('data-feature-id')).toBe('electronic-fence')
+    expect(cards[41]?.attributes('data-feature-id')).toBe('electronic-fence-2')
+    expect(cards[42]?.attributes('data-feature-id')).toBe('radar-mask-scan')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -173,6 +184,9 @@ describe('App', () => {
     expect(
       wrapper.get('[data-testid="effects-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(5)
+    expect(
+      wrapper.get('[data-testid="special-shapes-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(11)
 
     for (const card of cards) {
       expect(card.element.tagName).toBe('BUTTON')
@@ -209,6 +223,17 @@ describe('App', () => {
     expect(cards[29]?.attributes('aria-label')).toBe('打开3.1.3、体积云')
     expect(cards[30]?.attributes('aria-label')).toBe('打开3.1.4、闪电')
     expect(cards[31]?.attributes('aria-label')).toBe('打开3.1.5、高度雾')
+    expect(cards[32]?.attributes('aria-label')).toBe('打开3.2.1、视锥体')
+    expect(cards[33]?.attributes('aria-label')).toBe('打开3.2.2、手动视锥体')
+    expect(cards[34]?.attributes('aria-label')).toBe('打开3.2.3、移动的视锥体')
+    expect(cards[35]?.attributes('aria-label')).toBe('打开3.2.4、圆锥体')
+    expect(cards[36]?.attributes('aria-label')).toBe('打开3.2.5、立体墙')
+    expect(cards[37]?.attributes('aria-label')).toBe('打开3.2.6、曲线插值')
+    expect(cards[38]?.attributes('aria-label')).toBe('打开3.2.7、圆锥体')
+    expect(cards[39]?.attributes('aria-label')).toBe('打开3.2.8、雷达扫描')
+    expect(cards[40]?.attributes('aria-label')).toBe('打开3.2.9、电子围栏')
+    expect(cards[41]?.attributes('aria-label')).toBe('打开3.2.10、电子围栏2')
+    expect(cards[42]?.attributes('aria-label')).toBe('打开3.2.11、雷达遮罩扫描')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
@@ -224,6 +249,7 @@ describe('App', () => {
       '2.1、空间分析',
       '2.2、视频融合',
       '3.1、场景特效',
+      '3.2、特殊形状',
     ])
 
     wrapper.unmount()
@@ -728,6 +754,7 @@ describe('App', () => {
       spatial: 40,
       'video-fusion': 100,
       effects: 50,
+      'special-shapes': 220,
     }
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({
@@ -766,6 +793,7 @@ describe('App', () => {
     positions.model = -100
     positions.spatial = -60
     positions.effects = 40
+    positions['special-shapes'] = 180
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -791,6 +819,7 @@ describe('App', () => {
     positions.model = -160
     positions.spatial = -60
     positions.effects = 20
+    positions['special-shapes'] = 150
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -837,6 +866,57 @@ describe('App', () => {
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
     expect(wrapper.find('[data-testid="effects-demo-globe"]').exists()).toBe(false)
     expect(getActiveSession()).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('opens an animated special shape and exposes only pause and resume controls', async () => {
+    const wrapper = await mountAt('/effects/special-shapes/3-2-3-moving-frustum')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const dialog = wrapper.get('.feature-dialog--special-shapes')
+    const globe = wrapper.get('[data-testid="special-shapes-demo-globe"]')
+    expect(dialog.text()).toContain('3.2.3、移动的视锥体')
+    expect(globe.attributes('data-scene-id')).toBe('moving-frustum')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.attributes('data-animation-state')).toBe('playing')
+    expect(globe.text()).toContain('沿航线持续移动播放中')
+
+    await globe.get('button').trigger('click')
+    expect(globe.attributes('data-animation-state')).toBe('paused')
+    expect(globe.text()).toContain('暂停')
+
+    await globe.get('button').trigger('click')
+    expect(globe.attributes('data-animation-state')).toBe('playing')
+    expect(globe.text()).toContain('继续移动播放中')
+
+    await dialog.get('.el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/layers#moving-frustum')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(getActiveSession()).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('does not show an animation toggle for a static special shape', async () => {
+    const wrapper = await mountAt('/effects/special-shapes/3-2-6-curve-interpolation')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const globe = wrapper.get('[data-testid="special-shapes-demo-globe"]')
+    expect(globe.attributes('data-scene-id')).toBe('curve-interpolation')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.attributes('data-animation-state')).toBeUndefined()
+    expect(globe.findAll('button')).toHaveLength(0)
+    expect(globe.text()).toContain('Catmull-Rom')
 
     wrapper.unmount()
   })

@@ -53,6 +53,38 @@ async function expectCanvasToContainRedFacets(page: Page, canvas: Locator) {
   expect(redPixels).toBeGreaterThan(250)
 }
 
+async function expectCanvasToContainShapeColors(page: Page, canvas: Locator) {
+  const screenshot = await canvas.screenshot()
+  const shapePixels = await page.evaluate(async (base64) => {
+    const binary = atob(base64)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+    const bitmapCanvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = bitmapCanvas.getContext('2d')
+    if (!context) {
+      return 0
+    }
+    context.drawImage(bitmap, 0, 0)
+    const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data
+    let count = 0
+    for (let index = 0; index < pixels.length; index += 16) {
+      const red = pixels[index] ?? 0
+      const green = pixels[index + 1] ?? 0
+      const blue = pixels[index + 2] ?? 0
+      const redShape = red > 90 && red > green * 1.3 && red > blue * 1.15
+      const greenShape = green > 90 && green > red * 1.2 && green > blue * 1.1
+      const cyanShape = green > 90 && blue > 90 && red < green * 0.75
+      const yellowShape = red > 100 && green > 80 && blue < green * 0.75
+      if (redShape || greenShape || cyanShape || yellowShape) {
+        count += 1
+      }
+    }
+    return count
+  }, screenshot.toString('base64'))
+
+  expect(shapePixels).toBeGreaterThan(100)
+}
+
 async function expectSubmenuArrowsPointDown(menu: Locator) {
   const arrows = menu.locator('.sidebar-menu__group > .el-sub-menu__title .el-sub-menu__icon-arrow')
   await expect(arrows).toHaveCount(3)
@@ -113,6 +145,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '2.2、视频融合' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3、特效' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.1、场景特效' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '3.2、特殊形状' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -167,7 +200,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' }).locator('img'),
   ).toHaveAttribute('src', /2-2-2-video-projection-livestream/)
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(32)
+  await expect(page.getByTestId('feature-card')).toHaveCount(43)
   await expect(page.getByRole('button', { name: '打开3.1.1、天空盒' })).toContainText(
     '3.1.1、天空盒',
   )
@@ -180,6 +213,42 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开3.1.4、闪电' })).toContainText('3.1.4、闪电')
   await expect(page.getByRole('button', { name: '打开3.1.5、高度雾' })).toContainText(
     '3.1.5、高度雾',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.1、视锥体' })).toContainText(
+    '3.2.1、视锥体',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开3.2.1、视锥体' }).locator('img'),
+  ).toHaveAttribute('src', /3-2-1-frustum/)
+  await expect(page.getByRole('button', { name: '打开3.2.2、手动视锥体' })).toContainText(
+    '3.2.2、手动视锥体',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.3、移动的视锥体' })).toContainText(
+    '3.2.3、移动的视锥体',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.4、圆锥体' })).toContainText(
+    '3.2.4、圆锥体',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.5、立体墙' })).toContainText(
+    '3.2.5、立体墙',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.6、曲线插值' })).toContainText(
+    '3.2.6、曲线插值',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.7、圆锥体' })).toContainText(
+    '3.2.7、圆锥体',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.8、雷达扫描' })).toContainText(
+    '3.2.8、雷达扫描',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.9、电子围栏' })).toContainText(
+    '3.2.9、电子围栏',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.10、电子围栏2' })).toContainText(
+    '3.2.10、电子围栏2',
+  )
+  await expect(page.getByRole('button', { name: '打开3.2.11、雷达遮罩扫描' })).toContainText(
+    '3.2.11、雷达遮罩扫描',
   )
   expect(
     await page
@@ -218,6 +287,17 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'volumetric-cloud',
     'lightning',
     'height-fog',
+    'frustum',
+    'manual-frustum',
+    'moving-frustum',
+    'radar-cone',
+    'solid-wall',
+    'curve-interpolation',
+    'outline-cone',
+    'radar-scan',
+    'electronic-fence',
+    'electronic-fence-2',
+    'radar-mask-scan',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -804,7 +884,7 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '3.1、场景特效' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '3.2、特殊形状' })).toHaveAttribute(
     'aria-current',
     'location',
   )
@@ -1218,6 +1298,158 @@ test('五个场景特效深链均可打开并在关闭后返回对应卡片', as
     await expect(page).toHaveURL(new RegExp(`/layers#${effect.id}$`))
     await expect(page.getByRole('button', { name: `打开${effect.title}` })).toBeFocused()
   }
+})
+
+test('十一个特殊形状深链均可打开并在关闭后返回对应卡片', async ({ page }) => {
+  test.setTimeout(300_000)
+
+  const shaderErrors: string[] = []
+  const shaderErrorPattern = /shader|GLSL|texture2D|no matching overloaded function/i
+  page.on('console', (message) => {
+    const text = message.text()
+    if (message.type() === 'error' && shaderErrorPattern.test(text)) {
+      shaderErrors.push(text)
+    }
+  })
+  page.on('pageerror', (error) => {
+    if (shaderErrorPattern.test(error.message)) {
+      shaderErrors.push(error.message)
+    }
+  })
+
+  const shapes = [
+    {
+      animated: false,
+      featureId: 'frustum',
+      id: 'frustum',
+      route: '/effects/special-shapes/3-2-1-frustum',
+      title: '3.2.1、视锥体',
+    },
+    {
+      animated: true,
+      featureId: 'manual-frustum',
+      id: 'manual-frustum',
+      route: '/effects/special-shapes/3-2-2-manual-frustum',
+      title: '3.2.2、手动视锥体',
+    },
+    {
+      animated: true,
+      featureId: 'moving-frustum',
+      id: 'moving-frustum',
+      route: '/effects/special-shapes/3-2-3-moving-frustum',
+      title: '3.2.3、移动的视锥体',
+    },
+    {
+      animated: true,
+      featureId: 'radar-cone',
+      id: 'cone',
+      route: '/effects/special-shapes/3-2-4-cone',
+      title: '3.2.4、圆锥体',
+    },
+    {
+      animated: true,
+      featureId: 'solid-wall',
+      id: 'solid-wall',
+      route: '/effects/special-shapes/3-2-5-solid-wall',
+      title: '3.2.5、立体墙',
+    },
+    {
+      animated: false,
+      featureId: 'curve-interpolation',
+      id: 'curve-interpolation',
+      route: '/effects/special-shapes/3-2-6-curve-interpolation',
+      title: '3.2.6、曲线插值',
+    },
+    {
+      animated: false,
+      featureId: 'outline-cone',
+      id: 'outline-cone',
+      route: '/effects/special-shapes/3-2-7-cone',
+      title: '3.2.7、圆锥体',
+    },
+    {
+      animated: true,
+      featureId: 'radar-scan',
+      id: 'radar-scan',
+      route: '/effects/special-shapes/3-2-8-radar-scan',
+      title: '3.2.8、雷达扫描',
+    },
+    {
+      animated: true,
+      featureId: 'electronic-fence',
+      id: 'electronic-fence',
+      route: '/effects/special-shapes/3-2-9-electronic-fence',
+      title: '3.2.9、电子围栏',
+    },
+    {
+      animated: true,
+      featureId: 'electronic-fence-2',
+      id: 'electronic-fence-2',
+      route: '/effects/special-shapes/3-2-10-electronic-fence-2',
+      title: '3.2.10、电子围栏2',
+    },
+    {
+      animated: true,
+      featureId: 'radar-mask-scan',
+      id: 'radar-mask-scan',
+      route: '/effects/special-shapes/3-2-11-radar-mask-scan',
+      title: '3.2.11、雷达遮罩扫描',
+    },
+  ] as const
+
+  for (const shape of shapes) {
+    await page.goto(shape.route)
+    const dialog = page.getByRole('dialog', { name: shape.title })
+    const globe = dialog.getByTestId('special-shapes-demo-globe')
+    await expect(dialog).toBeVisible()
+    await expectCesiumReady(globe)
+    await expect(globe).toHaveAttribute('data-scene-id', shape.id)
+    await expect(globe.locator('canvas')).toBeVisible()
+    await expect(globe.getByRole('button', { name: '暂停动画' })).toHaveCount(
+      shape.animated ? 1 : 0,
+    )
+    if (shape.animated) {
+      await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+    } else {
+      await expect(globe).not.toHaveAttribute('data-animation-state', /.*/)
+    }
+    await expectCanvasToContainShapeColors(page, globe.locator('canvas'))
+    await page.waitForTimeout(250)
+
+    await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`/layers#${shape.featureId}$`))
+    await expect(page.getByRole('button', { name: `打开${shape.title}` })).toBeFocused()
+  }
+
+  expect(shaderErrors).toEqual([])
+})
+
+test('特殊形状动画支持暂停和继续，手动视锥体在地形失败时降级', async ({ page }) => {
+  await page.goto('/effects/special-shapes/3-2-3-moving-frustum')
+
+  const dialog = page.getByRole('dialog', { name: '3.2.3、移动的视锥体' })
+  const globe = dialog.getByTestId('special-shapes-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+  await expect(globe.getByText(/沿航线持续移动播放中/)).toBeVisible()
+  await expectCanvasToAnimate(page, globe.locator('canvas'))
+
+  await globe.getByRole('button', { name: '暂停动画' }).click()
+  await expect(globe).toHaveAttribute('data-animation-state', 'paused')
+  await expect(globe.getByText('视锥体移动已暂停')).toBeVisible()
+  await expect(globe.getByRole('button', { name: '继续播放' })).toBeVisible()
+
+  await globe.getByRole('button', { name: '继续播放' }).click()
+  await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+  await expect(globe.getByText('视锥体继续移动播放中')).toBeVisible()
+
+  await page.goto('/effects/special-shapes/3-2-2-manual-frustum')
+  const fallbackDialog = page.getByRole('dialog', { name: '3.2.2、手动视锥体' })
+  const fallbackGlobe = fallbackDialog.getByTestId('special-shapes-demo-globe')
+  await expectCesiumReady(fallbackGlobe)
+  await expect(fallbackGlobe.getByText(/已回退椭球地形/)).toBeVisible()
+  await expect(fallbackDialog.locator('[role="alert"]')).toHaveCount(0)
 })
 
 test('体积云控件实时更新 X、Y 尺寸与亮度', async ({ page }) => {
