@@ -57,8 +57,8 @@ export function createOutlineConeScene(
   viewer: Cesium.Viewer,
   setStatus: StatusReporter,
 ): SpecialShapeScene {
-  const fillPosition = Cesium.Cartesian3.fromDegrees(-100, 30, 150)
-  const outlinePosition = Cesium.Cartesian3.fromDegrees(-100.001, 30, 150)
+  const fillPosition = Cesium.Cartesian3.fromDegrees(116.397, 39.909, 150)
+  const outlinePosition = Cesium.Cartesian3.fromDegrees(116.396, 39.909, 150)
   const outlineOrientation = Cesium.Transforms.headingPitchRollQuaternion(
     outlinePosition,
     new Cesium.HeadingPitchRoll(0, Cesium.Math.toRadians(120), 0),

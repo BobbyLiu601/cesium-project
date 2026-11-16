@@ -14,14 +14,13 @@ const SOLID_WALL_MATERIAL_TYPE = 'SpecialShapeSolidWallTrail'
 const VERTICAL_FENCE_MATERIAL_TYPE = 'SpecialShapeVerticalFenceTrail'
 const RING_FENCE_MATERIAL_TYPE = 'SpecialShapeRingFenceTrail'
 
-const SOLID_WALL_SHADER = `
+export const SOLID_WALL_SHADER = `
 czm_material czm_getMaterial(czm_materialInput materialInput) {
   czm_material material = czm_getDefaultMaterial(materialInput);
   vec2 st = materialInput.st;
   vec4 imageColor = texture(image, vec2(fract(st.s - time), st.t));
   material.diffuse = (imageColor.rgb + color.rgb) * 0.5;
   material.alpha = imageColor.a * color.a;
-  material.emission = imageColor.rgb;
   return material;
 }
 `

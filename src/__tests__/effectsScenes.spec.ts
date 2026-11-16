@@ -83,8 +83,8 @@ describe('scene effects', () => {
     expect(viewer.camera.setView).toHaveBeenCalledWith({
       destination: {
         height: 20_000_000,
-        latitude: 39.9060534,
-        longitude: -95.166493,
+        latitude: 30,
+        longitude: 104,
       },
     })
     expect(statuses[statuses.length - 1]).toContain('本地六面天空盒')
@@ -108,6 +108,18 @@ describe('scene effects', () => {
     expect(viewer.scene.skyBox).toBe(skyBox)
     expect(viewer.scene.skyAtmosphere?.show).toBe(false)
     expect(viewer.scene.postRender.listeners.size).toBe(1)
+    expect(viewer.camera.setView).toHaveBeenNthCalledWith(1, {
+      destination: {
+        height: 3_336.6,
+        latitude: 30,
+        longitude: 104,
+      },
+      orientation: {
+        heading: expect.any(Number),
+        pitch: expect.any(Number),
+        roll: 0,
+      },
+    })
 
     viewer.camera.positionCartographic.height = NEAR_GROUND_SKYBOX_THRESHOLD + 1
     viewer.scene.postRender.raiseEvent()
@@ -206,6 +218,18 @@ describe('scene effects', () => {
     })
     expect(viewer.scene.preUpdate.listeners.size).toBe(1)
     expect(statuses[statuses.length - 1]).toContain('雷声默认开启并循环')
+    expect(viewer.camera.setView).toHaveBeenCalledWith({
+      destination: {
+        height: 271_712,
+        latitude: 30,
+        longitude: 104,
+      },
+      orientation: {
+        heading: expect.any(Number),
+        pitch: expect.any(Number),
+        roll: 0,
+      },
+    })
 
     const requestRender = vi.mocked(viewer.scene.requestRender)
     requestRender.mockClear()

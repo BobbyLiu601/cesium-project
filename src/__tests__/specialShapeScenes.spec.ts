@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { SpecialShapeSceneId } from '../data/layers'
 import { createSpecialShapeScene } from '../demos/specialShapeScene'
+import { SOLID_WALL_SHADER } from '../demos/specialShapes/wallScenes'
 import {
   CesiumTerrainProvider,
   EllipsoidTerrainProvider,
+  Transforms,
   Viewer,
   cesiumMockState,
   primitiveInstances,
@@ -196,5 +198,79 @@ describe('special shape scenes', () => {
     expect(scene.animationState?.value).toBe('playing')
 
     scene.dispose()
+  })
+
+  it('matches the reference solid wall color without additive emission', () => {
+    expect(SOLID_WALL_SHADER).toContain('material.diffuse = (imageColor.rgb + color.rgb) * 0.5;')
+    expect(SOLID_WALL_SHADER).not.toContain('material.emission')
+  })
+
+  it('keeps the relocated special-shape scenes inside China', async () => {
+    const frustumViewer = createViewer()
+    const frustumScene = await createSpecialShapeScene(frustumViewer, 'frustum', () => {})
+
+    expect(frustumViewer.camera.setView).toHaveBeenCalledWith({
+      destination: {
+        height: 3_000,
+        latitude: 30,
+        longitude: 110,
+      },
+    })
+    frustumScene.dispose()
+
+    const outlineViewer = createViewer()
+    const outlineScene = await createSpecialShapeScene(outlineViewer, 'outline-cone', () => {})
+    const fillPosition = outlineViewer.entities.values[0]?.position?.getValue()
+    const outlinePosition = outlineViewer.entities.values[1]?.position?.getValue()
+
+    expect(fillPosition).toMatchObject({ latitude: 39.909, longitude: 116.397 })
+    expect(outlinePosition).toMatchObject({ latitude: 39.909, longitude: 116.396 })
+    outlineScene.dispose()
+
+    const manualViewer = createViewer()
+    const manualScene = await createSpecialShapeScene(manualViewer, 'manual-frustum', () => {})
+
+    expect(manualViewer.camera.lookAt).toHaveBeenCalledWith(
+      expect.objectContaining({ latitude: 35, longitude: 95 }),
+      expect.anything(),
+    )
+    const manualHierarchy = (
+      manualViewer.entities.values[0]?.polygon?.hierarchy as
+        { getValue: () => { positions: unknown[] } } | undefined
+    )?.getValue()
+
+    expect(manualHierarchy?.positions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ latitude: 40, longitude: 100 }),
+        expect.objectContaining({ latitude: 30, longitude: 100 }),
+        expect.objectContaining({ latitude: 35, longitude: 95 }),
+      ]),
+    )
+    manualScene.dispose()
+
+    const movingViewer = createViewer()
+    const movingScene = await createSpecialShapeScene(movingViewer, 'moving-frustum', () => {})
+
+    expect(Transforms.eastNorthUpToFixedFrame).toHaveBeenCalledWith(
+      expect.objectContaining({ latitude: 39.909, longitude: 116.397 }),
+    )
+    movingScene.dispose()
+
+    const splineViewer = createViewer()
+    const splineScene = await createSpecialShapeScene(splineViewer, 'curve-interpolation', () => {})
+    const splinePositions = splineViewer.entities.values
+      .slice(0, 5)
+      .map((entity) => entity.position?.getValue())
+
+    expect(splinePositions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ latitude: 30, longitude: 110 }),
+        expect.objectContaining({ latitude: 31, longitude: 111 }),
+        expect.objectContaining({ latitude: 29, longitude: 112 }),
+        expect.objectContaining({ latitude: 30, longitude: 114 }),
+        expect.objectContaining({ latitude: 28, longitude: 113 }),
+      ]),
+    )
+    splineScene.dispose()
   })
 })

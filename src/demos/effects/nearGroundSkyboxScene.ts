@@ -51,7 +51,7 @@ export function createNearGroundSkyboxScene(
 
   function focusLow() {
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(-95.166493, 39.9060534, 3_336.6),
+      destination: Cesium.Cartesian3.fromDegrees(104, 30, 3_336.6),
       orientation: {
         heading: Cesium.Math.toRadians(351.2),
         pitch: Cesium.Math.toRadians(-6.7),
@@ -64,11 +64,7 @@ export function createNearGroundSkyboxScene(
 
   function focusHigh() {
     viewer.camera.setView({
-      destination: Cesium.Cartesian3.fromDegrees(
-        -95.166493,
-        39.9060534,
-        NEAR_GROUND_SKYBOX_THRESHOLD + 1,
-      ),
+      destination: Cesium.Cartesian3.fromDegrees(104, 30, NEAR_GROUND_SKYBOX_THRESHOLD + 1),
       orientation: {
         heading: Cesium.Math.toRadians(351.2),
         pitch: Cesium.Math.toRadians(-6.7),

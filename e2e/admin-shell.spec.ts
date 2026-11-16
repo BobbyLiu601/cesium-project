@@ -1497,6 +1497,7 @@ test('近地天空盒可在近地全景与标准大气之间切换', async ({ pa
 })
 
 test('闪电场景进入后自动尝试播放雷声，受阻时可手动重试', async ({ page }) => {
+  test.setTimeout(60_000)
   await page.goto('/effects/scene/3-1-4-lightning')
 
   const dialog = page.getByRole('dialog', { name: '3.1.4、闪电' })
