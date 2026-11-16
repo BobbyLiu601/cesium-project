@@ -57,6 +57,7 @@ export function useDemoGlobe({
 }: UseDemoGlobeOptions) {
   const sceneState = ref<'loading' | 'ready' | 'error'>('loading')
   const statusMessage = ref(initialStatus)
+  const imageryState = ref<'unavailable' | 'configured'>('unavailable')
   const actions = ref<DemoSceneAction[]>([])
   const loadedScene = shallowRef<DemoScene | undefined>()
   let session: GlobeSession | undefined
@@ -111,6 +112,10 @@ export function useDemoGlobe({
     sceneAbortController = new AbortController()
 
     let host: HTMLDivElement | undefined
+    const removeImageryErrorListeners: Array<() => void> = []
+    const removeImageryErrorListener = () => {
+      removeImageryErrorListeners.splice(0).forEach((removeListener) => removeListener())
+    }
 
     try {
       host = document.createElement('div')
@@ -148,6 +153,7 @@ export function useDemoGlobe({
         cleanup: () => {
           sceneAbortController?.abort()
           removeTileLoadProgressListener()
+          removeImageryErrorListener()
         },
         host,
         viewer,
@@ -155,26 +161,31 @@ export function useDemoGlobe({
       setActiveSession(session)
 
       const token = getTiandituToken()
+      imageryState.value = token ? 'configured' : 'unavailable'
       if (!token) {
         console.error('未配置 VITE_TIANDITU_TOKEN，已跳过天地图图层。')
       }
 
       const layers = token ? tiandituLayers : []
       for (const layer of layers) {
-        viewer.imageryLayers.addImageryProvider(
-          new Cesium.WebMapTileServiceImageryProvider({
-            url: createTiandituTileUrl(layer.id, token),
-            layer: layer.id,
-            style: 'default',
-            format: 'tiles',
-            tileMatrixSetID: 'w',
-            tilingScheme: new Cesium.WebMercatorTilingScheme(),
-            maximumLevel: 18,
-            subdomains: ['0', '1', '2', '3', '4', '5', '6', '7'],
-            credit: '天地图',
-            enablePickFeatures: false,
+        const provider = new Cesium.WebMapTileServiceImageryProvider({
+          url: createTiandituTileUrl(layer.id, token),
+          layer: layer.id,
+          style: 'default',
+          format: 'tiles',
+          tileMatrixSetID: 'w',
+          tilingScheme: new Cesium.WebMercatorTilingScheme(),
+          maximumLevel: 18,
+          subdomains: ['0', '1', '2', '3', '4', '5', '6', '7'],
+          credit: '天地图',
+          enablePickFeatures: false,
+        })
+        removeImageryErrorListeners.push(
+          provider.errorEvent.addEventListener(() => {
+            imageryState.value = 'unavailable'
           }),
         )
+        viewer.imageryLayers.addImageryProvider(provider)
       }
 
       container.value.replaceChildren(host)
@@ -197,6 +208,7 @@ export function useDemoGlobe({
       session.cleanup = () => {
         sceneAbortController?.abort()
         removeTileLoadProgressListener()
+        removeImageryErrorListener()
         loadedScene.value = undefined
         scene?.dispose()
         scene = undefined
@@ -257,6 +269,7 @@ export function useDemoGlobe({
 
   return {
     actions,
+    imageryState,
     scene: loadedScene,
     resize,
     runAction,

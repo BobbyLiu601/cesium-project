@@ -25,6 +25,14 @@ async function expectCanvasToAnimate(page: Page, canvas: Locator) {
   expect(frames.some((frame) => !frame.equals(frames[0]!))).toBe(true)
 }
 
+async function expectCanvasToRemainStatic(page: Page, canvas: Locator) {
+  await page.waitForTimeout(300)
+  const first = await canvas.screenshot()
+  await page.waitForTimeout(300)
+  const second = await canvas.screenshot()
+  expect(second.equals(first)).toBe(true)
+}
+
 async function expectCanvasToContainRedFacets(page: Page, canvas: Locator) {
   const screenshot = await canvas.screenshot()
   const redPixels = await page.evaluate(async (base64) => {
@@ -146,6 +154,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '3、特效' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.1、场景特效' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.2、特殊形状' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '3.3、粒子效果' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -200,7 +209,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' }).locator('img'),
   ).toHaveAttribute('src', /2-2-2-video-projection-livestream/)
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(43)
+  await expect(page.getByTestId('feature-card')).toHaveCount(48)
   await expect(page.getByRole('button', { name: '打开3.1.1、天空盒' })).toContainText(
     '3.1.1、天空盒',
   )
@@ -250,6 +259,27 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开3.2.11、雷达遮罩扫描' })).toContainText(
     '3.2.11、雷达遮罩扫描',
   )
+  await expect(page.getByRole('button', { name: '打开3.3.1、火焰' })).toContainText('3.3.1、火焰')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.1、火焰' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-1-fire/)
+  await expect(page.getByRole('button', { name: '打开3.3.2、水枪' })).toContainText('3.3.2、水枪')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.2、水枪' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-2-water-gun/)
+  await expect(page.getByRole('button', { name: '打开3.3.3、爆炸' })).toContainText('3.3.3、爆炸')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.3、爆炸' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-3-explosion/)
+  await expect(page.getByRole('button', { name: '打开3.3.4、喷雾' })).toContainText('3.3.4、喷雾')
+  await expect(
+    page.getByRole('button', { name: '打开3.3.4、喷雾' }).locator('img'),
+  ).toHaveAttribute('src', /3-3-4-spray/)
+  await expect(page.getByRole('button', { name: '打开3.3.5、烟' })).toContainText('3.3.5、烟')
+  await expect(page.getByRole('button', { name: '打开3.3.5、烟' }).locator('img')).toHaveAttribute(
+    'src',
+    /3-3-5-smoke/,
+  )
   expect(
     await page
       .getByTestId('feature-card')
@@ -298,6 +328,11 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'electronic-fence',
     'electronic-fence-2',
     'radar-mask-scan',
+    'particle-fire',
+    'particle-water-gun',
+    'particle-explosion',
+    'particle-spray',
+    'particle-smoke',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -884,7 +919,7 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '3.2、特殊形状' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '3.3、粒子效果' })).toHaveAttribute(
     'aria-current',
     'location',
   )
@@ -897,6 +932,23 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
   await expect(layersGroup).toHaveClass(/is-opened/)
   await expect(spatialGroup).not.toHaveClass(/is-opened/)
   await expect(effectsGroup).not.toHaveClass(/is-opened/)
+})
+
+test('点击 3.1、场景特效后选中态不会回落到上一个区块', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 600 })
+  await page.goto('/layers')
+
+  const sidebar = page.locator('.admin-sidebar')
+  const effectsGroup = sidebar.locator('.sidebar-menu__group').nth(2)
+  await effectsGroup.locator('.el-sub-menu__title').click()
+
+  const effectsMenuItem = page.getByRole('menuitem', { name: '3.1、场景特效' })
+  await effectsMenuItem.click()
+  await expect(page).toHaveURL(/\/layers#effects$/)
+
+  await page.waitForTimeout(1_400)
+  await expect(effectsMenuItem).toHaveAttribute('aria-current', 'location')
+  await expect(effectsGroup).toHaveClass(/is-opened/)
 })
 
 for (const viewport of responsiveViewports) {
@@ -1450,6 +1502,110 @@ test('特殊形状动画支持暂停和继续，手动视锥体在地形失败�
   await expectCesiumReady(fallbackGlobe)
   await expect(fallbackGlobe.getByText(/已回退椭球地形/)).toBeVisible()
   await expect(fallbackDialog.locator('[role="alert"]')).toHaveCount(0)
+})
+
+test('五个粒子效果深链可播放、暂停/继续并在关闭后返回对应卡片', async ({ page }) => {
+  test.setTimeout(180_000)
+
+  const particles = [
+    { id: 'particle-fire', route: '/effects/particle-effects/3-3-1-fire', title: '3.3.1、火焰' },
+    {
+      id: 'particle-water-gun',
+      route: '/effects/particle-effects/3-3-2-water-gun',
+      title: '3.3.2、水枪',
+    },
+    {
+      id: 'particle-explosion',
+      route: '/effects/particle-effects/3-3-3-explosion',
+      title: '3.3.3、爆炸',
+    },
+    {
+      id: 'particle-spray',
+      route: '/effects/particle-effects/3-3-4-spray',
+      title: '3.3.4、喷雾',
+    },
+    {
+      id: 'particle-smoke',
+      route: '/effects/particle-effects/3-3-5-smoke',
+      title: '3.3.5、烟',
+    },
+  ] as const
+
+  for (const particle of particles) {
+    await page.goto(particle.route)
+    const dialog = page.getByRole('dialog', { name: particle.title })
+    const globe = dialog.getByTestId('particle-demo-globe')
+    await expect(dialog).toBeVisible()
+    await expectCesiumReady(globe)
+    await expect(globe).toHaveAttribute('data-scene-id', particle.id)
+    await expect(globe).toHaveAttribute('data-paused', 'false')
+    await expect(globe).toHaveAttribute('data-imagery-state', 'unavailable', {
+      timeout: CESIUM_READY_TIMEOUT,
+    })
+    await expect(globe.getByText('天地图影像不可用，粒子效果已独立加载')).toBeVisible()
+    await expect(globe.locator('canvas')).toBeVisible()
+    await expectCanvasToAnimate(page, globe.locator('canvas'))
+
+    const pauseButton = globe.getByRole('button', { name: '暂停粒子效果' })
+    await pauseButton.click()
+    await expect(globe).toHaveAttribute('data-paused', 'true')
+    await expectCanvasToRemainStatic(page, globe.locator('canvas'))
+    await globe.getByRole('button', { name: '继续粒子效果' }).click()
+    await expect(globe).toHaveAttribute('data-paused', 'false')
+    await expectCanvasToAnimate(page, globe.locator('canvas'))
+
+    if (particle.id === 'particle-fire') {
+      await dialog.getByRole('button', { name: '全屏' }).click()
+      await expect(page.locator('.feature-dialog--particles')).toHaveClass(/is-fullscreen/)
+      await dialog.getByRole('button', { name: '退出全屏' }).click()
+    }
+
+    await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`/layers#${particle.id}$`))
+    await expect(page.getByRole('button', { name: `打开${particle.title}` })).toBeFocused()
+  }
+})
+
+test('粒子纹理加载失败时进入可恢复错误状态', async ({ page }) => {
+  await page.route(/particle-textures\/fire\.png/, (route) => {
+    if (route.request().resourceType() === 'script') {
+      return route.continue()
+    }
+
+    return route.abort()
+  })
+  await page.goto('/effects/particle-effects/3-3-1-fire')
+
+  const dialog = page.getByRole('dialog', { name: '3.3.1、火焰' })
+  const globe = dialog.getByTestId('particle-demo-globe')
+  await expect(globe).toHaveAttribute('data-cesium-state', 'error', {
+    timeout: CESIUM_READY_TIMEOUT,
+  })
+  await expect(globe.getByRole('alert')).toContainText('粒子效果加载失败')
+
+  await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(page.getByRole('button', { name: '打开3.3.1、火焰' })).toBeFocused()
+})
+
+test('移动端粒子工具栏和弹窗保持在视口内', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 812 })
+  await page.goto('/effects/particle-effects/3-3-1-fire')
+
+  const dialog = page.getByRole('dialog', { name: '3.3.1、火焰' })
+  const globe = dialog.getByTestId('particle-demo-globe')
+  await expectCesiumReady(globe)
+
+  const panelBox = await page.locator('.feature-dialog--particles').boundingBox()
+  const toolbarBox = await globe.locator('.particle-demo-globe__toolbar').boundingBox()
+  expect(panelBox).not.toBeNull()
+  expect(toolbarBox).not.toBeNull()
+  expect(panelBox?.x).toBeGreaterThanOrEqual(0)
+  expect((panelBox?.x ?? 0) + (panelBox?.width ?? 0)).toBeLessThanOrEqual(375)
+  expect(toolbarBox?.x).toBeGreaterThanOrEqual(0)
+  expect((toolbarBox?.x ?? 0) + (toolbarBox?.width ?? 0)).toBeLessThanOrEqual(375)
+  await expect(globe.getByRole('button', { name: '暂停粒子效果' })).toBeInViewport()
 })
 
 test('体积云控件实时更新 X、Y 尺寸与亮度', async ({ page }) => {

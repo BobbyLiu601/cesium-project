@@ -17,6 +17,11 @@ import lightningCover from '@/assets/effect-covers/3-1-4-lightning.jpg'
 import nearGroundSkyboxCover from '@/assets/effect-covers/3-1-2-near-ground-skybox.jpg'
 import skyboxCover from '@/assets/effect-covers/3-1-1-skybox.jpg'
 import volumetricCloudCover from '@/assets/effect-covers/3-1-3-volumetric-cloud.jpg'
+import explosionCover from '@/assets/effect-covers/3-3-3-explosion.jpg'
+import fireCover from '@/assets/effect-covers/3-3-1-fire.jpg'
+import smokeCover from '@/assets/effect-covers/3-3-5-smoke.jpg'
+import sprayCover from '@/assets/effect-covers/3-3-4-spray.jpg'
+import waterGunCover from '@/assets/effect-covers/3-3-2-water-gun.jpg'
 import modelInterpolationCover from '@/assets/model-covers/model-interpolation.jpg'
 import windTurbineCover from '@/assets/model-covers/wind-turbine.jpg'
 import curveInterpolationCover from '@/assets/special-shape-covers/3-2-6-curve-interpolation.jpg'
@@ -97,8 +102,23 @@ export type SpecialShapeSceneId =
   | 'electronic-fence-2'
   | 'radar-mask-scan'
 
+export type ParticleSceneId =
+  | 'particle-fire'
+  | 'particle-water-gun'
+  | 'particle-explosion'
+  | 'particle-spray'
+  | 'particle-smoke'
+
 export type FeatureKind =
-  'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial' | 'effects' | 'special-shapes'
+  | 'tianditu'
+  | 'amap'
+  | 'elevation'
+  | 'vector'
+  | 'model'
+  | 'spatial'
+  | 'effects'
+  | 'special-shapes'
+  | 'particles'
 
 export interface FeatureItem {
   id: string
@@ -118,6 +138,7 @@ export interface FeatureItem {
   spatialSceneId?: SpatialSceneId
   effectSceneId?: EffectSceneId
   specialShapeSceneId?: SpecialShapeSceneId
+  particleSceneId?: ParticleSceneId
 }
 
 export interface FeatureSection {
@@ -130,6 +151,7 @@ export interface FeatureSection {
     | 'video-fusion'
     | 'effects'
     | 'special-shapes'
+    | 'particle-effects'
   code: string
   title: string
   icon: Component
@@ -703,6 +725,70 @@ export const specialShapeSection: FeatureSection = {
   ],
 }
 
+export const particleSection: FeatureSection = {
+  id: 'particle-effects',
+  code: '3.3',
+  title: '粒子效果',
+  icon: MagicStick,
+  items: [
+    defineFeature({
+      id: 'particle-fire',
+      code: '3.3.1',
+      name: '火焰',
+      imageSrc: fireCover,
+      imageAlt: '火焰粒子效果参考示例封面',
+      kind: 'particles',
+      particleSceneId: 'particle-fire',
+      routeName: 'effect-particle-fire',
+      routePath: '/effects/particle-effects/3-3-1-fire',
+    }),
+    defineFeature({
+      id: 'particle-water-gun',
+      code: '3.3.2',
+      name: '水枪',
+      imageSrc: waterGunCover,
+      imageAlt: '水枪粒子效果参考示例封面',
+      kind: 'particles',
+      particleSceneId: 'particle-water-gun',
+      routeName: 'effect-particle-water-gun',
+      routePath: '/effects/particle-effects/3-3-2-water-gun',
+    }),
+    defineFeature({
+      id: 'particle-explosion',
+      code: '3.3.3',
+      name: '爆炸',
+      imageSrc: explosionCover,
+      imageAlt: '爆炸粒子效果参考示例封面',
+      kind: 'particles',
+      particleSceneId: 'particle-explosion',
+      routeName: 'effect-particle-explosion',
+      routePath: '/effects/particle-effects/3-3-3-explosion',
+    }),
+    defineFeature({
+      id: 'particle-spray',
+      code: '3.3.4',
+      name: '喷雾',
+      imageSrc: sprayCover,
+      imageAlt: '喷雾粒子效果参考示例封面',
+      kind: 'particles',
+      particleSceneId: 'particle-spray',
+      routeName: 'effect-particle-spray',
+      routePath: '/effects/particle-effects/3-3-4-spray',
+    }),
+    defineFeature({
+      id: 'particle-smoke',
+      code: '3.3.5',
+      name: '烟',
+      imageSrc: smokeCover,
+      imageAlt: '烟雾粒子效果参考示例封面',
+      kind: 'particles',
+      particleSceneId: 'particle-smoke',
+      routeName: 'effect-particle-smoke',
+      routePath: '/effects/particle-effects/3-3-5-smoke',
+    }),
+  ],
+}
+
 export const layersMenuGroup: MenuGroup = {
   id: 'layers',
   code: '1',
@@ -724,7 +810,7 @@ export const effectsMenuGroup: MenuGroup = {
   code: '3',
   title: '特效',
   icon: MagicStick,
-  sections: [effectSection, specialShapeSection],
+  sections: [effectSection, specialShapeSection, particleSection],
 }
 
 export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup, effectsMenuGroup]
@@ -735,6 +821,7 @@ export const featureSections: FeatureSection[] = [
   videoFusionSection,
   effectSection,
   specialShapeSection,
+  particleSection,
 ]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)
