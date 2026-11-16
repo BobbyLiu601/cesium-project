@@ -10,11 +10,11 @@ export function createCurveInterpolationScene(
   setStatus: StatusReporter,
 ): SpecialShapeScene {
   const controls = [
-    Cesium.Cartesian3.fromDegrees(110, 10),
-    Cesium.Cartesian3.fromDegrees(111, 11),
-    Cesium.Cartesian3.fromDegrees(112, 9),
-    Cesium.Cartesian3.fromDegrees(114, 10),
-    Cesium.Cartesian3.fromDegrees(113, 8),
+    Cesium.Cartesian3.fromDegrees(110, 30),
+    Cesium.Cartesian3.fromDegrees(111, 31),
+    Cesium.Cartesian3.fromDegrees(112, 29),
+    Cesium.Cartesian3.fromDegrees(114, 30),
+    Cesium.Cartesian3.fromDegrees(113, 28),
   ]
   const entities = controls.map((position) =>
     viewer.entities.add({
@@ -83,7 +83,7 @@ export function createCurveInterpolationScene(
   )
 
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(112, 9.5, 1_800_000),
+    destination: Cesium.Cartesian3.fromDegrees(112, 29.5, 1_800_000),
   })
   setStatus('绿色线性插值、白色 Catmull-Rom 曲线与 100 个采样点已生成')
 

@@ -1,6 +1,12 @@
 #!/usr/bin/env node
 
 import { execFileSync } from 'node:child_process'
+import {
+  isAncestor,
+  isFallbackBranch,
+  resolvePersistentBranch,
+  revParse,
+} from './lib/task-branches.mjs'
 
 const MAIN_BRANCH = 'main'
 const BYPASS_VARIABLE = 'ALLOW_MAIN_GIT_UPDATE'
@@ -10,7 +16,8 @@ function printHelp() {
   console.log(`用法：node scripts/check-git-branch.mjs <pre-commit|pre-push>
 
 pre-commit  阻止在 main 或 detached HEAD 上创建提交。
-pre-push    从标准输入读取待推送引用，阻止更新远端 main。
+pre-push    从标准输入读取待推送引用，阻止更新远端 main，并拒绝推送
+            尚未合并到持久任务分支的临时 fallback。
 
 绕过变量（仅限用户明确授权合并时使用）：
   ${BYPASS_VARIABLE}=1
@@ -41,6 +48,47 @@ function blockedRemoteRefs(input) {
   }
 
   return refs
+}
+
+function unmergedFallbackPushes(input) {
+  const pushes = []
+
+  for (const line of input.split(/\r?\n/)) {
+    const fields = line.trim().split(/\s+/)
+    if (fields.length < 4) {
+      continue
+    }
+
+    const [localRef, localSha] = fields
+    if (!localRef.startsWith('refs/heads/') || /^0+$/.test(localSha)) {
+      continue
+    }
+
+    const branch = localRef.slice('refs/heads/'.length)
+    if (isFallbackBranch(branch)) {
+      pushes.push({ branch, sha: localSha })
+    }
+  }
+
+  return pushes
+}
+
+function fallbackBlocker({ branch, sha }) {
+  try {
+    const { target } = resolvePersistentBranch({
+      cwd: process.cwd(),
+      fallbackBranch: branch,
+      fallbackTip: sha,
+    })
+    const targetTip = revParse(process.cwd(), target)
+    if (isAncestor(process.cwd(), sha, targetTip)) {
+      return ''
+    }
+
+    return `fallback ${branch} 尚未合并到持久分支 ${target}。请先执行 node scripts/finalize-task-branch.mjs --fallback ${branch} --target ${target}`
+  } catch (error) {
+    return `fallback ${branch} 的目标持久分支无法确认：${error.message}。请先执行 finalize 并显式指定 --target`
+  }
 }
 
 function allowExplicitMainUpdate(action) {
@@ -105,17 +153,19 @@ async function checkPreCommit() {
 }
 
 async function checkPrePush() {
-  const refs = blockedRemoteRefs(await readStdin())
-  if (refs.length === 0) {
-    return
-  }
-
-  if (!allowExplicitMainUpdate('向远端 main 推送')) {
+  const input = await readStdin()
+  const refs = blockedRemoteRefs(input)
+  if (refs.length > 0 && !allowExplicitMainUpdate('向远端 main 推送')) {
     reject(
       '向远端 main 推送',
       `待推送引用包含 ${refs.join(', ')}`,
       `默认只推送任务分支；合并 main 必须取得用户明确授权后，再使用 ${BYPASS_VARIABLE} 放行。`,
     )
+  }
+
+  const fallbackProblems = unmergedFallbackPushes(input).map(fallbackBlocker).filter(Boolean)
+  for (const problem of fallbackProblems) {
+    reject('推送未合并的 fallback 分支', problem, '先运行 finalize 收敛 fallback 后再推送。')
   }
 }
 

@@ -14,8 +14,8 @@ import type {
   StatusReporter,
 } from '@/demos/specialShapes/types'
 
-const VIEWER_FRUSTUM_ORIGIN = Cesium.Cartesian3.fromDegrees(120, 30, 1_000)
-const VIEWER_FRUSTUM_TARGET = Cesium.Cartesian3.fromDegrees(125, 30, 0)
+const VIEWER_FRUSTUM_ORIGIN = Cesium.Cartesian3.fromDegrees(110, 30, 1_000)
+const VIEWER_FRUSTUM_TARGET = Cesium.Cartesian3.fromDegrees(115, 30, 0)
 
 export function createFrustumScene(
   viewer: Cesium.Viewer,
@@ -73,7 +73,7 @@ export function createFrustumScene(
     viewer.scene.primitives.add(primitive)
   }
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(120, 30, 3_000),
+    destination: Cesium.Cartesian3.fromDegrees(110, 30, 3_000),
   })
   setStatus('红色半透明视锥体与白色轮廓线已生成')
 
@@ -90,12 +90,13 @@ export function createManualFrustumScene(
 ): SpecialShapeScene {
   throwIfAborted(options.signal)
 
+  // 天地图影像仅覆盖中国境内，将参考站的美国坐标平移到国内同一纬度带。
   const points = {
-    p1: { x: -90, y: 40, z: 0 },
-    p2: { x: -90, y: 30, z: 0 },
-    p3: { x: -100, y: 30, z: 0 },
-    p4: { x: -100, y: 40, z: 0 },
-    p5: { x: -95, y: 35, z: 2_000_000 },
+    p1: { x: 100, y: 40, z: 0 },
+    p2: { x: 100, y: 30, z: 0 },
+    p3: { x: 90, y: 30, z: 0 },
+    p4: { x: 90, y: 40, z: 0 },
+    p5: { x: 95, y: 35, z: 2_000_000 },
   }
   const sides = [
     [points.p1, points.p2, points.p5],
@@ -128,7 +129,7 @@ export function createManualFrustumScene(
   })
 
   viewer.camera.lookAt(
-    Cesium.Cartesian3.fromDegrees(-95, 35, 1_000_000),
+    Cesium.Cartesian3.fromDegrees(95, 35, 1_000_000),
     new Cesium.HeadingPitchRange(0, Cesium.Math.toRadians(-45), 5_000_000),
   )
   setStatus('4 个青色视锥侧面持续移动播放中')
@@ -153,8 +154,8 @@ export function createMovingFrustumScene(
   setStatus: StatusReporter,
 ): SpecialShapeScene {
   const position = {
-    latitude: 40.03883,
-    longitude: -75.59777,
+    latitude: 39.909,
+    longitude: 116.397,
     height: 3_000,
   }
   const origin = Cesium.Cartesian3.fromDegrees(

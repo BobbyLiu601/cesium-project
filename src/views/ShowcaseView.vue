@@ -25,6 +25,30 @@ const activeFeature = computed(() => {
   return getFeatureById(featureId)
 })
 
+const showcaseGroups = [
+  {
+    headingId: 'layers-heading',
+    level: 1,
+    menuGroup: layersMenuGroup,
+    sectionId: 'layers',
+    sections: layerSections,
+  },
+  {
+    headingId: 'spatial-heading',
+    level: 2,
+    menuGroup: spatialMenuGroup,
+    sectionId: undefined,
+    sections: spatialMenuGroup.sections,
+  },
+  {
+    headingId: 'effects-heading',
+    level: 2,
+    menuGroup: effectsMenuGroup,
+    sectionId: undefined,
+    sections: effectsMenuGroup.sections,
+  },
+] as const
+
 const gridTestIds: Record<FeatureSection['id'], string> = {
   imagery: 'feature-grid',
   terrain: 'terrain-grid',
@@ -34,6 +58,7 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   'video-fusion': 'video-fusion-grid',
   effects: 'effects-grid',
   'special-shapes': 'special-shapes-grid',
+  'particle-effects': 'particle-effects-grid',
   'physics-engine': 'physics-engine-grid',
 }
 
@@ -86,92 +111,22 @@ watch(
 
 <template>
   <div class="showcase" data-testid="showcase-view">
-    <section id="layers" class="showcase__section" aria-labelledby="layers-heading">
+    <section
+      v-for="group in showcaseGroups"
+      :id="group.sectionId"
+      :key="group.headingId"
+      class="showcase__section"
+      :aria-labelledby="group.headingId"
+    >
       <PageHeading
-        heading-id="layers-heading"
-        :icon="layersMenuGroup.icon"
-        :level="1"
-        :title="formatMenuGroupTitle(layersMenuGroup)"
+        :heading-id="group.headingId"
+        :icon="group.menuGroup.icon"
+        :level="group.level"
+        :title="formatMenuGroupTitle(group.menuGroup)"
       />
 
       <div
-        v-for="section in layerSections"
-        :id="section.id"
-        :key="section.id"
-        class="showcase__group"
-        :data-section-id="section.id"
-        :data-navigation-anchor="section.id"
-      >
-        <div class="showcase__group-heading">
-          <h2 :id="`${section.id}-heading`" class="showcase__group-title">
-            {{ section.code }}、{{ section.title }}
-          </h2>
-          <span class="showcase__group-count">{{ section.items.length }} 项</span>
-        </div>
-
-        <div class="showcase__body">
-          <div class="feature-grid" :data-testid="gridTestIds[section.id]">
-            <FeatureCard
-              v-for="feature in section.items"
-              :id="feature.id"
-              :key="feature.id"
-              :feature="feature"
-              :data-nav-anchor="feature.id"
-              @activate="openFeature(feature)"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="showcase__section" aria-labelledby="spatial-heading">
-      <PageHeading
-        heading-id="spatial-heading"
-        :icon="spatialMenuGroup.icon"
-        :level="2"
-        :title="formatMenuGroupTitle(spatialMenuGroup)"
-      />
-
-      <div
-        v-for="section in spatialMenuGroup.sections"
-        :id="section.id"
-        :key="section.id"
-        class="showcase__group"
-        :data-section-id="section.id"
-        :data-navigation-anchor="section.id"
-      >
-        <div class="showcase__group-heading">
-          <h2 :id="`${section.id}-group-heading`" class="showcase__group-title">
-            {{ section.code }}、{{ section.title }}
-          </h2>
-          <span class="showcase__group-count">{{ section.items.length }} 项</span>
-        </div>
-
-        <div class="showcase__body">
-          <div class="feature-grid" :data-testid="gridTestIds[section.id]">
-            <FeatureCard
-              v-for="feature in section.items"
-              :id="feature.id"
-              :key="feature.id"
-              :feature="feature"
-              :data-nav-anchor="feature.id"
-              @activate="openFeature(feature)"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <section class="showcase__section" aria-labelledby="effects-heading">
-      <PageHeading
-        heading-id="effects-heading"
-        :icon="effectsMenuGroup.icon"
-        :level="2"
-        :title="formatMenuGroupTitle(effectsMenuGroup)"
-      />
-
-      <div
-        v-for="section in effectsMenuGroup.sections"
+        v-for="section in group.sections"
         :id="section.id"
         :key="section.id"
         class="showcase__group"

@@ -114,9 +114,9 @@ describe('App', () => {
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('#spatial-heading').text()).toBe('2、空间分析')
     expect(wrapper.get('#effects-heading').text()).toBe('3、特效')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(48)
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(53)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(3)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(9)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(10)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
     expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(3)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
@@ -130,7 +130,7 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(48)
+    expect(cards).toHaveLength(53)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
@@ -160,11 +160,16 @@ describe('App', () => {
     expect(cards[40]?.attributes('data-feature-id')).toBe('electronic-fence')
     expect(cards[41]?.attributes('data-feature-id')).toBe('electronic-fence-2')
     expect(cards[42]?.attributes('data-feature-id')).toBe('radar-mask-scan')
-    expect(cards[43]?.attributes('data-feature-id')).toBe('vehicle-motion')
-    expect(cards[44]?.attributes('data-feature-id')).toBe('flag-rotation')
-    expect(cards[45]?.attributes('data-feature-id')).toBe('ball-rotation')
-    expect(cards[46]?.attributes('data-feature-id')).toBe('soft-body-collision')
-    expect(cards[47]?.attributes('data-feature-id')).toBe('fracture-collision')
+    expect(cards[43]?.attributes('data-feature-id')).toBe('particle-fire')
+    expect(cards[44]?.attributes('data-feature-id')).toBe('particle-water-gun')
+    expect(cards[45]?.attributes('data-feature-id')).toBe('particle-explosion')
+    expect(cards[46]?.attributes('data-feature-id')).toBe('particle-spray')
+    expect(cards[47]?.attributes('data-feature-id')).toBe('particle-smoke')
+    expect(cards[48]?.attributes('data-feature-id')).toBe('vehicle-motion')
+    expect(cards[49]?.attributes('data-feature-id')).toBe('flag-rotation')
+    expect(cards[50]?.attributes('data-feature-id')).toBe('ball-rotation')
+    expect(cards[51]?.attributes('data-feature-id')).toBe('soft-body-collision')
+    expect(cards[52]?.attributes('data-feature-id')).toBe('fracture-collision')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -192,6 +197,9 @@ describe('App', () => {
     expect(
       wrapper.get('[data-testid="special-shapes-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(11)
+    expect(
+      wrapper.get('[data-testid="particle-effects-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(5)
     expect(
       wrapper.get('[data-testid="physics-engine-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(5)
@@ -242,11 +250,16 @@ describe('App', () => {
     expect(cards[40]?.attributes('aria-label')).toBe('打开3.2.9、电子围栏')
     expect(cards[41]?.attributes('aria-label')).toBe('打开3.2.10、电子围栏2')
     expect(cards[42]?.attributes('aria-label')).toBe('打开3.2.11、雷达遮罩扫描')
-    expect(cards[43]?.attributes('aria-label')).toBe('打开3.4.1、车辆运动')
-    expect(cards[44]?.attributes('aria-label')).toBe('打开3.4.2、转动（旗子）')
-    expect(cards[45]?.attributes('aria-label')).toBe('打开3.4.3、转动（球）')
-    expect(cards[46]?.attributes('aria-label')).toBe('打开3.4.4、撞击（软体）')
-    expect(cards[47]?.attributes('aria-label')).toBe('打开3.4.5、撞击断裂体')
+    expect(cards[43]?.attributes('aria-label')).toBe('打开3.3.1、火焰')
+    expect(cards[44]?.attributes('aria-label')).toBe('打开3.3.2、水枪')
+    expect(cards[45]?.attributes('aria-label')).toBe('打开3.3.3、爆炸')
+    expect(cards[46]?.attributes('aria-label')).toBe('打开3.3.4、喷雾')
+    expect(cards[47]?.attributes('aria-label')).toBe('打开3.3.5、烟')
+    expect(cards[48]?.attributes('aria-label')).toBe('打开3.4.1、车辆运动')
+    expect(cards[49]?.attributes('aria-label')).toBe('打开3.4.2、转动（旗子）')
+    expect(cards[50]?.attributes('aria-label')).toBe('打开3.4.3、转动（球）')
+    expect(cards[51]?.attributes('aria-label')).toBe('打开3.4.4、撞击（软体）')
+    expect(cards[52]?.attributes('aria-label')).toBe('打开3.4.5、撞击断裂体')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
@@ -263,6 +276,7 @@ describe('App', () => {
       '2.2、视频融合',
       '3.1、场景特效',
       '3.2、特殊形状',
+      '3.3、粒子效果',
       '3.4、物理引擎',
     ])
 
@@ -769,7 +783,8 @@ describe('App', () => {
       'video-fusion': 100,
       effects: 50,
       'special-shapes': 220,
-      'physics-engine': 360,
+      'particle-effects': 300,
+      'physics-engine': 400,
     }
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({
@@ -809,7 +824,7 @@ describe('App', () => {
     positions.spatial = -60
     positions.effects = 40
     positions['special-shapes'] = 180
-    positions['physics-engine'] = 300
+    positions['particle-effects'] = 260
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -836,7 +851,7 @@ describe('App', () => {
     positions.spatial = -60
     positions.effects = 20
     positions['special-shapes'] = 150
-    positions['physics-engine'] = 280
+    positions['particle-effects'] = 220
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -855,6 +870,25 @@ describe('App', () => {
     expect(wrapper.findAll('.el-sub-menu')[1]?.classes()).not.toContain('is-opened')
     expect(wrapper.findAll('.el-sub-menu')[2]?.classes()).toContain('is-opened')
     expect(router.currentRoute.value.fullPath).toBe('/layers')
+
+    positions.effects = -20
+    positions['special-shapes'] = -10
+    positions['particle-effects'] = 0
+    for (const [anchor, spy] of Object.entries(spies)) {
+      spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
+    }
+
+    await wrapper.get('main').trigger('scroll')
+    frameCallbacks.splice(0).forEach((callback) => callback(0))
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('[role="menuitem"]')
+        .find((item) => item.attributes('aria-current') === 'location')
+        ?.text(),
+    ).toBe('3.3、粒子效果')
+    expect(wrapper.findAll('.el-sub-menu')[2]?.classes()).toContain('is-opened')
 
     wrapper.unmount()
   })
@@ -1045,6 +1079,46 @@ describe('App', () => {
     expect(globe.text()).toContain('当前浏览器无法播放雷声')
     expect(globe.findAll('button').some((button) => button.text() === '重新播放雷声')).toBe(false)
     expect(consoleWarn).toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('opens a particle effect from its deep link and toggles pause without rebuilding the viewer', async () => {
+    const wrapper = await mountAt('/effects/particle-effects/3-3-1-fire')
+
+    await vi.waitFor(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const dialog = wrapper.get('.feature-dialog--particles')
+    const globe = wrapper.get('[data-testid="particle-demo-globe"]')
+    expect(dialog.text()).toContain('3.3.1、火焰')
+    expect(globe.attributes('data-scene-id')).toBe('particle-fire')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.attributes('data-paused')).toBe('false')
+    expect(viewerInstances[0]?.clock.shouldAnimate).toBe(true)
+
+    await wrapper.get('button[aria-label="暂停粒子效果"]').trigger('click')
+    await flushPromises()
+
+    expect(globe.attributes('data-paused')).toBe('true')
+    expect(viewerInstances[0]?.clock.shouldAnimate).toBe(false)
+    expect(globe.text()).toContain('已暂停')
+
+    await wrapper.get('button[aria-label="继续粒子效果"]').trigger('click')
+    await flushPromises()
+
+    expect(globe.attributes('data-paused')).toBe('false')
+    expect(viewerInstances[0]?.clock.shouldAnimate).toBe(true)
+    expect(viewerInstances).toHaveLength(1)
+
+    await wrapper.get('.feature-dialog--particles .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.fullPath).toBe('/layers#particle-fire')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+    expect(wrapper.find('[data-testid="particle-demo-globe"]').exists()).toBe(false)
 
     wrapper.unmount()
   })

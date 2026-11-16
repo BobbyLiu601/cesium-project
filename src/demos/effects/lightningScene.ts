@@ -159,7 +159,7 @@ export function createLightningScene(
   viewer.scene.preUpdate.addEventListener(renderTicker)
   viewer.scene.globe.depthTestAgainstTerrain = true
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(121.662323, 20.157338, 271_712),
+    destination: Cesium.Cartesian3.fromDegrees(104, 30, 271_712),
     orientation: {
       heading: Cesium.Math.toRadians(350.3),
       pitch: Cesium.Math.toRadians(-27.4),

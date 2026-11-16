@@ -29,7 +29,7 @@ export function createSkyboxScene(
   sceneSkyBox.install()
   viewer.scene.globe.depthTestAgainstTerrain = true
   viewer.camera.setView({
-    destination: Cesium.Cartesian3.fromDegrees(-95.166493, 39.9060534, 20_000_000),
+    destination: Cesium.Cartesian3.fromDegrees(104, 30, 20_000_000),
   })
   setStatus('已加载本地六面天空盒，可拖拽旋转观察全景星图')
 
