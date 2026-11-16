@@ -71,3 +71,31 @@ _Avoid_: 服务端秘密、私有 API Key
 **构建时注入**：
 在构建阶段将配置写入静态产物；修改后必须重新构建，不等同于浏览器运行时读取配置。
 _Avoid_: 运行时配置、服务端注入
+
+**执行模式（Execution Mode）**：
+Multica 描述任务如何使用本地 Git 仓库的策略；当前包括 `in_place` 和 `worktree` 两种模式。
+_Avoid_: 工作模式、目录类型
+
+**in-place 执行模式（in_place）**：
+所有任务直接使用同一个本地工作目录，并按目录互斥串行执行。
+_Avoid_: 原地模式、共享目录模式
+
+**worktree 执行模式（worktree）**：
+每个任务使用独立 Git 工作树，并与同一 Issue 的后续轮次共享同一条持久任务分支。
+_Avoid_: 克隆模式、并行目录模式
+
+**任务工作树（Task Worktree）**：
+Multica 为单个任务或会话创建的独立 Git 工作树，用于隔离文件修改和并发执行。
+_Avoid_: 临时目录、副本目录
+
+**持久任务分支（Persistent Task Branch）**：
+`worktree` 模式下由 Multica 分配并在同一 Issue 多轮执行中复用的平台分支，也是唯一交付对象；命名为 `agent/<agent>/<issue-key>`。
+_Avoid_: 平台占位分支、交付别名
+
+**临时 fallback 分支（Transient Fallback Branch）**：
+平台无法复用持久任务分支时创建的临时分支，名称为 `agent/<agent>/<issue-key>-<task-id 后 12 位>`；必须包含创建时的持久分支提交，并在交付前合并回持久分支。
+_Avoid_: 第二条任务分支、替代分支
+
+**分支收敛（Finalize）**：
+把临时 fallback 合并回持久任务分支，并在祖先关系和工作树安全检查通过后删除本地 fallback ref 的幂等操作。
+_Avoid_: 分支清理、强制合并

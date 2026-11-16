@@ -78,8 +78,16 @@ function runGuard(directory, hookType, options = {}) {
   }
 }
 
-function pushLine(remoteBranch) {
-  return `refs/heads/fix/alcy-39-test ${zeroSha} refs/heads/${remoteBranch} ${zeroSha}\n`
+function pushLine(remoteBranch, options = {}) {
+  const localBranch = options.localBranch ?? 'fix/alcy-39-test'
+  const localSha = options.localSha ?? zeroSha
+  return `refs/heads/${localBranch} ${localSha} refs/heads/${remoteBranch} ${zeroSha}\n`
+}
+
+function commitChange(directory, name, message) {
+  writeFileSync(join(directory, name), `${message}\n`)
+  execFileSync('git', ['add', '.'], { cwd: directory, stdio: 'ignore' })
+  execFileSync('git', ['commit', '-m', message], { cwd: directory, stdio: 'ignore' })
 }
 
 afterEach(() => {
@@ -190,4 +198,105 @@ describe('check-git-branch', () => {
 
     expect(allowedPush.status).toBe(0)
   }, 20_000)
+
+  it('拒绝推送尚未合并的 fallback 分支', () => {
+    const directory = createRepository()
+    execFileSync('git', ['config', 'user.name', 'Git Guard Test'], { cwd: directory })
+    execFileSync('git', ['config', 'user.email', 'git-guard@example.test'], { cwd: directory })
+    commitChange(directory, 'base.txt', 'base')
+    execFileSync('git', ['switch', '-c', 'agent/deepseek-pro/alcy-39'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    commitChange(directory, 'persistent.txt', 'persistent')
+    execFileSync('git', ['switch', '-c', 'agent/deepseek-pro/alcy-39-abcdef123456'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    commitChange(directory, 'fallback.txt', 'fallback')
+    const fallbackSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: directory,
+      encoding: 'utf8',
+    }).trim()
+
+    const result = runGuard(directory, 'pre-push', {
+      input: pushLine('agent/deepseek-pro/alcy-39-abcdef123456', {
+        localBranch: 'agent/deepseek-pro/alcy-39-abcdef123456',
+        localSha: fallbackSha,
+      }),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('尚未合并')
+    expect(result.output).toContain('finalize-task-branch.mjs')
+  })
+
+  it('允许推送已合并到持久分支的 fallback', () => {
+    const directory = createRepository()
+    execFileSync('git', ['config', 'user.name', 'Git Guard Test'], { cwd: directory })
+    execFileSync('git', ['config', 'user.email', 'git-guard@example.test'], { cwd: directory })
+    commitChange(directory, 'base.txt', 'base')
+    execFileSync('git', ['switch', '-c', 'agent/deepseek-pro/alcy-39'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    commitChange(directory, 'persistent.txt', 'persistent')
+    execFileSync('git', ['switch', '-c', 'agent/deepseek-pro/alcy-39-abcdef123456'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    commitChange(directory, 'fallback.txt', 'fallback')
+    const fallbackSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: directory,
+      encoding: 'utf8',
+    }).trim()
+    execFileSync('git', ['switch', 'agent/deepseek-pro/alcy-39'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    execFileSync(
+      'git',
+      ['merge', '--no-ff', '--no-edit', 'agent/deepseek-pro/alcy-39-abcdef123456'],
+      {
+        cwd: directory,
+        stdio: 'ignore',
+      },
+    )
+
+    const result = runGuard(directory, 'pre-push', {
+      input: pushLine('agent/deepseek-pro/alcy-39-abcdef123456', {
+        localBranch: 'agent/deepseek-pro/alcy-39-abcdef123456',
+        localSha: fallbackSha,
+      }),
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.output.trim()).toBe('')
+  })
+
+  it('fallback 无法解析持久分支时拒绝推送', () => {
+    const directory = createRepository()
+    execFileSync('git', ['config', 'user.name', 'Git Guard Test'], { cwd: directory })
+    execFileSync('git', ['config', 'user.email', 'git-guard@example.test'], { cwd: directory })
+    commitChange(directory, 'base.txt', 'base')
+    execFileSync('git', ['switch', '-c', 'agent/deepseek-pro/alcy-99-abcdef123456'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    commitChange(directory, 'fallback.txt', 'fallback')
+    const fallbackSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: directory,
+      encoding: 'utf8',
+    }).trim()
+
+    const result = runGuard(directory, 'pre-push', {
+      input: pushLine('agent/deepseek-pro/alcy-99-abcdef123456', {
+        localBranch: 'agent/deepseek-pro/alcy-99-abcdef123456',
+        localSha: fallbackSha,
+      }),
+    })
+
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('无法确认')
+  })
 })

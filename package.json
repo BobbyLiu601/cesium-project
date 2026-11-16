@@ -26,6 +26,7 @@
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:pages": "node scripts/check-pages-build.mjs",
     "check:template": "node scripts/check-template-content.mjs",
+    "finalize:branch": "node scripts/finalize-task-branch.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate:models": "node scripts/generate-project-models.mjs",
