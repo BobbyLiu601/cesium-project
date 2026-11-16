@@ -17,6 +17,7 @@ export class BallPhysicsScene extends BasePhysicsScene {
   private armMovement = 0
   private hinge: InstanceType<AmmoApi['btHingeConstraint']> | undefined
   private ropeNodes: LocalPoint[] = []
+  private ropeLinePositions: Cartesian3[] = []
   private ropeBody: InstanceType<AmmoApi['btSoftBody']> | undefined
   private lastStatusAt = 0
 
@@ -34,6 +35,7 @@ export class BallPhysicsScene extends BasePhysicsScene {
     this.hinge = undefined
     this.ropeBody = undefined
     this.ropeNodes = []
+    this.ropeLinePositions = []
 
     this.runtime.addStaticBox({
       color: Color.fromCssColorString('#45545d').withAlpha(0.95),
@@ -155,17 +157,11 @@ export class BallPhysicsScene extends BasePhysicsScene {
     this.ropeBody = rope
     this.updateRopeNodes()
 
-    this.runtime.addDynamicPolyline(
-      () =>
-        this.ropeNodes.map((position) =>
-          this.runtime.localToWorld(position.x, position.y, position.z, new Cartesian3()),
-        ),
-      {
-        color: Color.fromCssColorString('#f5f0df'),
-        id: 'physics-ball-rope',
-        width: 4,
-      },
-    )
+    this.runtime.addDynamicPolyline(() => this.ropeLinePositions, {
+      color: Color.fromCssColorString('#f5f0df'),
+      id: 'physics-ball-rope',
+      width: 4,
+    })
     return rope
   }
 
@@ -197,13 +193,24 @@ export class BallPhysicsScene extends BasePhysicsScene {
       return
     }
     const nodes = rope.get_m_nodes()
-    this.ropeNodes = Array.from({ length: ROPE_SEGMENTS + 1 }, (_, index) => {
+    if (this.ropeNodes.length !== ROPE_SEGMENTS + 1) {
+      this.ropeNodes = Array.from({ length: ROPE_SEGMENTS + 1 }, () => ({
+        x: -3,
+        y: 0,
+        z: 0,
+      }))
+      this.ropeLinePositions = Array.from({ length: ROPE_SEGMENTS + 1 }, () => new Cartesian3())
+    }
+    for (let index = 0; index <= ROPE_SEGMENTS; index += 1) {
       const position = nodes.at(index)?.get_m_x()
-      return {
-        x: position?.x() ?? -3,
-        y: position?.y() ?? 0,
-        z: position?.z() ?? 0,
-      }
-    })
+      const node = this.ropeNodes[index]!
+      node.x = position?.x() ?? -3
+      node.y = position?.y() ?? 0
+      node.z = position?.z() ?? 0
+      const target = this.ropeLinePositions[index]!
+      target.x = node.x
+      target.y = node.y
+      target.z = node.z
+    }
   }
 }

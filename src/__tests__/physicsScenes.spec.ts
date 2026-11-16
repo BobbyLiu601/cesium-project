@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { watch } from 'vue'
 
 import type { PhysicsEngineSceneId } from '@/data/layers'
 import { PHYSICS_SCENE_DEFINITIONS, createPhysicsEngineScene } from '../demos/physicsScene'
 import type { PhysicsEngineScene } from '../demos/physicsEngine/types'
-import { Viewer, resetCesiumMock, screenSpaceEventHandlerInstances } from './mocks/cesium'
+import {
+  Viewer,
+  resetCesiumMock,
+  scenePrimitiveAdds,
+  scenePrimitiveRemoves,
+  screenSpaceEventHandlerInstances,
+} from './mocks/cesium'
 
 vi.mock('cesium', async () => import('./mocks/cesium'))
 
@@ -78,6 +85,7 @@ describe('physics engine scenes', () => {
       scene.dispose()
       expect(preUpdateListenerCount(viewer)).toBe(0)
       expect(viewer.entities.values).toHaveLength(0)
+      expect(scenePrimitiveRemoves).toHaveLength(scenePrimitiveAdds.length)
       expect(screenSpaceEventHandlerInstances.every((handler) => handler.actions.size === 0)).toBe(
         true,
       )
@@ -94,6 +102,43 @@ describe('physics engine scenes', () => {
         signal: controller.signal,
       }),
     ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('limits reactive physics stats updates while simulation frames keep running', async () => {
+    const viewer = createViewer()
+    const scene = await createPhysicsEngineScene(viewer, 'vehicle-motion', vi.fn())
+    let now = performance.now()
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const statsUpdates: number[] = []
+    const stopWatching = watch(scene.stats, () => statsUpdates.push(now), { flush: 'sync' })
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      now += 1_000 / 60
+      viewer.scene.preUpdate.raiseEvent()
+    }
+
+    stopWatching()
+    expect(statsUpdates.length).toBeLessThanOrEqual(5)
+    scene.dispose()
+  })
+
+  it('reduces render effects and resolution when frame pacing stays below the target', async () => {
+    const viewer = createViewer()
+    const scene = await createPhysicsEngineScene(viewer, 'vehicle-motion', vi.fn())
+    let now = performance.now()
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+
+    for (let frame = 0; frame < 120; frame += 1) {
+      now += 60
+      viewer.scene.preUpdate.raiseEvent()
+    }
+
+    expect(viewer.scene.msaaSamples).toBe(1)
+    expect(viewer.scene.postProcessStages.fxaa.enabled).toBe(false)
+    expect(viewer.scene.fog.enabled).toBe(false)
+    expect(viewer.scene.globe.showGroundAtmosphere).toBe(false)
+    expect(viewer.resolutionScale).toBeLessThan(1)
+    scene.dispose()
   })
 
   it('supports an injected Ammo loader failure without leaking a viewer session', async () => {

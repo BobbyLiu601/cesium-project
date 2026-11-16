@@ -8,6 +8,7 @@
     "dev": "vite --configLoader native",
     "build": "run-s type-check build-only check:bundle",
     "build:pages": "node scripts/build-pages.mjs",
+    "benchmark:physics": "node scripts/benchmark-physics.mjs",
     "preview": "vite preview --configLoader native",
     "test": "vitest run --configLoader native",
     "test:unit": "vitest run --configLoader native",

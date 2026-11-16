@@ -1,11 +1,4 @@
-import {
-  CallbackPositionProperty,
-  CallbackProperty,
-  Color,
-  HeadingPitchRange,
-  Quaternion,
-  ReferenceFrame,
-} from 'cesium'
+import { Color, HeadingPitchRange } from 'cesium'
 
 import {
   BasePhysicsScene,
@@ -13,6 +6,7 @@ import {
   quaternionFromAxisAngle,
   type LocalPoint,
   type LocalQuaternion,
+  type PhysicsPrimitiveVisual,
   type PhysicsSceneControllerOptions,
 } from './shared'
 import type { AmmoApi, PhysicsControl } from './types'
@@ -39,6 +33,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     position: LocalPoint
     rotation: LocalQuaternion
   }> = []
+  private readonly wheelVisuals: PhysicsPrimitiveVisual[] = []
   private vehicle: InstanceType<AmmoApi['btRaycastVehicle']> | undefined
   private steering = 0
   private lastStatusAt = 0
@@ -56,6 +51,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
 
   protected buildScene() {
     this.wheelTransforms.length = 0
+    this.wheelVisuals.length = 0
     this.vehicleActions.acceleration = false
     this.vehicleActions.braking = false
     this.vehicleActions.left = false
@@ -149,17 +145,20 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       target.rotation.x = rotation.x()
       target.rotation.y = rotation.y()
       target.rotation.z = rotation.z()
-    }
-
-    const speed = Math.abs(this.vehicle.getCurrentSpeedKmHour())
-    this.runtime.stats.value = {
-      ...this.runtime.stats.value,
-      vehicleSpeed: speed,
+      const visual = this.wheelVisuals[index]
+      if (visual) {
+        this.runtime.refreshPrimitiveVisual(visual)
+      }
     }
 
     const now = performance.now()
     if (now - this.lastStatusAt > 450) {
       this.lastStatusAt = now
+      const speed = Math.abs(this.vehicle.getCurrentSpeedKmHour())
+      this.runtime.stats.value = {
+        ...this.runtime.stats.value,
+        vehicleSpeed: speed,
+      }
       this.setStatus(`Ammo.js 车辆运行中：${speed.toFixed(1)} km/h`)
     }
   }
@@ -261,52 +260,14 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       }
       this.wheelTransforms[index] = transform
 
-      this.runtime.addEntity(
-        this.viewer.entities.add({
-          position: new CallbackPositionProperty(
-            () =>
-              this.runtime.localToWorld(
-                transform.position.x,
-                transform.position.y,
-                transform.position.z,
-              ),
-            false,
-            ReferenceFrame.FIXED,
-          ),
-          orientation: new CallbackProperty(() => {
-            const wheelRotation = new Quaternion(
-              transform.rotation.x,
-              transform.rotation.y,
-              transform.rotation.z,
-              transform.rotation.w,
-            )
-            const alignedRotation = new Quaternion()
-            Quaternion.multiply(
-              wheelRotation,
-              new Quaternion(
-                ALIGN_CYLINDER_TO_AXLE.x,
-                ALIGN_CYLINDER_TO_AXLE.y,
-                ALIGN_CYLINDER_TO_AXLE.z,
-                ALIGN_CYLINDER_TO_AXLE.w,
-              ),
-              alignedRotation,
-            )
-            return this.runtime.localQuaternionToWorld({
-              w: alignedRotation.w,
-              x: alignedRotation.x,
-              y: alignedRotation.y,
-              z: alignedRotation.z,
-            })
-          }, false) as never,
-          cylinder: {
-            length: wheel.width,
-            topRadius: wheel.radius,
-            bottomRadius: wheel.radius,
-            slices: 20,
-            material: Color.fromCssColorString('#16232b'),
-          },
-        }),
-      )
+      this.wheelVisuals[index] = this.runtime.addTrackedCylinder({
+        color: Color.fromCssColorString('#16232b'),
+        length: wheel.width,
+        position: transform.position,
+        radius: wheel.radius,
+        rotation: transform.rotation,
+        rotationOffset: ALIGN_CYLINDER_TO_AXLE,
+      })
     })
 
     this.addSceneCleanup(() => {

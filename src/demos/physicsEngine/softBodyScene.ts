@@ -96,14 +96,13 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
     for (const volume of this.volumes) {
       const nodes = volume.body.get_m_nodes()
       const count = (volume.rowCount + 1) * volume.columnCount
-      volume.points = Array.from({ length: count }, (_, index) => {
+      for (let index = 0; index < count; index += 1) {
         const position = nodes.at(index)?.get_m_x()
-        return {
-          x: position?.x() ?? 0,
-          y: position?.y() ?? 0,
-          z: position?.z() ?? 0,
-        }
-      })
+        const target = volume.points[index]!
+        target.x = position?.x() ?? 0
+        target.y = position?.y() ?? 0
+        target.z = position?.z() ?? 0
+      }
     }
 
     const now = performance.now()
@@ -222,19 +221,22 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
     const volume: SoftVolumeState = {
       body,
       columnCount,
-      points: [],
+      points: Array.from({ length: (rowCount + 1) * columnCount }, () => ({
+        x: options.center.x,
+        y: options.center.y,
+        z: options.center.z,
+      })),
       rowCount,
     }
     this.volumes.push(volume)
     const nodes = body.get_m_nodes()
-    volume.points = Array.from({ length: (rowCount + 1) * columnCount }, (_, index) => {
+    for (let index = 0; index < volume.points.length; index += 1) {
       const position = nodes.at(index)?.get_m_x()
-      return {
-        x: position?.x() ?? options.center.x,
-        y: position?.y() ?? options.center.y,
-        z: position?.z() ?? options.center.z,
-      }
-    })
+      const target = volume.points[index]!
+      target.x = position?.x() ?? options.center.x
+      target.y = position?.y() ?? options.center.y
+      target.z = position?.z() ?? options.center.z
+    }
 
     for (let row = 0; row <= rowCount; row += 1) {
       const ids = Array.from(
@@ -250,12 +252,18 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
   }
 
   private addVolumeLine(volume: SoftVolumeState, indices: number[], color: Color, width: number) {
+    const positions = indices.map(() => new Cartesian3())
     this.runtime.addDynamicPolyline(
-      () =>
-        indices.map((index) => {
-          const position = volume.points[index] ?? { x: 0, y: 0, z: 0 }
-          return this.runtime.localToWorld(position.x, position.y, position.z, new Cartesian3())
-        }),
+      () => {
+        indices.forEach((index, positionIndex) => {
+          const point = volume.points[index] ?? { x: 0, y: 0, z: 0 }
+          const target = positions[positionIndex]!
+          target.x = point.x
+          target.y = point.y
+          target.z = point.z
+        })
+        return positions
+      },
       {
         color,
         id: `physics-soft-line-${this.lineSerial++}`,

@@ -21,6 +21,7 @@ export interface MockViewer {
     flyTo: ReturnType<typeof vi.fn<(options: unknown) => void>>
   }
   scene: {
+    msaaSamples: number
     requestRenderMode: boolean
     requestRender: ReturnType<typeof vi.fn<() => void>>
     backgroundColor: unknown
@@ -38,9 +39,14 @@ export interface MockViewer {
       show: boolean
     }
     postProcessStages: MockPostProcessStageCollection
+    fog: {
+      enabled: boolean
+    }
     globe: {
       enableLighting: boolean
       depthTestAgainstTerrain: boolean
+      maximumScreenSpaceError: number
+      showGroundAtmosphere: boolean
       tileLoadProgressEvent: {
         addEventListener: ReturnType<typeof vi.fn<(callback: () => void) => () => void>>
       }
@@ -61,6 +67,7 @@ export interface MockViewer {
     multiplier: number
   }
   flyTo: ReturnType<typeof vi.fn<(target: unknown) => Promise<boolean>>>
+  resolutionScale: number
   shadows: boolean
   resize: ReturnType<typeof vi.fn<() => void>>
   destroy: ReturnType<typeof vi.fn<() => void>>
@@ -127,6 +134,7 @@ export class Event<T extends (...args: never[]) => unknown = () => void> extends
 
 export class MockPostProcessStageCollection {
   stages: PostProcessStage[] = []
+  fxaa = { enabled: true }
 
   add = vi.fn<(stage: PostProcessStage) => PostProcessStage>((stage) => {
     this.stages.push(stage)
@@ -352,6 +360,7 @@ export class Viewer implements MockViewer {
   }
 
   scene = {
+    msaaSamples: 4,
     requestRenderMode: true,
     requestRender: vi.fn<() => void>(),
     backgroundColor: undefined as unknown,
@@ -373,6 +382,8 @@ export class Viewer implements MockViewer {
     globe: {
       enableLighting: false,
       depthTestAgainstTerrain: false,
+      maximumScreenSpaceError: 2,
+      showGroundAtmosphere: true,
       tileLoadProgressEvent: {
         addEventListener: vi.fn<(callback: () => void) => () => void>((callback) => {
           tileLoadProgressListeners.push(callback)
@@ -391,9 +402,13 @@ export class Viewer implements MockViewer {
     },
     skyBox: undefined as unknown,
     postProcessStages: new MockPostProcessStageCollection(),
+    fog: {
+      enabled: true,
+    },
     verticalExaggeration: 1,
   }
 
+  resolutionScale = 1
   resize = vi.fn<() => void>()
   flyTo = vi.fn<(target: unknown) => Promise<boolean>>(() => Promise.resolve(true))
   shadows = false
@@ -433,6 +448,60 @@ export class PolylineGeometry {
   constructor(public options: Record<string, unknown>) {}
 }
 
+export class Polyline {
+  id: unknown
+  loop = false
+  material: unknown
+  positions: unknown[]
+  show = true
+  width: number
+
+  constructor(options: Record<string, unknown> = {}) {
+    this.id = options.id
+    this.material = options.material
+    this.positions = (options.positions as unknown[]) ?? []
+    this.show = (options.show as boolean | undefined) ?? true
+    this.width = (options.width as number | undefined) ?? 1
+  }
+}
+
+export class PolylineCollection {
+  readonly polylines: Polyline[] = []
+  modelMatrix: unknown
+  show = true
+
+  constructor(options: Record<string, unknown> = {}) {
+    this.modelMatrix = options.modelMatrix
+  }
+
+  get length() {
+    return this.polylines.length
+  }
+
+  add(options: Record<string, unknown>) {
+    const line = new Polyline(options)
+    this.polylines.push(line)
+    return line
+  }
+
+  get(index: number) {
+    return this.polylines[index]
+  }
+
+  remove(line: Polyline) {
+    const index = this.polylines.indexOf(line)
+    if (index < 0) {
+      return false
+    }
+    this.polylines.splice(index, 1)
+    return true
+  }
+
+  removeAll() {
+    this.polylines.length = 0
+  }
+}
+
 export class RectangleGeometry {
   constructor(public options: Record<string, unknown>) {}
 }
@@ -443,6 +512,10 @@ export class CircleGeometry {
 
 export class BoxGeometry {
   constructor(public options: Record<string, unknown>) {}
+
+  static fromDimensions(options: Record<string, unknown>) {
+    return new BoxGeometry(options)
+  }
 }
 
 export class CylinderGeometry {
@@ -1200,24 +1273,28 @@ export const Transforms = {
   })),
 }
 
-export const Matrix4 = {
-  IDENTITY: {},
-  fromTranslation: vi.fn<(translation: unknown) => unknown>((translation) => ({
+export class Matrix4 {
+  static IDENTITY = {}
+  static fromTranslation = vi.fn<(translation: unknown) => unknown>((translation) => ({
     translation,
     type: 'translation',
-  })),
-  fromRotationTranslation: vi.fn<(rotation: unknown, translation: unknown) => unknown>(() => ({
-    type: 'rotation-translation',
-  })),
-  getMatrix3: vi.fn<(_matrix: unknown, result: unknown) => unknown>((_matrix, result) => result),
-  multiplyByPoint: vi.fn<(_matrix: unknown, point: Cartesian3, result: Cartesian3) => Cartesian3>(
-    (_matrix, point, result) => {
-      result.x = point.x
-      result.y = point.y
-      result.z = point.z
-      return result
-    },
-  ),
+  }))
+  static fromRotationTranslation = vi.fn<(rotation: unknown, translation: unknown) => unknown>(
+    () => ({
+      type: 'rotation-translation',
+    }),
+  )
+  static getMatrix3 = vi.fn<(_matrix: unknown, result: unknown) => unknown>(
+    (_matrix, result) => result,
+  )
+  static multiplyByPoint = vi.fn<
+    (_matrix: unknown, point: Cartesian3, result: Cartesian3) => Cartesian3
+  >((_matrix, point, result) => {
+    result.x = point.x
+    result.y = point.y
+    result.z = point.z
+    return result
+  })
 }
 
 export class Matrix3 {
@@ -1237,6 +1314,23 @@ export class Quaternion {
   static fromRotationMatrix = vi.fn<(_matrix: unknown) => unknown>(() => ({
     type: 'quaternion',
   }))
+
+  x = 0
+  y = 0
+  z = 0
+  w = 1
+
+  static multiply(
+    left: { w: number; x: number; y: number; z: number },
+    right: { w: number; x: number; y: number; z: number },
+    result = new Quaternion(),
+  ) {
+    result.x = left.w * right.x + left.x * right.w + left.y * right.z - left.z * right.y
+    result.y = left.w * right.y - left.x * right.z + left.y * right.w + left.z * right.x
+    result.z = left.w * right.z + left.x * right.y - left.y * right.x + left.z * right.w
+    result.w = left.w * right.w - left.x * right.x - left.y * right.y - left.z * right.z
+    return result
+  }
 }
 
 export class ArcGISTiledElevationTerrainProvider implements MockElevationTerrainProvider {

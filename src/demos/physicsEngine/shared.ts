@@ -1,18 +1,29 @@
 import {
-  CallbackProperty,
+  BoxGeometry,
   Cartesian3,
   Color,
+  ColorGeometryInstanceAttribute,
+  CylinderGeometry,
+  EllipsoidGeometry,
+  GeometryInstance,
+  Material,
   Matrix3,
   Matrix4,
+  PerInstanceColorAppearance,
+  PolylineCollection,
+  Primitive,
   Quaternion,
   Transforms,
+  VertexFormat,
   type Entity,
+  type Polyline,
   type Viewer,
 } from 'cesium'
 import type { Ref } from 'vue'
 import { ref } from 'vue'
 
 import type { DemoSceneAction } from '@/demos/useDemoGlobe'
+import { PhysicsQualityGovernor, type PhysicsQualitySettings } from './qualityGovernor'
 import type { AmmoApi, PhysicsAnimationState, PhysicsControl, PhysicsSceneStats } from './types'
 
 export interface LocalPoint {
@@ -49,9 +60,19 @@ export interface RigidSphereOptions {
 
 export interface PhysicsRigidEntry {
   body: InstanceType<AmmoApi['btRigidBody']>
-  entity: Entity
   motionStateTransform: InstanceType<AmmoApi['btTransform']>
   shape: InstanceType<AmmoApi['btCollisionShape']>
+  transform: {
+    position: LocalPoint
+    rotation: LocalQuaternion
+  }
+  visual: PhysicsPrimitiveVisual
+}
+
+export interface PhysicsPrimitiveVisual {
+  primitive: Primitive
+  rotationOffset?: LocalQuaternion
+  sync: boolean
   transform: {
     position: LocalPoint
     rotation: LocalQuaternion
@@ -59,6 +80,7 @@ export interface PhysicsRigidEntry {
 }
 
 const DEFAULT_QUATERNION: LocalQuaternion = { w: 1, x: 0, y: 0, z: 0 }
+const STATS_REFRESH_INTERVAL_MS = 500
 const ZERO_POINT: LocalPoint = { x: 0, y: 0, z: 0 }
 
 function cloneQuaternion(value: LocalQuaternion | undefined) {
@@ -113,9 +135,27 @@ export class PhysicsRuntime {
   private readonly dispatcher: InstanceType<AmmoApi['btCollisionDispatcher']>
   private readonly enuQuaternion: Quaternion
   private readonly enuTransform: Matrix4
+  private readonly localQuaternionScratch = new Quaternion()
+  private readonly positionScratch = new Cartesian3()
+  private readonly primitiveMatrices = new WeakMap<
+    PhysicsPrimitiveVisual,
+    { matrixA: Matrix4; matrixB: Matrix4; useMatrixB: boolean }
+  >()
+  private readonly primitives: Primitive[] = []
+  private readonly dynamicPolylines: Array<{
+    getPositions: () => Cartesian3[]
+    line: Polyline
+  }> = []
+  private readonly rotationOffsetScratch = new Quaternion()
+  private readonly rotationScratch = new Matrix3()
+  private readonly rotatedQuaternionScratch = new Quaternion()
+  private readonly worldPositionScratch = new Cartesian3()
+  private readonly worldQuaternionScratch = new Quaternion()
   private readonly softBodySolver: InstanceType<AmmoApi['btDefaultSoftBodySolver']> | undefined
   private readonly softBodies: InstanceType<AmmoApi['btSoftBody']>[] = []
+  private polylineCollection: PolylineCollection | undefined
   private disposed = false
+  private lastStatsRefreshAt = -Infinity
 
   constructor(
     ammo: AmmoApi,
@@ -173,15 +213,18 @@ export class PhysicsRuntime {
   }
 
   localToWorld(x: number, y: number, z: number, result = new Cartesian3()) {
-    return Matrix4.multiplyByPoint(this.enuTransform, new Cartesian3(x, y, z), result)
+    this.positionScratch.x = x
+    this.positionScratch.y = y
+    this.positionScratch.z = z
+    return Matrix4.multiplyByPoint(this.enuTransform, this.positionScratch, result)
   }
 
   localQuaternionToWorld(value: LocalQuaternion, result = new Quaternion()) {
-    return Quaternion.multiply(
-      this.enuQuaternion,
-      new Quaternion(value.x, value.y, value.z, value.w),
-      result,
-    )
+    this.localQuaternionScratch.x = value.x
+    this.localQuaternionScratch.y = value.y
+    this.localQuaternionScratch.z = value.z
+    this.localQuaternionScratch.w = value.w
+    return Quaternion.multiply(this.enuQuaternion, this.localQuaternionScratch, result)
   }
 
   addEntity(entity: Entity) {
@@ -193,22 +236,23 @@ export class PhysicsRuntime {
     getPositions: () => Cartesian3[],
     options: {
       color: Color
-      id: string
+      id?: string
       width: number
-      clampToGround?: boolean
     },
   ) {
-    return this.addEntity(
-      this.viewer.entities.add({
-        id: options.id,
-        polyline: {
-          positions: new CallbackProperty(getPositions, false),
-          width: options.width,
-          material: options.color,
-          clampToGround: options.clampToGround ?? false,
-        },
-      }),
-    )
+    if (!this.polylineCollection) {
+      this.polylineCollection = new PolylineCollection({ modelMatrix: this.enuTransform })
+      this.viewer.scene.primitives.add(this.polylineCollection)
+    }
+
+    const line = this.polylineCollection.add({
+      id: options.id,
+      positions: getPositions(),
+      width: options.width,
+      material: Material.fromType('Color', { color: options.color }),
+    })
+    this.dynamicPolylines.push({ getPositions, line })
+    return line
   }
 
   addLabel(
@@ -243,26 +287,22 @@ export class PhysicsRuntime {
       new this.ammo.btVector3(options.halfExtents.x, options.halfExtents.y, options.halfExtents.z),
     )
     shape.setMargin(0.04)
+    const primitive = this.createPrimitive(
+      BoxGeometry.fromDimensions({
+        dimensions: new Cartesian3(
+          options.halfExtents.x * 2,
+          options.halfExtents.y * 2,
+          options.halfExtents.z * 2,
+        ),
+        vertexFormat: VertexFormat.POSITION_ONLY,
+      }),
+      options.color,
+    )
 
     return this.createRigidEntry({
-      color: options.color,
-      entityFactory: (position, orientation) =>
-        this.viewer.entities.add({
-          position,
-          orientation,
-          box: {
-            dimensions: new Cartesian3(
-              options.halfExtents.x * 2,
-              options.halfExtents.y * 2,
-              options.halfExtents.z * 2,
-            ),
-            material: options.color,
-            outline: true,
-            outlineColor: Color.fromCssColorString('#071521').withAlpha(0.8),
-          },
-        }),
       mass: options.mass,
       position: options.position,
+      primitive,
       rotation: options.rotation,
       shape,
       sync: options.sync ?? options.mass > 0,
@@ -272,21 +312,49 @@ export class PhysicsRuntime {
   addSphere(options: RigidSphereOptions) {
     const shape = new this.ammo.btSphereShape(options.radius)
     shape.setMargin(0.03)
+    const primitive = this.createPrimitive(
+      new EllipsoidGeometry({
+        radii: new Cartesian3(options.radius, options.radius, options.radius),
+        slicePartitions: 24,
+        stackPartitions: 16,
+        vertexFormat: VertexFormat.POSITION_ONLY,
+      }),
+      options.color,
+    )
 
     return this.createRigidEntry({
-      color: options.color,
-      entityFactory: (position) =>
-        this.viewer.entities.add({
-          position,
-          ellipsoid: {
-            radii: new Cartesian3(options.radius, options.radius, options.radius),
-            material: options.color,
-          },
-        }),
       mass: options.mass,
       position: options.position,
+      primitive,
       shape,
       sync: options.sync ?? options.mass > 0,
+    })
+  }
+
+  addTrackedCylinder(options: {
+    color: Color
+    length: number
+    position: LocalPoint
+    radius: number
+    rotation?: LocalQuaternion
+    rotationOffset?: LocalQuaternion
+  }) {
+    const primitive = this.createPrimitive(
+      new CylinderGeometry({
+        length: options.length,
+        topRadius: options.radius,
+        bottomRadius: options.radius,
+        slices: 16,
+        vertexFormat: VertexFormat.POSITION_ONLY,
+      }),
+      options.color,
+    )
+    return this.createPrimitiveVisual({
+      position: options.position,
+      primitive,
+      rotation: options.rotation,
+      rotationOffset: options.rotationOffset,
+      sync: true,
     })
   }
 
@@ -328,7 +396,7 @@ export class PhysicsRuntime {
 
   removeRigidEntry(entry: PhysicsRigidEntry) {
     this.world.removeRigidBody(entry.body)
-    this.viewer.entities.remove(entry.entity)
+    this.removePrimitiveVisual(entry.visual)
     const index = this.rigidEntries.indexOf(entry)
     if (index >= 0) {
       this.rigidEntries.splice(index, 1)
@@ -337,21 +405,25 @@ export class PhysicsRuntime {
     this.disposeAmmo(entry.shape)
     this.disposeAmmo(entry.motionStateTransform)
     this.disposeAmmo(entry.body)
-    this.refreshBodyStats()
+    this.refreshBodyStats(true)
   }
 
   step(deltaSeconds: number) {
     if (this.disposed) {
       return
     }
-    const delta = Math.min(Math.max(deltaSeconds, 1 / 120), 1 / 20)
-    this.world.stepSimulation(delta, 10, 1 / 60)
+    const delta = Math.min(Math.max(deltaSeconds, 1 / 120), 1 / 30)
+    this.world.stepSimulation(delta, 1, 1 / 30)
     this.syncRigidBodies()
+    this.updateDynamicPolylines()
     this.refreshBodyStats()
   }
 
   syncRigidBodies() {
     for (const entry of this.rigidEntries) {
+      if (!entry.visual.sync) {
+        continue
+      }
       const motionState = entry.body.getMotionState()
       if (!motionState) {
         continue
@@ -366,14 +438,131 @@ export class PhysicsRuntime {
       entry.transform.rotation.x = rotation.x()
       entry.transform.rotation.y = rotation.y()
       entry.transform.rotation.z = rotation.z()
+      this.refreshPrimitiveVisual(entry.visual)
     }
   }
 
-  refreshBodyStats() {
+  refreshPrimitiveVisual(visual: PhysicsPrimitiveVisual) {
+    const matrices = this.primitiveMatrices.get(visual)
+    if (!matrices) {
+      return
+    }
+    matrices.useMatrixB = !matrices.useMatrixB
+    const matrix = matrices.useMatrixB ? matrices.matrixB : matrices.matrixA
+    const position = this.localToWorld(
+      visual.transform.position.x,
+      visual.transform.position.y,
+      visual.transform.position.z,
+      this.worldPositionScratch,
+    )
+    const worldRotation = this.localQuaternionToWorld(
+      visual.transform.rotation,
+      this.worldQuaternionScratch,
+    )
+    let renderedRotation = worldRotation
+    if (visual.rotationOffset) {
+      this.rotationOffsetScratch.x = visual.rotationOffset.x
+      this.rotationOffsetScratch.y = visual.rotationOffset.y
+      this.rotationOffsetScratch.z = visual.rotationOffset.z
+      this.rotationOffsetScratch.w = visual.rotationOffset.w
+      renderedRotation = Quaternion.multiply(
+        worldRotation,
+        this.rotationOffsetScratch,
+        this.rotatedQuaternionScratch,
+      )
+    }
+    Matrix3.fromQuaternion(renderedRotation, this.rotationScratch)
+    Matrix4.fromRotationTranslation(this.rotationScratch, position, matrix)
+    visual.primitive.modelMatrix = matrix
+  }
+
+  private createPrimitive(
+    geometry: BoxGeometry | CylinderGeometry | EllipsoidGeometry,
+    color: Color,
+  ) {
+    const primitive = new Primitive({
+      allowPicking: false,
+      appearance: new PerInstanceColorAppearance({
+        flat: true,
+        translucent: color.alpha < 0.9,
+      }),
+      asynchronous: false,
+      cull: false,
+      compressVertices: false,
+      geometryInstances: new GeometryInstance({
+        attributes: {
+          color: ColorGeometryInstanceAttribute.fromColor(color),
+        },
+        geometry,
+      }),
+      interleave: false,
+      releaseGeometryInstances: false,
+      vertexCacheOptimize: false,
+    })
+    this.viewer.scene.primitives.add(primitive)
+    this.primitives.push(primitive)
+    return primitive
+  }
+
+  private createPrimitiveVisual(options: {
+    position: LocalPoint
+    primitive: Primitive
+    rotation?: LocalQuaternion
+    rotationOffset?: LocalQuaternion
+    sync: boolean
+  }) {
+    const visual: PhysicsPrimitiveVisual = {
+      primitive: options.primitive,
+      rotationOffset: options.rotationOffset ? { ...options.rotationOffset } : undefined,
+      sync: options.sync,
+      transform: {
+        position: { ...options.position },
+        rotation: cloneQuaternion(options.rotation),
+      },
+    }
+    this.primitiveMatrices.set(visual, {
+      matrixA: new Matrix4(),
+      matrixB: new Matrix4(),
+      useMatrixB: false,
+    })
+    this.refreshPrimitiveVisual(visual)
+    return visual
+  }
+
+  private removePrimitiveVisual(visual: PhysicsPrimitiveVisual) {
+    this.viewer.scene.primitives.remove(visual.primitive)
+    const primitiveIndex = this.primitives.indexOf(visual.primitive)
+    if (primitiveIndex >= 0) {
+      this.primitives.splice(primitiveIndex, 1)
+    }
+    this.primitiveMatrices.delete(visual)
+  }
+
+  private updateDynamicPolylines() {
+    for (const entry of this.dynamicPolylines) {
+      entry.line.positions = entry.getPositions()
+    }
+  }
+
+  refreshBodyStats(force = false) {
+    const now = performance.now()
+    if (!force && now - this.lastStatsRefreshAt < STATS_REFRESH_INTERVAL_MS) {
+      return
+    }
+    this.lastStatsRefreshAt = now
+
+    const bodyCount = this.rigidEntries.length
+    const dynamicBodyCount = this.rigidEntries.filter((entry) => entry.body.isActive()).length
+    if (
+      this.stats.value.bodyCount === bodyCount &&
+      this.stats.value.dynamicBodyCount === dynamicBodyCount
+    ) {
+      return
+    }
     this.stats.value = {
       ...this.stats.value,
-      bodyCount: this.rigidEntries.length,
-      dynamicBodyCount: this.rigidEntries.filter((entry) => entry.body.isActive()).length,
+      bodyCount,
+      dynamicBodyCount,
     }
   }
 
@@ -418,6 +607,16 @@ export class PhysicsRuntime {
     }
     this.entities.length = 0
 
+    for (const primitive of this.primitives) {
+      this.viewer.scene.primitives.remove(primitive)
+    }
+    this.primitives.length = 0
+    if (this.polylineCollection) {
+      this.viewer.scene.primitives.remove(this.polylineCollection)
+      this.polylineCollection = undefined
+    }
+    this.dynamicPolylines.length = 0
+
     this.disposeAmmo(this.world)
     this.disposeAmmo(this.softBodySolver)
     this.disposeAmmo(this.dispatcher)
@@ -425,10 +624,9 @@ export class PhysicsRuntime {
   }
 
   protected createRigidEntry(options: {
-    color: Color
-    entityFactory: (position: Cartesian3, orientation: Quaternion) => Entity
     mass: number
     position: LocalPoint
+    primitive: Primitive
     rotation?: LocalQuaternion
     shape: InstanceType<AmmoApi['btCollisionShape']>
     sync: boolean
@@ -456,41 +654,26 @@ export class PhysicsRuntime {
     )
     const body = new this.ammo.btRigidBody(constructionInfo)
     body.setFriction(0.7)
-    if (options.mass > 0) {
-      body.setActivationState(4)
-    }
     this.world.addRigidBody(body)
 
-    const mutableTransform = {
-      position: { ...options.position },
-      rotation: { ...rotation },
-    }
-    const position = new CallbackProperty(
-      () =>
-        this.localToWorld(
-          mutableTransform.position.x,
-          mutableTransform.position.y,
-          mutableTransform.position.z,
-        ),
-      false,
-    )
-    const orientation = new CallbackProperty(
-      () => this.localQuaternionToWorld(mutableTransform.rotation),
-      false,
-    )
-    const entity = this.addEntity(options.entityFactory(position as never, orientation as never))
+    const visual = this.createPrimitiveVisual({
+      position: options.position,
+      primitive: options.primitive,
+      rotation,
+      sync: options.sync,
+    })
     const entry = {
       body,
-      entity,
       motionStateTransform: transform,
       shape: options.shape,
-      transform: mutableTransform,
+      transform: visual.transform,
+      visual,
     }
 
     this.rigidEntries.push(entry)
     this.disposeAmmo(constructionInfo)
     this.disposeAmmo(inertia)
-    this.refreshBodyStats()
+    this.refreshBodyStats(true)
     return entry
   }
 
@@ -525,6 +708,7 @@ export abstract class BasePhysicsScene {
   private lastFrameTime: number | undefined
   private readonly sceneCleanups: Array<() => void> = []
   private readonly removePreUpdateListener: () => void
+  private readonly qualityGovernor: PhysicsQualityGovernor
   private readonly softBodies: boolean
 
   constructor({ ammo, site, viewer }: PhysicsSceneControllerOptions, softBodies = false) {
@@ -533,6 +717,9 @@ export abstract class BasePhysicsScene {
     this.viewer = viewer
     this.softBodies = softBodies
     this.runtime = new PhysicsRuntime(ammo, viewer, site, softBodies, this.stats)
+    this.qualityGovernor = new PhysicsQualityGovernor((settings) =>
+      this.applyQualitySettings(settings),
+    )
 
     this.removePreUpdateListener = viewer.scene.preUpdate.addEventListener(() => this.onFrame())
   }
@@ -583,11 +770,43 @@ export abstract class BasePhysicsScene {
     }
 
     const now = performance.now()
-    const deltaSeconds = this.lastFrameTime ? (now - this.lastFrameTime) / 1_000 : 1 / 60
+    const previousFrameTime = this.lastFrameTime
+    const deltaSeconds = previousFrameTime ? (now - previousFrameTime) / 1_000 : 1 / 60
     this.lastFrameTime = now
+    if (previousFrameTime) {
+      this.qualityGovernor.noteFrame(now - previousFrameTime)
+    }
     this.beforeStep(deltaSeconds)
     this.runtime.step(deltaSeconds)
     this.afterStep(deltaSeconds)
+    this.viewer.scene.requestRender()
+  }
+
+  private applyQualitySettings(settings: PhysicsQualitySettings) {
+    if (settings.effects === 'reduced') {
+      this.viewer.scene.msaaSamples = 1
+      const fxaa = this.viewer.scene.postProcessStages?.fxaa
+      if (fxaa) {
+        fxaa.enabled = false
+      }
+      if (this.viewer.scene.fog) {
+        this.viewer.scene.fog.enabled = false
+      }
+      if (this.viewer.scene.skyAtmosphere) {
+        this.viewer.scene.skyAtmosphere.show = false
+      }
+      if (this.viewer.scene.skyBox) {
+        this.viewer.scene.skyBox.show = false
+      }
+      if (this.viewer.scene.globe) {
+        this.viewer.scene.globe.showGroundAtmosphere = false
+      }
+    }
+
+    if (this.viewer.scene.globe) {
+      this.viewer.scene.globe.maximumScreenSpaceError = settings.maximumScreenSpaceError
+    }
+    this.viewer.resolutionScale = settings.resolutionScale
     this.viewer.scene.requestRender()
   }
 }

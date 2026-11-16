@@ -153,10 +153,17 @@ export class FlagPhysicsScene extends BasePhysicsScene {
     softBody.setActivationState(DISABLE_DEACTIVATION)
     this.runtime.addSoftBody(softBody)
     this.softBody = softBody
+    this.clothPoints = Array.from({ length: (CLOTH_COLUMNS + 1) * (CLOTH_ROWS + 1) }, () => ({
+      x: 0,
+      y: 0,
+      z: 0,
+    }))
     this.updateClothPoints()
 
     for (let row = 0; row <= CLOTH_ROWS; row += 1) {
-      this.runtime.addDynamicPolyline(() => this.positionsForIndices(this.rowIndices(row)), {
+      const indices = this.rowIndices(row)
+      const positions = indices.map(() => new Cartesian3())
+      this.runtime.addDynamicPolyline(() => this.positionsForIndices(indices, positions), {
         color:
           row === 0
             ? Color.fromCssColorString('#ffd166')
@@ -166,7 +173,9 @@ export class FlagPhysicsScene extends BasePhysicsScene {
       })
     }
     for (let column = 0; column <= CLOTH_COLUMNS; column += 1) {
-      this.runtime.addDynamicPolyline(() => this.positionsForIndices(this.columnIndices(column)), {
+      const indices = this.columnIndices(column)
+      const positions = indices.map(() => new Cartesian3())
+      this.runtime.addDynamicPolyline(() => this.positionsForIndices(indices, positions), {
         color: Color.fromCssColorString('#ff8a5b').withAlpha(0.75),
         id: `physics-flag-column-${column}`,
         width: column === 0 || column === CLOTH_COLUMNS ? 3 : 1,
@@ -203,17 +212,17 @@ export class FlagPhysicsScene extends BasePhysicsScene {
     }
     const nodes = softBody.get_m_nodes()
     const expectedCount = (CLOTH_COLUMNS + 1) * (CLOTH_ROWS + 1)
-    const points: LocalPoint[] = []
+    if (this.clothPoints.length !== expectedCount) {
+      this.clothPoints = Array.from({ length: expectedCount }, () => ({ x: 0, y: 0, z: 0 }))
+    }
     for (let index = 0; index < expectedCount; index += 1) {
       const node = nodes.at(index)
       const position = node?.get_m_x()
-      points.push({
-        x: position?.x() ?? 0,
-        y: position?.y() ?? 0,
-        z: position?.z() ?? 0,
-      })
+      const target = this.clothPoints[index]!
+      target.x = position?.x() ?? 0
+      target.y = position?.y() ?? 0
+      target.z = position?.z() ?? 0
     }
-    this.clothPoints = points
   }
 
   private rowIndices(row: number) {
@@ -227,10 +236,14 @@ export class FlagPhysicsScene extends BasePhysicsScene {
     return Array.from({ length: CLOTH_ROWS + 1 }, (_, row) => row * (CLOTH_COLUMNS + 1) + column)
   }
 
-  private positionsForIndices(indices: number[]) {
-    return indices.map((index) => {
+  private positionsForIndices(indices: number[], positions: Cartesian3[]) {
+    indices.forEach((index, positionIndex) => {
       const position = this.clothPoints[index] ?? { x: 0, y: 0, z: 0 }
-      return this.runtime.localToWorld(position.x, position.y, position.z, new Cartesian3())
+      const target = positions[positionIndex]!
+      target.x = position.x
+      target.y = position.y
+      target.z = position.z
     })
+    return positions
   }
 }
