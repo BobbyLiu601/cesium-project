@@ -34,6 +34,8 @@ const scenePropResolvers: Partial<
   spatial: (feature) => (feature.spatialSceneId ? { sceneId: feature.spatialSceneId } : {}),
   'special-shapes': (feature) =>
     feature.specialShapeSceneId ? { sceneId: feature.specialShapeSceneId } : {},
+  'physics-engine': (feature) =>
+    feature.physicsEngineSceneId ? { sceneId: feature.physicsEngineSceneId } : {},
   vector: (feature) => (feature.sceneId ? { sceneId: feature.sceneId } : {}),
 }
 
@@ -44,6 +46,7 @@ const sceneModuleLoaders: Record<FeatureKind, () => Promise<{ default: Component
   model: () => import('@/demos/ModelDemoGlobe.vue'),
   spatial: () => import('@/demos/SpatialDemoGlobe.vue'),
   'special-shapes': () => import('@/demos/SpecialShapesDemoGlobe.vue'),
+  'physics-engine': () => import('@/demos/PhysicsDemoGlobe.vue'),
   tianditu: () => import('@/components/CesiumGlobe.vue'),
   vector: () => import('@/demos/VectorDemoGlobe.vue'),
 }

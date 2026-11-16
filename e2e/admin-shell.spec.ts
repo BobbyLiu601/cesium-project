@@ -146,6 +146,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '3、特效' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.1、场景特效' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.2、特殊形状' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '3.4、物理引擎' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -200,7 +201,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' }).locator('img'),
   ).toHaveAttribute('src', /2-2-2-video-projection-livestream/)
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(43)
+  await expect(page.getByTestId('feature-card')).toHaveCount(48)
   await expect(page.getByRole('button', { name: '打开3.1.1、天空盒' })).toContainText(
     '3.1.1、天空盒',
   )
@@ -250,6 +251,24 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开3.2.11、雷达遮罩扫描' })).toContainText(
     '3.2.11、雷达遮罩扫描',
   )
+  await expect(page.getByRole('button', { name: '打开3.4.1、车辆运动' })).toContainText(
+    '3.4.1、车辆运动',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开3.4.1、车辆运动' }).locator('img'),
+  ).toHaveAttribute('src', /3-4-1-vehicle-motion/)
+  await expect(page.getByRole('button', { name: '打开3.4.2、转动（旗子）' })).toContainText(
+    '3.4.2、转动（旗子）',
+  )
+  await expect(page.getByRole('button', { name: '打开3.4.3、转动（球）' })).toContainText(
+    '3.4.3、转动（球）',
+  )
+  await expect(page.getByRole('button', { name: '打开3.4.4、撞击（软体）' })).toContainText(
+    '3.4.4、撞击（软体）',
+  )
+  await expect(page.getByRole('button', { name: '打开3.4.5、撞击断裂体' })).toContainText(
+    '3.4.5、撞击断裂体',
+  )
   expect(
     await page
       .getByTestId('feature-card')
@@ -298,6 +317,11 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'electronic-fence',
     'electronic-fence-2',
     'radar-mask-scan',
+    'vehicle-motion',
+    'flag-rotation',
+    'ball-rotation',
+    'soft-body-collision',
+    'fracture-collision',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -884,7 +908,7 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '3.2、特殊形状' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '3.4、物理引擎' })).toHaveAttribute(
     'aria-current',
     'location',
   )
@@ -1297,6 +1321,109 @@ test('五个场景特效深链均可打开并在关闭后返回对应卡片', as
     await expect(dialog).toBeHidden()
     await expect(page).toHaveURL(new RegExp(`/layers#${effect.id}$`))
     await expect(page.getByRole('button', { name: `打开${effect.title}` })).toBeFocused()
+  }
+})
+
+test('五个物理引擎深链均可打开、操作并返回对应卡片', async ({ page }) => {
+  test.setTimeout(300_000)
+
+  const scenes = [
+    {
+      controls: ['按住 W 前进', '按住 S 倒车或刹车', '按住 A 向左转向', '按住 D 向右转向'],
+      featureId: 'vehicle-motion',
+      holdKey: 'w',
+      id: 'vehicle-motion',
+      route: '/effects/physics-engine/3-4-1-vehicle-motion',
+      title: '3.4.1、车辆运动',
+    },
+    {
+      controls: ['按住 Q 向左摆动旗子', '按住 A 向右摆动旗子'],
+      featureId: 'flag-rotation',
+      holdKey: 'q',
+      id: 'flag-rotation',
+      route: '/effects/physics-engine/3-4-2-flag-rotation',
+      title: '3.4.2、转动（旗子）',
+    },
+    {
+      controls: ['按住 Q 向左摆动球体', '按住 A 向右摆动球体'],
+      featureId: 'ball-rotation',
+      holdKey: 'q',
+      id: 'ball-rotation',
+      route: '/effects/physics-engine/3-4-3-ball-rotation',
+      title: '3.4.3、转动（球）',
+    },
+    {
+      controls: ['向软体发射物理小球'],
+      featureId: 'soft-body-collision',
+      fire: true,
+      id: 'soft-body-collision',
+      route: '/effects/physics-engine/3-4-4-soft-body-collision',
+      title: '3.4.4、撞击（软体）',
+    },
+    {
+      controls: ['向可断裂结构发射物理小球'],
+      featureId: 'fracture-collision',
+      fire: true,
+      id: 'fracture-collision',
+      route: '/effects/physics-engine/3-4-5-fracture-collision',
+      title: '3.4.5、撞击断裂体',
+    },
+  ] as const
+
+  for (const scene of scenes) {
+    await page.goto(scene.route)
+    const dialog = page.getByRole('dialog', { name: scene.title })
+    const globe = dialog.getByTestId('physics-engine-demo-globe')
+    await expect(dialog).toBeVisible()
+    await expectCesiumReady(globe)
+    await expect(globe).toHaveAttribute('data-scene-id', scene.id)
+    await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+    await expect(globe.locator('canvas')).toBeVisible()
+    await expect(globe.getByTestId('physics-toolbar')).toBeVisible()
+    await expect(globe.getByText(/Ammo\.js/)).toBeVisible()
+
+    for (const control of scene.controls) {
+      await expect(globe.getByRole('button', { name: control })).toBeVisible()
+    }
+
+    await expectCanvasToAnimate(page, globe.locator('canvas'))
+    await globe.getByRole('button', { name: '暂停物理' }).click()
+    await expect(globe).toHaveAttribute('data-animation-state', 'paused')
+    await globe.getByRole('button', { name: '继续物理' }).click()
+    await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+
+    if ('holdKey' in scene) {
+      await page.keyboard.down(scene.holdKey)
+      await page.waitForTimeout(700)
+      if (scene.id === 'vehicle-motion') {
+        await expect
+          .poll(async () => Number(await globe.getAttribute('data-vehicle-speed')))
+          .toBeGreaterThan(0.1)
+      } else {
+        await expect(globe.getByText(/向左/)).toBeVisible()
+      }
+      await page.keyboard.up(scene.holdKey)
+    } else if (scene.id === 'soft-body-collision') {
+      await globe.getByRole('button', { name: scene.controls[0] }).click()
+      await expect(globe).toHaveAttribute('data-projectile-count', '1')
+      await expect(globe).toHaveAttribute('data-soft-body-count', '2')
+    } else {
+      await globe.getByRole('button', { name: scene.controls[0] }).click()
+      await expect(globe).toHaveAttribute('data-projectile-count', '1')
+      await expect
+        .poll(async () => Number(await globe.getAttribute('data-broken-body-count')))
+        .toBeGreaterThan(0)
+    }
+
+    await globe.getByRole('button', { name: '重置场景' }).click()
+    await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+    await expect(globe).toHaveAttribute('data-projectile-count', '0')
+    await expect(globe).toHaveAttribute('data-broken-body-count', '0')
+
+    await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`/layers#${scene.featureId}$`))
+    await expect(page.getByRole('button', { name: `打开${scene.title}` })).toBeFocused()
   }
 })
 

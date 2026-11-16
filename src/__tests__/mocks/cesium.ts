@@ -479,6 +479,24 @@ export class CallbackProperty {
   }
 }
 
+export class CallbackPositionProperty extends CallbackProperty {
+  constructor(
+    callback: () => unknown,
+    isConstant: boolean,
+    public referenceFrame: unknown,
+  ) {
+    super(callback, isConstant)
+  }
+
+  getValueInReferenceFrame() {
+    return this.callback()
+  }
+}
+
+export const ReferenceFrame = {
+  FIXED: 0,
+}
+
 export class ColorMaterialProperty {
   constructor(public color: unknown) {}
 }
@@ -1355,6 +1373,7 @@ export const LagrangePolynomialApproximation = {
 }
 
 export const ScreenSpaceEventType = {
+  LEFT_DOWN: 2,
   LEFT_CLICK: 1,
 }
 

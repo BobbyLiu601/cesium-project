@@ -169,6 +169,9 @@ importers:
       '@element-plus/icons-vue':
         specifier: ^2.3.2
         version: 2.3.2(vue@3.5.44(typescript@6.0.3))
+      ammojs-typed:
+        specifier: ^1.1.0
+        version: 1.1.0
       cesium:
         specifier: ^1.147.0
         version: 1.147.0
@@ -1253,6 +1256,9 @@ packages:
 
   alien-signals@3.2.1:
     resolution: {integrity: sha512-I8FjmltrfnDFoZedi5CG8DghVYNhzb/Ijluz7tCSJH0xpd0484Kowhbb1XDYOxfJpU1p5wnM2X54dA+IfGyD1g==}
+
+  ammojs-typed@1.1.0:
+    resolution: {integrity: sha512-QagJZZ5vbsxQI5cr9X/o+v9Pu8av26VY3xfQL+M3KTeC4v/43MHaYvsIqbfA+4NA4mJdpbBNDOJQ+Z5MMNCzgg==}
 
   ansi-escapes@7.3.0:
     resolution: {integrity: sha512-BvU8nYgGQBxcmMuEeUEmNTvrMVjJNSH7RgW24vXexN4Ven6qCvy4TntnvlnwnMLTVlcRQQdbRY8NKnaIoeWDNg==}
@@ -3795,6 +3801,8 @@ snapshots:
       require-from-string: 2.0.2
 
   alien-signals@3.2.1: {}
+
+  ammojs-typed@1.1.0: {}
 
   ansi-escapes@7.3.0:
     dependencies:

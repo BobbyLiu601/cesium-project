@@ -34,6 +34,7 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   'video-fusion': 'video-fusion-grid',
   effects: 'effects-grid',
   'special-shapes': 'special-shapes-grid',
+  'physics-engine': 'physics-engine-grid',
 }
 
 async function openFeature(feature: FeatureItem) {

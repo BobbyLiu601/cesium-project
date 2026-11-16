@@ -19,6 +19,11 @@ import skyboxCover from '@/assets/effect-covers/3-1-1-skybox.jpg'
 import volumetricCloudCover from '@/assets/effect-covers/3-1-3-volumetric-cloud.jpg'
 import modelInterpolationCover from '@/assets/model-covers/model-interpolation.jpg'
 import windTurbineCover from '@/assets/model-covers/wind-turbine.jpg'
+import ballRotationCover from '@/assets/physics-covers/3-4-3-ball-rotation.jpg'
+import flagRotationCover from '@/assets/physics-covers/3-4-2-flag-rotation.jpg'
+import fractureCollisionCover from '@/assets/physics-covers/3-4-5-fracture-collision.jpg'
+import softBodyCollisionCover from '@/assets/physics-covers/3-4-4-soft-body-collision.jpg'
+import vehicleMotionCover from '@/assets/physics-covers/3-4-1-vehicle-motion.jpg'
 import curveInterpolationCover from '@/assets/special-shape-covers/3-2-6-curve-interpolation.jpg'
 import electronicFence2Cover from '@/assets/special-shape-covers/3-2-10-electronic-fence-2.jpg'
 import electronicFenceCover from '@/assets/special-shape-covers/3-2-9-electronic-fence.jpg'
@@ -97,8 +102,23 @@ export type SpecialShapeSceneId =
   | 'electronic-fence-2'
   | 'radar-mask-scan'
 
+export type PhysicsEngineSceneId =
+  | 'vehicle-motion'
+  | 'flag-rotation'
+  | 'ball-rotation'
+  | 'soft-body-collision'
+  | 'fracture-collision'
+
 export type FeatureKind =
-  'tianditu' | 'amap' | 'elevation' | 'vector' | 'model' | 'spatial' | 'effects' | 'special-shapes'
+  | 'tianditu'
+  | 'amap'
+  | 'elevation'
+  | 'vector'
+  | 'model'
+  | 'spatial'
+  | 'effects'
+  | 'special-shapes'
+  | 'physics-engine'
 
 export interface FeatureItem {
   id: string
@@ -118,6 +138,7 @@ export interface FeatureItem {
   spatialSceneId?: SpatialSceneId
   effectSceneId?: EffectSceneId
   specialShapeSceneId?: SpecialShapeSceneId
+  physicsEngineSceneId?: PhysicsEngineSceneId
 }
 
 export interface FeatureSection {
@@ -130,6 +151,7 @@ export interface FeatureSection {
     | 'video-fusion'
     | 'effects'
     | 'special-shapes'
+    | 'physics-engine'
   code: string
   title: string
   icon: Component
@@ -703,6 +725,70 @@ export const specialShapeSection: FeatureSection = {
   ],
 }
 
+export const physicsEngineSection: FeatureSection = {
+  id: 'physics-engine',
+  code: '3.4',
+  title: '物理引擎',
+  icon: MagicStick,
+  items: [
+    defineFeature({
+      id: 'vehicle-motion',
+      code: '3.4.1',
+      name: '车辆运动',
+      imageSrc: vehicleMotionCover,
+      imageAlt: 'Ammo.js 车辆在物理平台上运动参考示例封面',
+      kind: 'physics-engine',
+      physicsEngineSceneId: 'vehicle-motion',
+      routeName: 'physics-engine-vehicle-motion',
+      routePath: '/effects/physics-engine/3-4-1-vehicle-motion',
+    }),
+    defineFeature({
+      id: 'flag-rotation',
+      code: '3.4.2',
+      name: '转动（旗子）',
+      imageSrc: flagRotationCover,
+      imageAlt: 'Ammo.js 旗面软体左右转动参考示例封面',
+      kind: 'physics-engine',
+      physicsEngineSceneId: 'flag-rotation',
+      routeName: 'physics-engine-flag-rotation',
+      routePath: '/effects/physics-engine/3-4-2-flag-rotation',
+    }),
+    defineFeature({
+      id: 'ball-rotation',
+      code: '3.4.3',
+      name: '转动（球）',
+      imageSrc: ballRotationCover,
+      imageAlt: 'Ammo.js 软绳连接刚体球转动参考示例封面',
+      kind: 'physics-engine',
+      physicsEngineSceneId: 'ball-rotation',
+      routeName: 'physics-engine-ball-rotation',
+      routePath: '/effects/physics-engine/3-4-3-ball-rotation',
+    }),
+    defineFeature({
+      id: 'soft-body-collision',
+      code: '3.4.4',
+      name: '撞击（软体）',
+      imageSrc: softBodyCollisionCover,
+      imageAlt: 'Ammo.js 小球撞击软体参考示例封面',
+      kind: 'physics-engine',
+      physicsEngineSceneId: 'soft-body-collision',
+      routeName: 'physics-engine-soft-body-collision',
+      routePath: '/effects/physics-engine/3-4-4-soft-body-collision',
+    }),
+    defineFeature({
+      id: 'fracture-collision',
+      code: '3.4.5',
+      name: '撞击断裂体',
+      imageSrc: fractureCollisionCover,
+      imageAlt: 'Ammo.js 撞击导致塔桥断裂参考示例封面',
+      kind: 'physics-engine',
+      physicsEngineSceneId: 'fracture-collision',
+      routeName: 'physics-engine-fracture-collision',
+      routePath: '/effects/physics-engine/3-4-5-fracture-collision',
+    }),
+  ],
+}
+
 export const layersMenuGroup: MenuGroup = {
   id: 'layers',
   code: '1',
@@ -724,7 +810,7 @@ export const effectsMenuGroup: MenuGroup = {
   code: '3',
   title: '特效',
   icon: MagicStick,
-  sections: [effectSection, specialShapeSection],
+  sections: [effectSection, specialShapeSection, physicsEngineSection],
 }
 
 export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup, effectsMenuGroup]
@@ -735,6 +821,7 @@ export const featureSections: FeatureSection[] = [
   videoFusionSection,
   effectSection,
   specialShapeSection,
+  physicsEngineSection,
 ]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)

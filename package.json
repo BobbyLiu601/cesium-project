@@ -39,6 +39,7 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "ammojs-typed": "^1.1.0",
     "cesium": "^1.147.0",
     "element-plus": "^2.14.7",
     "hls.js": "^1.7.4",
