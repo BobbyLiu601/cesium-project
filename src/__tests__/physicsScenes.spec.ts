@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { watch } from 'vue'
+import { Cartesian2, ScreenSpaceEventType } from 'cesium'
 
 import type { PhysicsEngineSceneId } from '@/data/layers'
 import { PHYSICS_SCENE_DEFINITIONS, createPhysicsEngineScene } from '../demos/physicsScene'
@@ -16,14 +17,15 @@ vi.mock('cesium', async () => import('./mocks/cesium'))
 
 const sceneCases: Array<{
   controlCount: number
+  fire: boolean
   id: PhysicsEngineSceneId
   softBodyCount: number
 }> = [
-  { controlCount: 4, id: 'vehicle-motion', softBodyCount: 0 },
-  { controlCount: 2, id: 'flag-rotation', softBodyCount: 1 },
-  { controlCount: 2, id: 'ball-rotation', softBodyCount: 1 },
-  { controlCount: 1, id: 'soft-body-collision', softBodyCount: 2 },
-  { controlCount: 1, id: 'fracture-collision', softBodyCount: 0 },
+  { controlCount: 4, fire: false, id: 'vehicle-motion', softBodyCount: 0 },
+  { controlCount: 2, fire: false, id: 'flag-rotation', softBodyCount: 1 },
+  { controlCount: 2, fire: false, id: 'ball-rotation', softBodyCount: 1 },
+  { controlCount: 0, fire: true, id: 'soft-body-collision', softBodyCount: 2 },
+  { controlCount: 0, fire: true, id: 'fracture-collision', softBodyCount: 0 },
 ]
 
 function createViewer() {
@@ -48,7 +50,7 @@ describe('physics engine scenes', () => {
 
   it.each(sceneCases)(
     'creates, pauses, resets, and cleans up $id',
-    async ({ controlCount, id, softBodyCount }) => {
+    async ({ controlCount, fire, id, softBodyCount }) => {
       const viewer = createViewer()
       const statuses: string[] = []
       const scene: PhysicsEngineScene = await createPhysicsEngineScene(viewer, id, (message) =>
@@ -64,11 +66,15 @@ describe('physics engine scenes', () => {
       expect(statuses[statuses.length - 1]).toContain('Ammo.js')
 
       const initialBodyCount = scene.stats.value.bodyCount
-      const fireControl = scene.controls.find((control) => control.kind === 'tap')
-      fireControl?.press()
-      expect(scene.stats.value.projectileCount).toBe(fireControl ? 1 : 0)
       expect(viewer.scene.canvas).toBeDefined()
-      expect(screenSpaceEventHandlerInstances).toHaveLength(fireControl ? 1 : 0)
+      expect(screenSpaceEventHandlerInstances).toHaveLength(fire ? 1 : 0)
+      if (fire) {
+        const handler = screenSpaceEventHandlerInstances[0]!
+        handler.actions.get(ScreenSpaceEventType.LEFT_DOWN)?.({
+          position: new Cartesian2(120, 120),
+        })
+      }
+      expect(scene.stats.value.projectileCount).toBe(fire ? 1 : 0)
 
       scene.toggleAnimation()
       expect(scene.animationState.value).toBe('paused')

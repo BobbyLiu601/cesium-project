@@ -238,11 +238,16 @@ async function main() {
       )
 
       if (scene.fire) {
-        const fireButton = globe.locator('.physics-engine-demo-globe__controls button').first()
-        await fireButton.click()
+        const canvas = globe.locator('canvas')
+        const box = await canvas.boundingBox()
+        const firePosition = {
+          x: (box?.width ?? 0) * 0.72,
+          y: (box?.height ?? 0) * 0.62,
+        }
+        await canvas.click({ position: firePosition })
         for (let elapsed = 3_000; elapsed < options.seconds * 1_000; elapsed += 3_000) {
           await page.waitForTimeout(3_000)
-          await fireButton.click()
+          await canvas.click({ position: firePosition })
         }
       }
 

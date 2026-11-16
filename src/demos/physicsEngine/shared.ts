@@ -1,5 +1,6 @@
 import {
   BoxGeometry,
+  CallbackProperty,
   Cartesian3,
   Color,
   ColorGeometryInstanceAttribute,
@@ -10,6 +11,7 @@ import {
   Matrix3,
   Matrix4,
   PerInstanceColorAppearance,
+  PolygonHierarchy,
   PolylineCollection,
   Primitive,
   Quaternion,
@@ -135,6 +137,7 @@ export class PhysicsRuntime {
   private readonly dispatcher: InstanceType<AmmoApi['btCollisionDispatcher']>
   private readonly enuQuaternion: Quaternion
   private readonly enuTransform: Matrix4
+  private readonly enuTransformInverse: Matrix4
   private readonly localQuaternionScratch = new Quaternion()
   private readonly positionScratch = new Cartesian3()
   private readonly primitiveMatrices = new WeakMap<
@@ -172,6 +175,7 @@ export class PhysicsRuntime {
 
     const center = Cartesian3.fromDegrees(site.longitude, site.latitude, site.height)
     this.enuTransform = Transforms.eastNorthUpToFixedFrame(center)
+    this.enuTransformInverse = Matrix4.inverseTransformation(this.enuTransform, new Matrix4())
     this.enuQuaternion = Quaternion.fromRotationMatrix(
       Matrix4.getMatrix3(this.enuTransform, new Matrix3()),
     )
@@ -219,6 +223,14 @@ export class PhysicsRuntime {
     return Matrix4.multiplyByPoint(this.enuTransform, this.positionScratch, result)
   }
 
+  worldToLocal(worldPosition: Cartesian3, result: LocalPoint = point()) {
+    Matrix4.multiplyByPoint(this.enuTransformInverse, worldPosition, this.positionScratch)
+    result.x = this.positionScratch.x
+    result.y = this.positionScratch.y
+    result.z = this.positionScratch.z
+    return result
+  }
+
   localQuaternionToWorld(value: LocalQuaternion, result = new Quaternion()) {
     this.localQuaternionScratch.x = value.x
     this.localQuaternionScratch.y = value.y
@@ -253,6 +265,25 @@ export class PhysicsRuntime {
     })
     this.dynamicPolylines.push({ getPositions, line })
     return line
+  }
+
+  addDynamicPolygon(
+    getPositions: () => Cartesian3[],
+    options: {
+      color: Color
+      id?: string
+    },
+  ) {
+    const entity = this.viewer.entities.add({
+      id: options.id,
+      polygon: {
+        hierarchy: new CallbackProperty(() => new PolygonHierarchy(getPositions()), false),
+        material: options.color,
+        perPositionHeight: true,
+      },
+    })
+    this.entities.push(entity)
+    return entity
   }
 
   addLabel(

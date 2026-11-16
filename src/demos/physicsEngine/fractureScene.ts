@@ -1,4 +1,11 @@
-import { Color, HeadingPitchRange, ScreenSpaceEventHandler, ScreenSpaceEventType } from 'cesium'
+import {
+  Cartesian2,
+  Cartesian3,
+  Color,
+  HeadingPitchRange,
+  ScreenSpaceEventHandler,
+  ScreenSpaceEventType,
+} from 'cesium'
 
 import {
   BasePhysicsScene,
@@ -17,7 +24,13 @@ interface BreakableBody {
 
 const MAX_PROJECTILES = 10
 const FRACTURE_IMPULSE = 180
+const FRAGMENT_TARGET_SIZE = 1.5
+const MAX_FRAGMENT_DIVISIONS = 4
 const DISABLE_DEACTIVATION = 4
+
+function fragmentDivisions(size: number) {
+  return Math.max(1, Math.min(MAX_FRAGMENT_DIVISIONS, Math.ceil(size / FRAGMENT_TARGET_SIZE)))
+}
 
 export class FracturePhysicsScene extends BasePhysicsScene {
   private readonly breakables: BreakableBody[] = []
@@ -30,13 +43,6 @@ export class FracturePhysicsScene extends BasePhysicsScene {
   constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
     super(options)
     this.setStatus = setStatus
-    this.controls.push({
-      id: 'fire',
-      label: '发射撞击球',
-      ariaLabel: '向可断裂结构发射物理小球',
-      kind: 'tap',
-      press: () => this.fireProjectile(),
-    })
   }
 
   protected buildScene() {
@@ -130,25 +136,43 @@ export class FracturePhysicsScene extends BasePhysicsScene {
 
   private installClickHandler() {
     const handler = new ScreenSpaceEventHandler(this.viewer.scene.canvas)
-    handler.setInputAction(() => {
-      this.fireProjectile()
+    handler.setInputAction((movement: { position: Cartesian2 }) => {
+      this.fireProjectile(movement.position)
     }, ScreenSpaceEventType.LEFT_DOWN)
     this.addSceneCleanup(() => handler.destroy())
   }
 
-  private fireProjectile() {
+  private fireProjectile(screenPosition?: Cartesian2) {
     if (this.animationState.value === 'paused') {
       return
     }
-    const start = point(11, -8, 6)
-    const target = point(0, 0, 10.2)
+
+    const ray =
+      screenPosition && typeof this.viewer.camera.getPickRay === 'function'
+        ? this.viewer.camera.getPickRay(screenPosition)
+        : undefined
+    const origin = ray?.origin ?? this.viewer.camera.positionWC
+    const worldDirection = ray?.direction ?? this.viewer.camera.directionWC
+    if (!origin || !worldDirection) {
+      return
+    }
+
+    const start = this.runtime.worldToLocal(origin)
+    const ahead = this.runtime.worldToLocal(
+      Cartesian3.add(origin, worldDirection, new Cartesian3()),
+    )
     const direction = {
-      x: target.x - start.x,
-      y: target.y - start.y,
-      z: target.z - start.z,
+      x: ahead.x - start.x,
+      y: ahead.y - start.y,
+      z: ahead.z - start.z,
     }
     const magnitude = Math.hypot(direction.x, direction.y, direction.z) || 1
     const speed = 44
+
+    start.x += (direction.x / magnitude) * 0.8
+    start.y += (direction.y / magnitude) * 0.8
+    start.z += (direction.z / magnitude) * 0.8
+
     const projectile = this.runtime.addSphere({
       color: Color.fromCssColorString('#ff6b4a'),
       mass: 35,
@@ -213,38 +237,51 @@ export class FracturePhysicsScene extends BasePhysicsScene {
     const position = { ...breakable.entry.transform.position }
     const rotation = { ...breakable.entry.transform.rotation }
     const velocity = breakable.entry.body.getLinearVelocity()
-    const fragmentHalf = {
-      x: Math.max(breakable.halfExtents.x / 2, 0.2),
-      y: Math.max(breakable.halfExtents.y / 2, 0.2),
-      z: Math.max(breakable.halfExtents.z / 2, 0.2),
+    const divisions = {
+      x: fragmentDivisions(breakable.halfExtents.x * 2),
+      y: fragmentDivisions(breakable.halfExtents.y * 2),
+      z: fragmentDivisions(breakable.halfExtents.z * 2),
     }
+    const fragmentHalf = {
+      x: breakable.halfExtents.x / divisions.x,
+      y: breakable.halfExtents.y / divisions.y,
+      z: breakable.halfExtents.z / divisions.z,
+    }
+    const fragmentSize = {
+      x: fragmentHalf.x * 2,
+      y: fragmentHalf.y * 2,
+      z: fragmentHalf.z * 2,
+    }
+    const fragmentCount = divisions.x * divisions.y * divisions.z
     this.runtime.removeRigidEntry(breakable.entry)
 
     let fragmentIndex = 0
-    for (const xDirection of [-1, 1]) {
-      for (const yDirection of [-1, 1]) {
-        for (const zDirection of [-1, 1]) {
+    for (let xIndex = 0; xIndex < divisions.x; xIndex += 1) {
+      for (let yIndex = 0; yIndex < divisions.y; yIndex += 1) {
+        for (let zIndex = 0; zIndex < divisions.z; zIndex += 1) {
+          const xOffset = (xIndex + 0.5 - divisions.x / 2) * fragmentSize.x
+          const yOffset = (yIndex + 0.5 - divisions.y / 2) * fragmentSize.y
+          const zOffset = (zIndex + 0.5 - divisions.z / 2) * fragmentSize.z
+          const spreadX = xOffset / Math.max(breakable.halfExtents.x, 0.01)
+          const spreadY = yOffset / Math.max(breakable.halfExtents.y, 0.01)
+          const spreadZ = zOffset / Math.max(breakable.halfExtents.z, 0.01)
           const fragment = this.runtime.addBox({
             color: Color.fromCssColorString(fragmentIndex % 2 === 0 ? '#f3c15b' : '#db7754'),
             halfExtents: fragmentHalf,
-            mass: Math.max(breakable.mass / 8, 1),
-            position: point(
-              position.x + xDirection * breakable.halfExtents.x * 0.45,
-              position.y + yDirection * breakable.halfExtents.y * 0.45,
-              position.z + zDirection * breakable.halfExtents.z * 0.45,
-            ),
+            mass: Math.max(breakable.mass / fragmentCount, 1),
+            position: point(position.x + xOffset, position.y + yOffset, position.z + zOffset),
             rotation,
           })
           fragment.body.setActivationState(DISABLE_DEACTIVATION)
           fragment.body.setLinearVelocity(
             new this.ammo.btVector3(
-              velocity.x() + xDirection * 3.5,
-              velocity.y() + yDirection * 3.5,
-              velocity.z() + zDirection * 2.2 + 2,
+              velocity.x() + spreadX * 3.5,
+              velocity.y() + spreadY * 3.5,
+              velocity.z() + spreadZ * 2.2 + 2,
             ),
           )
           fragment.body.setAngularVelocity(
-            new this.ammo.btVector3(1.1 * xDirection, 1.4 * yDirection, 0.9 * zDirection),
+            new this.ammo.btVector3(1.1 * spreadX, 1.4 * spreadY, 0.9 * spreadZ),
           )
           fragmentIndex += 1
         }

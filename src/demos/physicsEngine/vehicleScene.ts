@@ -15,7 +15,7 @@ type VehicleAction = 'acceleration' | 'braking' | 'left' | 'right'
 
 const WHEEL_COUNT = 4
 const DISABLE_DEACTIVATION = 4
-const MAX_ENGINE_FORCE = 2_000
+const MAX_ENGINE_FORCE = 3_000
 const MAX_BRAKING_FORCE = 100
 const STEERING_CLAMP = 0.5
 const STEERING_INCREMENT = 0.04
@@ -66,7 +66,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     this.runtime.addStaticBox({
       color: Color.fromCssColorString('#6d7f88'),
       halfExtents: point(4, 5, 2),
-      position: point(0, 4, 0),
+      position: point(11, 4, 0),
       rotation: quaternionFromAxisAngle({ x: 1, y: 0, z: 0 }, Math.PI / 28),
     })
 
@@ -74,8 +74,8 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     this.createVehicle()
 
     this.viewer.camera.lookAt(
-      this.runtime.localToWorld(0, 0, 2),
-      new HeadingPitchRange(0, -0.32, 52),
+      this.runtime.localToWorld(0, -5, 1.5),
+      new HeadingPitchRange(-Math.PI / 4, -0.32, 38),
     )
     this.setStatus('Ammo.js 车辆已就绪：W/S 加减速，A/D 转向')
   }
@@ -212,7 +212,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       color: Color.fromCssColorString('#19c6c9'),
       halfExtents: point(chassisWidth / 2, chassisLength / 2, chassisHeight / 2),
       mass: 800,
-      position: point(0, -12, 2),
+      position: point(0, -15, 1.4),
     })
 
     const tuning = new this.ammo.btVehicleTuning()
@@ -230,12 +230,13 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     chassis.body.setActivationState(DISABLE_DEACTIVATION)
 
     const wheelDirection = new this.ammo.btVector3(0, 0, -1)
-    const wheelAxle = new this.ammo.btVector3(-1, 0, 0)
+    const wheelAxle = new this.ammo.btVector3(1, 0, 0)
+    // Keep the ray origin below the chassis and point positive engine force toward +Y.
     const wheels = [
-      { front: true, position: point(1, 1.7, 0.3), radius: 0.35, width: 0.2 },
-      { front: true, position: point(-1, 1.7, 0.3), radius: 0.35, width: 0.2 },
-      { front: false, position: point(-1, -1, 0.3), radius: 0.4, width: 0.3 },
-      { front: false, position: point(1, -1, 0.3), radius: 0.4, width: 0.3 },
+      { front: true, position: point(1, 1.7, -0.5), radius: 0.35, width: 0.2 },
+      { front: true, position: point(-1, 1.7, -0.5), radius: 0.35, width: 0.2 },
+      { front: false, position: point(-1, -1, -0.5), radius: 0.4, width: 0.3 },
+      { front: false, position: point(1, -1, -0.5), radius: 0.4, width: 0.3 },
     ]
 
     wheels.forEach((wheel, index) => {
@@ -243,7 +244,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
         new this.ammo.btVector3(wheel.position.x, wheel.position.y, wheel.position.z),
         wheelDirection,
         wheelAxle,
-        0.6,
+        0.8,
         wheel.radius,
         tuning,
         wheel.front,

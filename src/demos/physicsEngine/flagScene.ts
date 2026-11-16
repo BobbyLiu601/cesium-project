@@ -63,7 +63,7 @@ export class FlagPhysicsScene extends BasePhysicsScene {
     if (pylonBody) {
       const pivotA = new this.ammo.btVector3(0, 0, 3)
       const pivotB = new this.ammo.btVector3(0, 0, 0)
-      const axis = new this.ammo.btVector3(0, 1, 0)
+      const axis = new this.ammo.btVector3(0, 0, 1)
       this.hinge = new this.ammo.btHingeConstraint(
         pylonBody,
         arm.body,
@@ -160,6 +160,16 @@ export class FlagPhysicsScene extends BasePhysicsScene {
     }))
     this.updateClothPoints()
 
+    const surfaceIndices = this.clothBoundaryIndices()
+    const surfacePositions = surfaceIndices.map(() => new Cartesian3())
+    this.runtime.addDynamicPolygon(
+      () => this.worldPositionsForIndices(surfaceIndices, surfacePositions),
+      {
+        color: Color.WHITE.withAlpha(0.9),
+        id: 'physics-flag-surface',
+      },
+    )
+
     for (let row = 0; row <= CLOTH_ROWS; row += 1) {
       const indices = this.rowIndices(row)
       const positions = indices.map(() => new Cartesian3())
@@ -197,7 +207,7 @@ export class FlagPhysicsScene extends BasePhysicsScene {
           mass: 0.5,
           position: point(
             column * 1.05 - 3.15 + (row % 2 === 0 ? 0 : 0.35),
-            3,
+            1.4,
             brickHeight / 2 + row * brickHeight,
           ),
         })
@@ -234,6 +244,22 @@ export class FlagPhysicsScene extends BasePhysicsScene {
 
   private columnIndices(column: number) {
     return Array.from({ length: CLOTH_ROWS + 1 }, (_, row) => row * (CLOTH_COLUMNS + 1) + column)
+  }
+
+  private clothBoundaryIndices() {
+    const top = this.rowIndices(0)
+    const right = this.columnIndices(CLOTH_COLUMNS).slice(1)
+    const bottom = this.rowIndices(CLOTH_ROWS).slice(0, -1).reverse()
+    const left = this.columnIndices(0).slice(1, -1).reverse()
+    return [...top, ...right, ...bottom, ...left]
+  }
+
+  private worldPositionsForIndices(indices: number[], positions: Cartesian3[]) {
+    indices.forEach((index, positionIndex) => {
+      const position = this.clothPoints[index] ?? { x: 0, y: 0, z: 0 }
+      this.runtime.localToWorld(position.x, position.y, position.z, positions[positionIndex]!)
+    })
+    return positions
   }
 
   private positionsForIndices(indices: number[], positions: Cartesian3[]) {

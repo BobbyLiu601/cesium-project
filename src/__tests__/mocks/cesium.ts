@@ -14,11 +14,20 @@ export interface MockViewer {
       height: number
     }
     positionWC: unknown
+    directionWC: unknown
     setView: ReturnType<typeof vi.fn<(options: unknown) => void>>
     viewBoundingSphere: ReturnType<typeof vi.fn<(sphere: unknown, orientation: unknown) => void>>
     lookAt: ReturnType<typeof vi.fn<(center: unknown, headingPitchRange: unknown) => void>>
     lookAtTransform: ReturnType<typeof vi.fn<(transform: unknown, offset?: unknown) => void>>
     flyTo: ReturnType<typeof vi.fn<(options: unknown) => void>>
+    getPickRay: ReturnType<
+      typeof vi.fn<
+        (position: unknown) => {
+          direction: InstanceType<typeof Cartesian3>
+          origin: InstanceType<typeof Cartesian3>
+        }
+      >
+    >
   }
   scene: {
     msaaSamples: number
@@ -328,11 +337,21 @@ export class Viewer implements MockViewer {
       longitude: 0,
     },
     positionWC: new Cartesian3(0, 0, 6_378_137 + 3_336.6),
+    directionWC: new Cartesian3(0, 0, -1),
     setView: vi.fn<(options: unknown) => void>(),
     viewBoundingSphere: vi.fn<(sphere: unknown, orientation: unknown) => void>(),
     lookAt: vi.fn<(center: unknown, headingPitchRange: unknown) => void>(),
     lookAtTransform: vi.fn<(transform: unknown, offset?: unknown) => void>(),
     flyTo: vi.fn<(options: unknown) => void>(),
+    getPickRay: vi.fn<
+      (position: unknown) => {
+        direction: InstanceType<typeof Cartesian3>
+        origin: InstanceType<typeof Cartesian3>
+      }
+    >(() => ({
+      direction: new Cartesian3(0, 1, 0),
+      origin: new Cartesian3(0, -40, 10),
+    })),
   }
 
   entities = new MockEntityCollection()
@@ -1287,6 +1306,9 @@ export class Matrix4 {
   static getMatrix3 = vi.fn<(_matrix: unknown, result: unknown) => unknown>(
     (_matrix, result) => result,
   )
+  static inverseTransformation = vi.fn<(_matrix: unknown, result?: unknown) => unknown>(
+    (_matrix, result = {}) => result,
+  )
   static multiplyByPoint = vi.fn<
     (_matrix: unknown, point: Cartesian3, result: Cartesian3) => Cartesian3
   >((_matrix, point, result) => {
@@ -1613,6 +1635,7 @@ export function resetCesiumMock() {
   Matrix3.multiplyByVector.mockClear()
   Matrix3.setColumn.mockClear()
   Matrix4.getMatrix3.mockClear()
+  Matrix4.inverseTransformation.mockClear()
   Matrix4.multiplyByPoint.mockClear()
   Quaternion.fromHeadingPitchRoll.mockClear()
   Quaternion.fromRotationMatrix.mockClear()

@@ -1,4 +1,5 @@
 import {
+  Cartesian2,
   Cartesian3,
   Color,
   HeadingPitchRange,
@@ -47,13 +48,6 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
   constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
     super(options, true)
     this.setStatus = setStatus
-    this.controls.push({
-      id: 'fire',
-      label: '发射小球',
-      ariaLabel: '向软体发射物理小球',
-      kind: 'tap',
-      press: () => this.fireProjectile(),
-    })
   }
 
   protected buildScene() {
@@ -83,13 +77,14 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
       color: Color.fromCssColorString('#f1b84b'),
       radii: point(1.1, 1.1, 2.4),
     })
+    this.settleSoftBodies()
     this.installClickHandler()
 
     this.viewer.camera.lookAt(
       this.runtime.localToWorld(1, 0, 3),
       new HeadingPitchRange(0, -0.22, 18),
     )
-    this.setStatus('Ammo.js 软体已就绪：单击画布或“发射小球”进行撞击')
+    this.setStatus('Ammo.js 软体已就绪：单击画布发射小球进行撞击')
   }
 
   protected afterStep() {
@@ -114,26 +109,42 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
 
   private installClickHandler() {
     const handler = new ScreenSpaceEventHandler(this.viewer.scene.canvas)
-    handler.setInputAction(() => {
-      this.fireProjectile()
+    handler.setInputAction((movement: { position: Cartesian2 }) => {
+      this.fireProjectile(movement.position)
     }, ScreenSpaceEventType.LEFT_DOWN)
     this.addSceneCleanup(() => handler.destroy())
   }
 
-  private fireProjectile() {
+  private fireProjectile(screenPosition?: Cartesian2) {
     if (this.animationState.value === 'paused') {
       return
     }
 
-    const start = point(8, -4, 4)
-    const target = point(1.5, 0, 5)
+    const ray =
+      screenPosition && typeof this.viewer.camera.getPickRay === 'function'
+        ? this.viewer.camera.getPickRay(screenPosition)
+        : undefined
+    const origin = ray?.origin ?? this.viewer.camera.positionWC
+    const worldDirection = ray?.direction ?? this.viewer.camera.directionWC
+    if (!origin || !worldDirection) {
+      return
+    }
+
+    const start = this.runtime.worldToLocal(origin)
+    const ahead = this.runtime.worldToLocal(
+      Cartesian3.add(origin, worldDirection, new Cartesian3()),
+    )
     const direction = {
-      x: target.x - start.x,
-      y: target.y - start.y,
-      z: target.z - start.z,
+      x: ahead.x - start.x,
+      y: ahead.y - start.y,
+      z: ahead.z - start.z,
     }
     const magnitude = Math.hypot(direction.x, direction.y, direction.z) || 1
     const speed = 30
+
+    start.x += (direction.x / magnitude) * 0.8
+    start.y += (direction.y / magnitude) * 0.8
+    start.z += (direction.z / magnitude) * 0.8
 
     const projectile = this.runtime.addSphere({
       color: Color.fromCssColorString('#ff6b4a'),
@@ -160,6 +171,22 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
     this.runtime.stats.value = {
       ...this.runtime.stats.value,
       projectileCount: this.projectiles.length,
+    }
+  }
+
+  private settleSoftBodies() {
+    for (let step = 0; step < 90; step += 1) {
+      this.runtime.step(1 / 60)
+    }
+    for (const volume of this.volumes) {
+      const nodes = volume.body.get_m_nodes()
+      for (let index = 0; index < volume.points.length; index += 1) {
+        const position = nodes.at(index)?.get_m_x()
+        const target = volume.points[index]!
+        target.x = position?.x() ?? target.x
+        target.y = position?.y() ?? target.y
+        target.z = position?.z() ?? target.z
+      }
     }
   }
 

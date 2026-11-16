@@ -68,8 +68,8 @@ export class BallPhysicsScene extends BasePhysicsScene {
     const pylonBody = this.runtime.rigidEntries[1]?.body
     if (pylonBody) {
       const pivotA = new this.ammo.btVector3(0, 0, 3)
-      const pivotB = new this.ammo.btVector3(0, 0, 0)
-      const axis = new this.ammo.btVector3(0, 1, 0)
+      const pivotB = new this.ammo.btVector3(-3, 0, 0)
+      const axis = new this.ammo.btVector3(0, 0, 1)
       this.hinge = new this.ammo.btHingeConstraint(
         pylonBody,
         arm.body,
@@ -178,7 +178,7 @@ export class BallPhysicsScene extends BasePhysicsScene {
           halfExtents: point(brickDepth / 2, brickLength / 2, brickHeight / 2),
           mass: 0.5,
           position: point(
-            3,
+            -1.5,
             (index - count / 2) * brickLength + (oddRow ? brickLength / 2 : 0),
             brickHeight / 2 + row * brickHeight,
           ),

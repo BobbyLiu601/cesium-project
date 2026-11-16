@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { Cartesian2, ScreenSpaceEventType } from 'cesium'
 import ElementPlus from 'element-plus'
 import zhCn from 'element-plus/es/locale/lang/zh-cn'
 import { createPinia } from 'pinia'
@@ -17,6 +18,7 @@ import {
   EllipsoidTerrainProvider,
   primitiveInstances,
   resetCesiumMock,
+  screenSpaceEventHandlerInstances,
   tileLoadProgressListeners,
   tileProviderInstances,
   viewerInstances,
@@ -1045,8 +1047,11 @@ describe('App', () => {
     expect(globe.attributes('data-body-count')).toBe('2')
     expect(globe.attributes('data-projectile-count')).toBe('0')
 
-    const fire = globe.findAll('button').find((button) => button.text() === '发射小球')
-    await fire?.trigger('click')
+    const fireHandler = screenSpaceEventHandlerInstances[0]
+    fireHandler?.actions.get(ScreenSpaceEventType.LEFT_DOWN)?.({
+      position: new Cartesian2(120, 120),
+    })
+    await flushPromises()
     expect(globe.attributes('data-projectile-count')).toBe('1')
     expect(globe.attributes('data-body-count')).toBe('3')
 

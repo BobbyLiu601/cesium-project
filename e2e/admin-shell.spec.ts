@@ -1406,7 +1406,7 @@ test('五个物理引擎深链均可打开、操作并返回对应卡片', async
       title: '3.4.3、转动（球）',
     },
     {
-      controls: ['向软体发射物理小球'],
+      controls: [],
       featureId: 'soft-body-collision',
       fire: true,
       id: 'soft-body-collision',
@@ -1414,7 +1414,7 @@ test('五个物理引擎深链均可打开、操作并返回对应卡片', async
       title: '3.4.4、撞击（软体）',
     },
     {
-      controls: ['向可断裂结构发射物理小球'],
+      controls: [],
       featureId: 'fracture-collision',
       fire: true,
       id: 'fracture-collision',
@@ -1457,12 +1457,20 @@ test('五个物理引擎深链均可打开、操作并返回对应卡片', async
       }
       await page.keyboard.up(scene.holdKey)
     } else if (scene.id === 'soft-body-collision') {
-      await globe.getByRole('button', { name: scene.controls[0] }).click()
-      await expect(globe).toHaveAttribute('data-projectile-count', '1')
+      const canvas = globe.locator('canvas')
+      const box = await canvas.boundingBox()
+      await canvas.click({
+        position: { x: (box?.width ?? 0) * 0.72, y: (box?.height ?? 0) * 0.62 },
+      })
+      await expect(globe).toHaveAttribute('data-projectile-count', /^[1-9]\d*$/)
       await expect(globe).toHaveAttribute('data-soft-body-count', '2')
     } else {
-      await globe.getByRole('button', { name: scene.controls[0] }).click()
-      await expect(globe).toHaveAttribute('data-projectile-count', '1')
+      const canvas = globe.locator('canvas')
+      const box = await canvas.boundingBox()
+      await canvas.click({
+        position: { x: (box?.width ?? 0) * 0.72, y: (box?.height ?? 0) * 0.62 },
+      })
+      await expect(globe).toHaveAttribute('data-projectile-count', /^[1-9]\d*$/)
       await expect
         .poll(async () => Number(await globe.getAttribute('data-broken-body-count')))
         .toBeGreaterThan(0)
