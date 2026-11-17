@@ -101,5 +101,7 @@ task 分支每次提交后自动合并到持久分支并保留 task 分支的操
 _Avoid_: 提交时删除、静默覆盖
 
 **完成清理（Issue Completion Cleanup）**：
-用户明确回复“issue完成”后，删除该持久分支下所有已合并且未被工作树占用的 task 分支；当前执行 turn 的活动分支记录为 deferred，工作树释放后再清理。
+用户明确回复“issue完成”后，删除该持久分支下所有已合并且未被工作树占用的 task 分支，再把完成分支
+fast-forward 到本地和远端 `main`、更新本地主检出，并由 `main` 推送触发 GitHub Pages 部署；当前执行
+turn 的活动分支记录为 deferred，工作树释放后再清理。
 _Avoid_: 自动清理、交付前删除

@@ -5,7 +5,7 @@ const TASK_BRANCH_PATTERN = /^agent\/([^/]+)\/(.+)-([0-9a-fA-F]{12})$/
 export const MAIN_BRANCH = 'main'
 
 // Git hooks export worktree-specific paths; never leak them into another worktree.
-function gitEnvironment() {
+export function gitEnvironment() {
   const environment = { ...process.env }
   for (const variable of [
     'GIT_ALTERNATE_OBJECT_DIRECTORIES',

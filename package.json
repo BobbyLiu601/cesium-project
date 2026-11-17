@@ -27,6 +27,7 @@
     "check:bundle": "node scripts/check-bundle.mjs",
     "check:pages": "node scripts/check-pages-build.mjs",
     "check:template": "node scripts/check-template-content.mjs",
+    "complete:issue": "node scripts/complete-issue.mjs",
     "finalize:branch": "node scripts/finalize-task-branch.mjs",
     "cleanup:branches": "node scripts/cleanup-task-branches.mjs",
     "format": "prettier --write .",

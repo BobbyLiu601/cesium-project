@@ -1,4 +1,4 @@
-# ADR 0009：worktree task 分支持续合并，Issue 完成时统一清理
+# ADR 0009：worktree task 分支持续合并，Issue 完成时收敛 main
 
 - 状态：已接受
 - 日期：2026-11-17
@@ -32,19 +32,24 @@ ADR 0008 要求 task 分支在每次交付前合并回持久分支并立即删�
 - 用户明确回复“issue完成”后，先执行：
 
   ```bash
-  node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key> --dry-run --keep-current
-  node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key> --keep-current
+  node scripts/complete-issue.mjs --base agent/<agent>/<issue-key> --merge agent/<agent>/<issue-key> --dry-run
+  node scripts/complete-issue.mjs --base agent/<agent>/<issue-key> --merge agent/<agent>/<issue-key> --authorize-main-push
   ```
 
-  清理命令只删除已合并到持久分支、且不被工作树占用的本地 task 分支。全部检查通过后才删除；任一分支
-  未合并或仍被占用时，整次清理失败且不删除任何 task 分支。
+  完成命令先清理 `--base` 下已合并、且不被工作树占用的本地 task 分支；`--base` 可重复，用于同一
+  完成分支吸收了多个历史 Issue 的情况。当前活动 task 分支保留并记录为 deferred。
 
 - “issue完成”评论本身也运行在一条活动 task 分支上。Git 不允许删除当前工作树正在使用的分支，因此该次清理
-  使用 `--keep-current` 删除其余 task 分支，并记录当前活动分支的 SHA。平台释放该工作树后，再运行一次不带
-  `--keep-current` 的清理命令即可达到零 task 分支。
-- 已释放的 task 分支清理成功后，执行者才把 Issue 状态改为 `done`；活动分支作为明确的 deferred 项报告。
-  清理失败时保留 Issue 的评审状态并报告失败原因。
-- 不自动更新 `main`、不删除远端分支、不 force push、不 rebase task 分支、不 reset 持久分支。
+  保留当前活动分支并记录 SHA。平台释放该工作树后，再运行一次不带 `--keep-current` 的清理命令即可达到
+  零 task 分支。
+- 完成命令获取最新 `origin/main`，要求 `--merge` 分支已包含它，并且本地 `main` 能直接 fast-forward。
+  成功后把完成分支 tip 推到远端 `main`，再把本地 `main` 更新到同一 tip。
+- 本地主检出必须干净。若 `main` 没有在其他工作树中检出，完成命令把主检出切换到 `main`；若已有 `main`
+  工作树，则直接更新该工作树。这样本地代码与远端 `main` 保持一致。
+- `.github/workflows/pages.yml` 在 `main` push 后自动执行完整验证、Pages 构建和部署。完成命令不等待
+  GitHub Actions；只有 push 成功并触发 workflow 后，执行者才把 Issue 状态改为 `done`。
+- 普通 task 交付仍不更新 `main`。只有“issue完成”评论明确授权时才执行上述收敛；命令使用带原因的本地
+  Git 守卫放行，不 force push、不删除远端分支、不 rebase task 分支、不 reset 持久分支。
 - `pre-push` 继续拒绝推送尚未合并到持久分支的 task 分支，作为 hook 失败时的第二道保护。
 
 ## 自动化的边界
@@ -69,3 +74,5 @@ ADR 0008 要求 task 分支在每次交付前合并回持久分支并立即删�
 - 主检出若停在旧 task 分支，同步命令会尝试安全切回持久分支；主检出不干净时只完成合并并提示，不会丢弃改动。
 - 清理命令是删除操作，必须先 dry-run；输出记录每个 task 分支删除前的 SHA，可用
   `git branch <name> <sha>` 恢复。
+- 完成命令会更新远端 `main` 并触发公开站点部署，因此只能在用户明确回复“issue完成”后运行；不能把普通
+  task 交付、测试通过或 Issue 进入评审当作授权。
