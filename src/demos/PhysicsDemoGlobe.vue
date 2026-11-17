@@ -164,7 +164,6 @@ defineExpose({ resize })
       data-testid="physics-toolbar"
     >
       <div class="physics-engine-demo-globe__heading">
-        <span class="physics-engine-demo-globe__eyebrow">AMMO.JS / CESIUM</span>
         <p class="physics-engine-demo-globe__status" aria-live="polite">
           {{ statusMessage }}
         </p>
@@ -277,14 +276,6 @@ defineExpose({ resize })
 .physics-engine-demo-globe__heading {
   display: grid;
   gap: 4px;
-}
-
-.physics-engine-demo-globe__eyebrow {
-  font-family: 'JetBrains Mono', 'SFMono-Regular', Consolas, monospace;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  color: #6cddd6;
 }
 
 .physics-engine-demo-globe__status {

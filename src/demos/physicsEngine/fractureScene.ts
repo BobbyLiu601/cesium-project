@@ -121,7 +121,7 @@ export class FracturePhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(0, 0, 5),
       new HeadingPitchRange(0.1, -0.28, 35),
     )
-    this.setStatus('Ammo.js 断裂体已就绪：单击画布发射撞击球')
+    this.setStatus('断裂体已就绪：单击画布发射撞击球')
   }
 
   protected afterStep() {
@@ -160,7 +160,7 @@ export class FracturePhysicsScene extends BasePhysicsScene {
     if (now - this.lastStatusAt > 450) {
       this.lastStatusAt = now
       this.setStatus(
-        `Ammo.js 断裂体运行中：已击碎 ${this.brokenCount} 个结构，${this.projectiles.length} 个撞击球`,
+        `断裂体运行中：已击碎 ${this.brokenCount} 个结构，${this.projectiles.length} 个撞击球`,
       )
     }
   }

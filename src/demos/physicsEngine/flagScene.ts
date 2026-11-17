@@ -80,7 +80,7 @@ export class FlagPhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(0, 0, 3.5),
       new HeadingPitchRange(0, -0.2, 20),
     )
-    this.setStatus('Ammo.js 旗面软体已就绪：按住 Q/A 左右摆动')
+    this.setStatus('旗面软体已就绪：按住 Q/A 左右摆动')
   }
 
   protected beforeStep() {
@@ -93,7 +93,7 @@ export class FlagPhysicsScene extends BasePhysicsScene {
     if (now - this.lastStatusAt > 450) {
       this.lastStatusAt = now
       const motion = this.armMovement > 0 ? '向左' : this.armMovement < 0 ? '向右' : '自然复位'
-      this.setStatus(`Ammo.js 旗面软体运行中：${motion}`)
+      this.setStatus(`旗面软体运行中：${motion}`)
     }
   }
 

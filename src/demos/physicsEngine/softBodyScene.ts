@@ -48,14 +48,14 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(1, 0, 3),
       new HeadingPitchRange(0, -0.22, 18),
     )
-    this.setStatus('Ammo.js 碰撞场景已就绪：单击画布发射小球')
+    this.setStatus('碰撞场景已就绪：单击画布发射小球')
   }
 
   protected afterStep() {
     const now = performance.now()
     if (now - this.lastStatusAt > 450) {
       this.lastStatusAt = now
-      this.setStatus(`Ammo.js 碰撞运行中：已发射 ${this.projectiles.length} 个小球`)
+      this.setStatus(`碰撞运行中：已发射 ${this.projectiles.length} 个小球`)
     }
   }
 

@@ -40,7 +40,7 @@ export const PHYSICS_SCENE_DEFINITIONS: Record<
     },
     hint: 'W/S 加减速，A/D 转向',
     id: 'vehicle-motion',
-    initialStatus: '正在启动 Ammo.js 车辆物理…',
+    initialStatus: '正在启动车辆物理…',
     site: { height: 100, latitude: 30.46331, longitude: 114.40184 },
   },
   'flag-rotation': {
@@ -51,7 +51,7 @@ export const PHYSICS_SCENE_DEFINITIONS: Record<
     },
     hint: '按住 Q/A 左右摆动旗面',
     id: 'flag-rotation',
-    initialStatus: '正在创建 Ammo.js 旗面软体…',
+    initialStatus: '正在创建旗面软体…',
     site: { height: 50, latitude: 30.46331, longitude: 114.40184 },
   },
   'ball-rotation': {
@@ -62,7 +62,7 @@ export const PHYSICS_SCENE_DEFINITIONS: Record<
     },
     hint: '按住 Q/A 摆动软绳与刚体球',
     id: 'ball-rotation',
-    initialStatus: '正在创建 Ammo.js 软绳与刚体球…',
+    initialStatus: '正在创建软绳与刚体球…',
     site: { height: 50, latitude: 30.46331, longitude: 114.40184 },
   },
   'soft-body-collision': {
@@ -73,7 +73,7 @@ export const PHYSICS_SCENE_DEFINITIONS: Record<
     },
     hint: '单击画布发射小球进行碰撞',
     id: 'soft-body-collision',
-    initialStatus: '正在创建 Ammo.js 碰撞场景…',
+    initialStatus: '正在创建碰撞场景…',
     site: { height: 50, latitude: 30.46331, longitude: 114.40184 },
   },
   'fracture-collision': {
@@ -84,7 +84,7 @@ export const PHYSICS_SCENE_DEFINITIONS: Record<
     },
     hint: '单击画布发射撞击球击碎结构',
     id: 'fracture-collision',
-    initialStatus: '正在创建 Ammo.js 断裂体场景…',
+    initialStatus: '正在创建断裂体场景…',
     site: { height: 100, latitude: 31.834866, longitude: 117.220206 },
   },
 }

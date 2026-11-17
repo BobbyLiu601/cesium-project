@@ -65,7 +65,7 @@ describe('physics engine scenes', () => {
       expect(scene.stats.value.softBodyCount).toBe(softBodyCount)
       expect(scene.animationState.value).toBe('playing')
       expect(preUpdateListenerCount(viewer)).toBe(1)
-      expect(statuses[statuses.length - 1]).toContain('Ammo.js')
+      expect(statuses.join('\n')).not.toMatch(/ammo\.js/i)
 
       const initialBodyCount = scene.stats.value.bodyCount
       expect(viewer.scene.canvas).toBeDefined()

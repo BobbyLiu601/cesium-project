@@ -88,7 +88,7 @@ export class BallPhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(-1.5, 0, 3),
       new HeadingPitchRange(0, -0.2, 18),
     )
-    this.setStatus('Ammo.js 软绳与刚体球已就绪：按住 Q/A 左右摆动')
+    this.setStatus('软绳与刚体球已就绪：按住 Q/A 左右摆动')
   }
 
   protected beforeStep() {
@@ -101,7 +101,7 @@ export class BallPhysicsScene extends BasePhysicsScene {
     if (now - this.lastStatusAt > 450) {
       this.lastStatusAt = now
       const motion = this.armMovement > 0 ? '向左' : this.armMovement < 0 ? '向右' : '自然垂摆'
-      this.setStatus(`Ammo.js 软绳连接刚体球运行中：${motion}`)
+      this.setStatus(`软绳连接刚体球运行中：${motion}`)
     }
   }
 

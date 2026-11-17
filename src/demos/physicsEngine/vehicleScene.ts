@@ -88,7 +88,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(0, -5, 1.5),
       new HeadingPitchRange(-Math.PI / 4, -0.32, 38),
     )
-    this.setStatus('Ammo.js 车辆已就绪：W/S 加减速，A/D 转向')
+    this.setStatus('车辆已就绪：W/S 加减速，A/D 转向')
   }
 
   protected beforeStep() {
@@ -177,7 +177,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
         ...this.runtime.stats.value,
         vehicleSpeed: speed,
       }
-      this.setStatus(`Ammo.js 车辆运行中：${speed.toFixed(1)} km/h`)
+      this.setStatus(`车辆运行中：${speed.toFixed(1)} km/h`)
     }
   }
 
