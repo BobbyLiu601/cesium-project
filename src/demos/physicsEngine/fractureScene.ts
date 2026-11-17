@@ -17,6 +17,7 @@ import {
 
 interface BreakableBody {
   broken: boolean
+  color: Color
   entry: PhysicsRigidEntry
   halfExtents: LocalPoint
   mass: number
@@ -24,12 +25,42 @@ interface BreakableBody {
 
 const MAX_PROJECTILES = 10
 const FRACTURE_IMPULSE = 180
-const FRAGMENT_TARGET_SIZE = 1.5
-const MAX_FRAGMENT_DIVISIONS = 4
+const FRAGMENT_TARGET_SIZE = 0.65
+const MAX_FRAGMENTS_PER_STRUCTURE = 96
 const DISABLE_DEACTIVATION = 4
 
-function fragmentDivisions(size: number) {
-  return Math.max(1, Math.min(MAX_FRAGMENT_DIVISIONS, Math.ceil(size / FRAGMENT_TARGET_SIZE)))
+export function fragmentDivisions(halfExtents: LocalPoint) {
+  const dimensions = [halfExtents.x * 2, halfExtents.y * 2, halfExtents.z * 2]
+  const desired = dimensions.map((size) => Math.max(1, Math.ceil(size / FRAGMENT_TARGET_SIZE)))
+  const desiredCount = desired[0]! * desired[1]! * desired[2]!
+  if (desiredCount <= MAX_FRAGMENTS_PER_STRUCTURE) {
+    return { x: desired[0]!, y: desired[1]!, z: desired[2]! }
+  }
+
+  const scale = Math.cbrt(MAX_FRAGMENTS_PER_STRUCTURE / desiredCount)
+  const divisions = desired.map((count) => Math.max(1, Math.ceil(count * scale)))
+  let fragmentCount = divisions[0]! * divisions[1]! * divisions[2]!
+  while (fragmentCount > MAX_FRAGMENTS_PER_STRUCTURE) {
+    let largestAxis = -1
+    let largestFragmentSize = 0
+    for (let axis = 0; axis < divisions.length; axis += 1) {
+      if (divisions[axis]! <= 1) {
+        continue
+      }
+      const fragmentSize = dimensions[axis]! / divisions[axis]!
+      if (fragmentSize > largestFragmentSize) {
+        largestAxis = axis
+        largestFragmentSize = fragmentSize
+      }
+    }
+    if (largestAxis < 0) {
+      break
+    }
+    divisions[largestAxis] = divisions[largestAxis]! - 1
+    fragmentCount = divisions[0]! * divisions[1]! * divisions[2]!
+  }
+
+  return { x: divisions[0]!, y: divisions[1]!, z: divisions[2]! }
 }
 
 export class FracturePhysicsScene extends BasePhysicsScene {
@@ -218,6 +249,7 @@ export class FracturePhysicsScene extends BasePhysicsScene {
     entry.body.setActivationState(DISABLE_DEACTIVATION)
     const breakable = {
       broken: false,
+      color: options.color,
       entry,
       halfExtents: options.halfExtents,
       mass: options.mass,
@@ -237,11 +269,7 @@ export class FracturePhysicsScene extends BasePhysicsScene {
     const position = { ...breakable.entry.transform.position }
     const rotation = { ...breakable.entry.transform.rotation }
     const velocity = breakable.entry.body.getLinearVelocity()
-    const divisions = {
-      x: fragmentDivisions(breakable.halfExtents.x * 2),
-      y: fragmentDivisions(breakable.halfExtents.y * 2),
-      z: fragmentDivisions(breakable.halfExtents.z * 2),
-    }
+    const divisions = fragmentDivisions(breakable.halfExtents)
     const fragmentHalf = {
       x: breakable.halfExtents.x / divisions.x,
       y: breakable.halfExtents.y / divisions.y,
@@ -255,7 +283,6 @@ export class FracturePhysicsScene extends BasePhysicsScene {
     const fragmentCount = divisions.x * divisions.y * divisions.z
     this.runtime.removeRigidEntry(breakable.entry)
 
-    let fragmentIndex = 0
     for (let xIndex = 0; xIndex < divisions.x; xIndex += 1) {
       for (let yIndex = 0; yIndex < divisions.y; yIndex += 1) {
         for (let zIndex = 0; zIndex < divisions.z; zIndex += 1) {
@@ -266,7 +293,7 @@ export class FracturePhysicsScene extends BasePhysicsScene {
           const spreadY = yOffset / Math.max(breakable.halfExtents.y, 0.01)
           const spreadZ = zOffset / Math.max(breakable.halfExtents.z, 0.01)
           const fragment = this.runtime.addBox({
-            color: Color.fromCssColorString(fragmentIndex % 2 === 0 ? '#f3c15b' : '#db7754'),
+            color: breakable.color,
             halfExtents: fragmentHalf,
             mass: Math.max(breakable.mass / fragmentCount, 1),
             position: point(position.x + xOffset, position.y + yOffset, position.z + zOffset),
@@ -283,7 +310,6 @@ export class FracturePhysicsScene extends BasePhysicsScene {
           fragment.body.setAngularVelocity(
             new this.ammo.btVector3(1.1 * spreadX, 1.4 * spreadY, 0.9 * spreadZ),
           )
-          fragmentIndex += 1
         }
       }
     }

@@ -1252,6 +1252,7 @@ export class Color {
   static WHITE = new Color(1, 1, 1, 1)
   static MAGENTA = new Color(1, 0, 1, 1)
   static BLACK = new Color(0, 0, 0, 1)
+  static TRANSPARENT = new Color(0, 0, 0, 0)
 
   static fromCssColorString(value: string) {
     return new Color(0.5, 0.5, 0.5, value.length > 8 ? 0.7 : 1)

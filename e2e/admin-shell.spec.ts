@@ -1463,7 +1463,7 @@ test('五个物理引擎深链均可打开、操作并返回对应卡片', async
         position: { x: (box?.width ?? 0) * 0.72, y: (box?.height ?? 0) * 0.62 },
       })
       await expect(globe).toHaveAttribute('data-projectile-count', /^[1-9]\d*$/)
-      await expect(globe).toHaveAttribute('data-soft-body-count', '2')
+      await expect(globe).toHaveAttribute('data-soft-body-count', '0')
     } else {
       const canvas = globe.locator('canvas')
       const box = await canvas.boundingBox()

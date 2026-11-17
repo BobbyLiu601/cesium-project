@@ -196,7 +196,7 @@ export class FlagPhysicsScene extends BasePhysicsScene {
   private createBrickWall() {
     const brickWidth = 0.9
     const brickHeight = 0.45
-    for (let row = 0; row < 5; row += 1) {
+    for (let row = 0; row < 8; row += 1) {
       for (let column = 0; column < 7; column += 1) {
         this.runtime.addBox({
           color:

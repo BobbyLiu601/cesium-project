@@ -1,4 +1,14 @@
-import { Color, HeadingPitchRange } from 'cesium'
+import {
+  CallbackPositionProperty,
+  CallbackProperty,
+  Cartesian3,
+  Color,
+  HeadingPitchRange,
+  Quaternion,
+  ReferenceFrame,
+} from 'cesium'
+
+import physicsCarUrl from '@/assets/models/physics-car.glb?url'
 
 import {
   BasePhysicsScene,
@@ -6,7 +16,6 @@ import {
   quaternionFromAxisAngle,
   type LocalPoint,
   type LocalQuaternion,
-  type PhysicsPrimitiveVisual,
   type PhysicsSceneControllerOptions,
 } from './shared'
 import type { AmmoApi, PhysicsControl } from './types'
@@ -19,7 +28,8 @@ const MAX_ENGINE_FORCE = 3_000
 const MAX_BRAKING_FORCE = 100
 const STEERING_CLAMP = 0.5
 const STEERING_INCREMENT = 0.04
-const ALIGN_CYLINDER_TO_AXLE = quaternionFromAxisAngle({ x: 0, y: 1, z: 0 }, Math.PI / 2)
+const MODEL_FORWARD_OFFSET = new Quaternion(0, 0, Math.SQRT1_2, Math.SQRT1_2)
+const CYLINDER_AXLE_OFFSET = new Quaternion(0, Math.SQRT1_2, 0, Math.SQRT1_2)
 
 export class VehiclePhysicsScene extends BasePhysicsScene {
   private readonly setStatus: (message: string) => void
@@ -33,7 +43,10 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     position: LocalPoint
     rotation: LocalQuaternion
   }> = []
-  private readonly wheelVisuals: PhysicsPrimitiveVisual[] = []
+  private vehicleBodyTransform = {
+    position: point(0, -15, 1.4),
+    rotation: { w: 1, x: 0, y: 0, z: 0 },
+  }
   private vehicle: InstanceType<AmmoApi['btRaycastVehicle']> | undefined
   private steering = 0
   private lastStatusAt = 0
@@ -51,7 +64,10 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
 
   protected buildScene() {
     this.wheelTransforms.length = 0
-    this.wheelVisuals.length = 0
+    this.vehicleBodyTransform = {
+      position: point(0, -15, 1.4),
+      rotation: { w: 1, x: 0, y: 0, z: 0 },
+    }
     this.vehicleActions.acceleration = false
     this.vehicleActions.braking = false
     this.vehicleActions.left = false
@@ -59,9 +75,10 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     this.steering = 0
 
     this.runtime.addStaticBox({
-      color: Color.fromCssColorString('#41515b').withAlpha(0.95),
+      color: Color.TRANSPARENT,
       halfExtents: point(37.5, 37.5, 0.5),
       position: point(0, 0, -0.5),
+      visible: false,
     })
     this.runtime.addStaticBox({
       color: Color.fromCssColorString('#6d7f88'),
@@ -145,13 +162,20 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       target.rotation.x = rotation.x()
       target.rotation.y = rotation.y()
       target.rotation.z = rotation.z()
-      const visual = this.wheelVisuals[index]
-      if (visual) {
-        this.runtime.refreshPrimitiveVisual(visual)
-      }
     }
 
     const now = performance.now()
+    const chassisTransform = this.vehicle.getChassisWorldTransform()
+    const chassisOrigin = chassisTransform.getOrigin()
+    const chassisRotation = chassisTransform.getRotation()
+    this.vehicleBodyTransform.position.x = chassisOrigin.x()
+    this.vehicleBodyTransform.position.y = chassisOrigin.y()
+    this.vehicleBodyTransform.position.z = chassisOrigin.z()
+    this.vehicleBodyTransform.rotation.w = chassisRotation.w()
+    this.vehicleBodyTransform.rotation.x = chassisRotation.x()
+    this.vehicleBodyTransform.rotation.y = chassisRotation.y()
+    this.vehicleBodyTransform.rotation.z = chassisRotation.z()
+
     if (now - this.lastStatusAt > 450) {
       this.lastStatusAt = now
       const speed = Math.abs(this.vehicle.getCurrentSpeedKmHour())
@@ -209,10 +233,11 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     const chassisLength = 4
     const chassisHeight = 0.6
     const chassis = this.runtime.addBox({
-      color: Color.fromCssColorString('#19c6c9'),
+      color: Color.TRANSPARENT,
       halfExtents: point(chassisWidth / 2, chassisLength / 2, chassisHeight / 2),
       mass: 800,
       position: point(0, -15, 1.4),
+      visible: false,
     })
 
     const tuning = new this.ammo.btVehicleTuning()
@@ -228,6 +253,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     this.vehicle.setCoordinateSystem(0, 2, 1)
     this.runtime.addAction(this.vehicle)
     chassis.body.setActivationState(DISABLE_DEACTIVATION)
+    this.createVehicleModel()
 
     const wheelDirection = new this.ammo.btVector3(0, 0, -1)
     const wheelAxle = new this.ammo.btVector3(1, 0, 0)
@@ -261,14 +287,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       }
       this.wheelTransforms[index] = transform
 
-      this.wheelVisuals[index] = this.runtime.addTrackedCylinder({
-        color: Color.fromCssColorString('#16232b'),
-        length: wheel.width,
-        position: transform.position,
-        radius: wheel.radius,
-        rotation: transform.rotation,
-        rotationOffset: ALIGN_CYLINDER_TO_AXLE,
-      })
+      this.createWheelVisual(index, wheel.radius, wheel.width)
     })
 
     this.addSceneCleanup(() => {
@@ -281,5 +300,83 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
         // Ammo owns nested vehicle internals; only dispose the standalone helpers here.
       }
     })
+  }
+
+  private createVehicleModel() {
+    const position = new Cartesian3()
+    const worldOrientation = new Quaternion()
+    const renderOrientation = new Quaternion()
+
+    this.runtime.addEntity(
+      this.viewer.entities.add({
+        id: 'physics-vehicle-body',
+        name: 'Physics vehicle',
+        position: new CallbackPositionProperty(
+          () =>
+            this.runtime.localToWorld(
+              this.vehicleBodyTransform.position.x,
+              this.vehicleBodyTransform.position.y,
+              this.vehicleBodyTransform.position.z,
+              position,
+            ),
+          false,
+          ReferenceFrame.FIXED,
+        ),
+        orientation: new CallbackProperty(() => {
+          this.runtime.localQuaternionToWorld(this.vehicleBodyTransform.rotation, worldOrientation)
+          return Quaternion.multiply(worldOrientation, MODEL_FORWARD_OFFSET, renderOrientation)
+        }, false),
+        model: {
+          uri: physicsCarUrl,
+          minimumPixelSize: 48,
+          runAnimations: false,
+          scale: 1,
+        },
+      }),
+    )
+  }
+
+  private createWheelVisual(index: number, radius: number, width: number) {
+    const position = new Cartesian3()
+    const worldOrientation = new Quaternion()
+    const renderOrientation = new Quaternion()
+
+    this.runtime.addEntity(
+      this.viewer.entities.add({
+        id: `physics-vehicle-wheel-${index}`,
+        name: `Physics wheel ${index + 1}`,
+        position: new CallbackPositionProperty(
+          () => {
+            const transform = this.wheelTransforms[index]
+            if (!transform) {
+              return position
+            }
+            return this.runtime.localToWorld(
+              transform.position.x,
+              transform.position.y,
+              transform.position.z,
+              position,
+            )
+          },
+          false,
+          ReferenceFrame.FIXED,
+        ),
+        orientation: new CallbackProperty(() => {
+          const transform = this.wheelTransforms[index]
+          if (!transform) {
+            return renderOrientation
+          }
+          this.runtime.localQuaternionToWorld(transform.rotation, worldOrientation)
+          return Quaternion.multiply(worldOrientation, CYLINDER_AXLE_OFFSET, renderOrientation)
+        }, false),
+        cylinder: {
+          length: width,
+          topRadius: radius,
+          bottomRadius: radius,
+          slices: 20,
+          material: Color.fromCssColorString('#16232b'),
+        },
+      }),
+    )
   }
 }

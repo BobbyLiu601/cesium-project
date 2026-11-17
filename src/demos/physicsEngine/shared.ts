@@ -4,7 +4,6 @@ import {
   Cartesian3,
   Color,
   ColorGeometryInstanceAttribute,
-  CylinderGeometry,
   EllipsoidGeometry,
   GeometryInstance,
   Material,
@@ -50,6 +49,7 @@ export interface RigidBoxOptions {
   position: LocalPoint
   rotation?: LocalQuaternion
   sync?: boolean
+  visible?: boolean
 }
 
 export interface RigidSphereOptions {
@@ -68,12 +68,11 @@ export interface PhysicsRigidEntry {
     position: LocalPoint
     rotation: LocalQuaternion
   }
-  visual: PhysicsPrimitiveVisual
+  visual?: PhysicsPrimitiveVisual
 }
 
 export interface PhysicsPrimitiveVisual {
   primitive: Primitive
-  rotationOffset?: LocalQuaternion
   sync: boolean
   transform: {
     position: LocalPoint
@@ -149,9 +148,7 @@ export class PhysicsRuntime {
     getPositions: () => Cartesian3[]
     line: Polyline
   }> = []
-  private readonly rotationOffsetScratch = new Quaternion()
   private readonly rotationScratch = new Matrix3()
-  private readonly rotatedQuaternionScratch = new Quaternion()
   private readonly worldPositionScratch = new Cartesian3()
   private readonly worldQuaternionScratch = new Quaternion()
   private readonly softBodySolver: InstanceType<AmmoApi['btDefaultSoftBodySolver']> | undefined
@@ -318,17 +315,20 @@ export class PhysicsRuntime {
       new this.ammo.btVector3(options.halfExtents.x, options.halfExtents.y, options.halfExtents.z),
     )
     shape.setMargin(0.04)
-    const primitive = this.createPrimitive(
-      BoxGeometry.fromDimensions({
-        dimensions: new Cartesian3(
-          options.halfExtents.x * 2,
-          options.halfExtents.y * 2,
-          options.halfExtents.z * 2,
-        ),
-        vertexFormat: VertexFormat.POSITION_ONLY,
-      }),
-      options.color,
-    )
+    const primitive =
+      options.visible === false
+        ? undefined
+        : this.createPrimitive(
+            BoxGeometry.fromDimensions({
+              dimensions: new Cartesian3(
+                options.halfExtents.x * 2,
+                options.halfExtents.y * 2,
+                options.halfExtents.z * 2,
+              ),
+              vertexFormat: VertexFormat.POSITION_ONLY,
+            }),
+            options.color,
+          )
 
     return this.createRigidEntry({
       mass: options.mass,
@@ -359,33 +359,6 @@ export class PhysicsRuntime {
       primitive,
       shape,
       sync: options.sync ?? options.mass > 0,
-    })
-  }
-
-  addTrackedCylinder(options: {
-    color: Color
-    length: number
-    position: LocalPoint
-    radius: number
-    rotation?: LocalQuaternion
-    rotationOffset?: LocalQuaternion
-  }) {
-    const primitive = this.createPrimitive(
-      new CylinderGeometry({
-        length: options.length,
-        topRadius: options.radius,
-        bottomRadius: options.radius,
-        slices: 16,
-        vertexFormat: VertexFormat.POSITION_ONLY,
-      }),
-      options.color,
-    )
-    return this.createPrimitiveVisual({
-      position: options.position,
-      primitive,
-      rotation: options.rotation,
-      rotationOffset: options.rotationOffset,
-      sync: true,
     })
   }
 
@@ -427,7 +400,9 @@ export class PhysicsRuntime {
 
   removeRigidEntry(entry: PhysicsRigidEntry) {
     this.world.removeRigidBody(entry.body)
-    this.removePrimitiveVisual(entry.visual)
+    if (entry.visual) {
+      this.removePrimitiveVisual(entry.visual)
+    }
     const index = this.rigidEntries.indexOf(entry)
     if (index >= 0) {
       this.rigidEntries.splice(index, 1)
@@ -452,7 +427,7 @@ export class PhysicsRuntime {
 
   syncRigidBodies() {
     for (const entry of this.rigidEntries) {
-      if (!entry.visual.sync) {
+      if (!entry.visual?.sync) {
         continue
       }
       const motionState = entry.body.getMotionState()
@@ -469,7 +444,9 @@ export class PhysicsRuntime {
       entry.transform.rotation.x = rotation.x()
       entry.transform.rotation.y = rotation.y()
       entry.transform.rotation.z = rotation.z()
-      this.refreshPrimitiveVisual(entry.visual)
+      if (entry.visual) {
+        this.refreshPrimitiveVisual(entry.visual)
+      }
     }
   }
 
@@ -490,42 +467,39 @@ export class PhysicsRuntime {
       visual.transform.rotation,
       this.worldQuaternionScratch,
     )
-    let renderedRotation = worldRotation
-    if (visual.rotationOffset) {
-      this.rotationOffsetScratch.x = visual.rotationOffset.x
-      this.rotationOffsetScratch.y = visual.rotationOffset.y
-      this.rotationOffsetScratch.z = visual.rotationOffset.z
-      this.rotationOffsetScratch.w = visual.rotationOffset.w
-      renderedRotation = Quaternion.multiply(
-        worldRotation,
-        this.rotationOffsetScratch,
-        this.rotatedQuaternionScratch,
-      )
-    }
-    Matrix3.fromQuaternion(renderedRotation, this.rotationScratch)
+    Matrix3.fromQuaternion(worldRotation, this.rotationScratch)
     Matrix4.fromRotationTranslation(this.rotationScratch, position, matrix)
     visual.primitive.modelMatrix = matrix
   }
 
-  private createPrimitive(
-    geometry: BoxGeometry | CylinderGeometry | EllipsoidGeometry,
-    color: Color,
+  private createPrimitive(geometry: BoxGeometry | EllipsoidGeometry, color: Color) {
+    return this.createPrimitiveFromInstances(
+      [
+        new GeometryInstance({
+          attributes: {
+            color: ColorGeometryInstanceAttribute.fromColor(color),
+          },
+          geometry,
+        }),
+      ],
+      color.alpha < 0.9,
+    )
+  }
+
+  private createPrimitiveFromInstances(
+    geometryInstances: GeometryInstance[],
+    translucent: boolean,
   ) {
     const primitive = new Primitive({
       allowPicking: false,
       appearance: new PerInstanceColorAppearance({
         flat: true,
-        translucent: color.alpha < 0.9,
+        translucent,
       }),
       asynchronous: false,
       cull: false,
       compressVertices: false,
-      geometryInstances: new GeometryInstance({
-        attributes: {
-          color: ColorGeometryInstanceAttribute.fromColor(color),
-        },
-        geometry,
-      }),
+      geometryInstances,
       interleave: false,
       releaseGeometryInstances: false,
       vertexCacheOptimize: false,
@@ -539,12 +513,10 @@ export class PhysicsRuntime {
     position: LocalPoint
     primitive: Primitive
     rotation?: LocalQuaternion
-    rotationOffset?: LocalQuaternion
     sync: boolean
   }) {
     const visual: PhysicsPrimitiveVisual = {
       primitive: options.primitive,
-      rotationOffset: options.rotationOffset ? { ...options.rotationOffset } : undefined,
       sync: options.sync,
       transform: {
         position: { ...options.position },
@@ -657,7 +629,7 @@ export class PhysicsRuntime {
   protected createRigidEntry(options: {
     mass: number
     position: LocalPoint
-    primitive: Primitive
+    primitive?: Primitive
     rotation?: LocalQuaternion
     shape: InstanceType<AmmoApi['btCollisionShape']>
     sync: boolean
@@ -687,17 +659,22 @@ export class PhysicsRuntime {
     body.setFriction(0.7)
     this.world.addRigidBody(body)
 
-    const visual = this.createPrimitiveVisual({
-      position: options.position,
-      primitive: options.primitive,
-      rotation,
-      sync: options.sync,
-    })
+    const visual = options.primitive
+      ? this.createPrimitiveVisual({
+          position: options.position,
+          primitive: options.primitive,
+          rotation,
+          sync: options.sync,
+        })
+      : undefined
     const entry = {
       body,
       motionStateTransform: transform,
       shape: options.shape,
-      transform: visual.transform,
+      transform: visual?.transform ?? {
+        position: { ...options.position },
+        rotation: { ...rotation },
+      },
       visual,
     }
 

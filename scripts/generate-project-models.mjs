@@ -215,5 +215,89 @@ function createWindTurbineModel() {
   })
 }
 
+function createPhysicsCarModel() {
+  const materials = [
+    material('CarBody', [0.85, 0.29, 0.24, 1]),
+    material('CarHighlight', [0.94, 0.44, 0.37, 1]),
+    material('CarCabin', [0.86, 0.9, 0.91, 1]),
+    material('CarGlass', [0.08, 0.16, 0.21, 1]),
+    material('CarTrim', [0.11, 0.16, 0.19, 1]),
+    material('CarHeadlight', [1, 0.95, 0.65, 1]),
+    material('CarTaillight', [1, 0.24, 0.19, 1]),
+  ]
+  const parts = [
+    { material: 0, name: 'Body', scale: [1.82, 0.66, 4.02], translation: [0, 0.04, 0] },
+    { material: 1, name: 'Hood', scale: [1.7, 0.2, 1.12], translation: [0, 0.4, 1.24] },
+    { material: 1, name: 'Trunk', scale: [1.7, 0.18, 0.82], translation: [0, 0.39, -1.55] },
+    { material: 2, name: 'Cabin', scale: [1.44, 0.72, 1.92], translation: [0, 0.69, -0.12] },
+    { material: 2, name: 'Roof', scale: [1.38, 0.1, 1.72], translation: [0, 1.08, -0.12] },
+    { material: 3, name: 'Windshield', scale: [1.2, 0.46, 0.06], translation: [0, 0.74, 0.86] },
+    { material: 3, name: 'RearWindow', scale: [1.18, 0.43, 0.06], translation: [0, 0.73, -1.1] },
+    {
+      material: 3,
+      name: 'LeftWindow',
+      scale: [0.05, 0.47, 1.52],
+      translation: [0.73, 0.74, -0.12],
+    },
+    {
+      material: 3,
+      name: 'RightWindow',
+      scale: [0.05, 0.47, 1.52],
+      translation: [-0.73, 0.74, -0.12],
+    },
+    {
+      material: 4,
+      name: 'FrontBumper',
+      scale: [1.86, 0.25, 0.16],
+      translation: [0, 0.01, 1.99],
+    },
+    {
+      material: 4,
+      name: 'RearBumper',
+      scale: [1.86, 0.25, 0.16],
+      translation: [0, 0.01, -1.99],
+    },
+    { material: 4, name: 'Grille', scale: [0.9, 0.16, 0.05], translation: [0, -0.12, 2.06] },
+    {
+      material: 5,
+      name: 'LeftHeadlight',
+      scale: [0.38, 0.16, 0.05],
+      translation: [0.58, 0.18, 2.07],
+    },
+    {
+      material: 5,
+      name: 'RightHeadlight',
+      scale: [0.38, 0.16, 0.05],
+      translation: [-0.58, 0.18, 2.07],
+    },
+    {
+      material: 6,
+      name: 'LeftTaillight',
+      scale: [0.38, 0.15, 0.05],
+      translation: [0.58, 0.2, -2.07],
+    },
+    {
+      material: 6,
+      name: 'RightTaillight',
+      scale: [0.38, 0.15, 0.05],
+      translation: [-0.58, 0.2, -2.07],
+    },
+  ]
+
+  return createGlb({
+    nodes: parts.map((part, index) => ({
+      index,
+      mesh: part.material,
+      name: part.name,
+      scale: part.scale,
+      translation: part.translation,
+    })),
+    meshes: materials.map((_, index) => ({ material: index })),
+    materials,
+    copyright: 'Project-created procedural physics car asset; no third-party model data.',
+  })
+}
+
 await mkdir(outputDirectory, { recursive: true })
 await writeFile(resolve(outputDirectory, 'wind-turbine.glb'), createWindTurbineModel())
+await writeFile(resolve(outputDirectory, 'physics-car.glb'), createPhysicsCarModel())

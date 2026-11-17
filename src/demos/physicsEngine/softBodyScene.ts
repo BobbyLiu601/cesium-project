@@ -11,49 +11,25 @@ import {
   BasePhysicsScene,
   point,
   quaternionFromAxisAngle,
-  type LocalPoint,
   type PhysicsSceneControllerOptions,
   type PhysicsRigidEntry,
 } from './shared'
-import type { AmmoApi } from './types'
-
-interface SoftVolumeState {
-  body: InstanceType<AmmoApi['btSoftBody']>
-  columnCount: number
-  points: LocalPoint[]
-  rowCount: number
-}
 
 const MAX_PROJECTILES = 8
 const DISABLE_DEACTIVATION = 4
 
-function ensureTriMeshHelperSupport(ammo: AmmoApi) {
-  const runtime = ammo as AmmoApi & { _free?: (pointer: number) => void }
-  if (typeof runtime._free === 'function') {
-    return
-  }
-
-  // ammojs-typed's wasm build omits _free even though its generated tri-mesh
-  // binding calls it. The buffers are short-lived JS-to-wasm marshaling data.
-  runtime._free = () => undefined
-}
-
 export class SoftBodyPhysicsScene extends BasePhysicsScene {
   private readonly setStatus: (message: string) => void
   private readonly projectiles: PhysicsRigidEntry[] = []
-  private readonly volumes: SoftVolumeState[] = []
   private lastStatusAt = 0
-  private lineSerial = 0
 
   constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
-    super(options, true)
+    super(options)
     this.setStatus = setStatus
   }
 
   protected buildScene() {
     this.projectiles.length = 0
-    this.volumes.length = 0
-    this.lineSerial = 0
 
     this.runtime.addStaticBox({
       color: Color.fromCssColorString('#37464f').withAlpha(0.95),
@@ -66,44 +42,20 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
       position: point(2, 0, 1),
       rotation: quaternionFromAxisAngle({ x: 0, y: 1, z: 0 }, Math.PI / 9),
     })
-
-    this.createSoftVolume({
-      center: point(2, 0, 5),
-      color: Color.fromCssColorString('#54d9d2'),
-      radii: point(1.45, 1.45, 1.45),
-    })
-    this.createSoftVolume({
-      center: point(-1.2, 2.2, 5.4),
-      color: Color.fromCssColorString('#f1b84b'),
-      radii: point(1.1, 1.1, 2.4),
-    })
-    this.settleSoftBodies()
     this.installClickHandler()
 
     this.viewer.camera.lookAt(
       this.runtime.localToWorld(1, 0, 3),
       new HeadingPitchRange(0, -0.22, 18),
     )
-    this.setStatus('Ammo.js 软体已就绪：单击画布发射小球进行撞击')
+    this.setStatus('Ammo.js 碰撞场景已就绪：单击画布发射小球')
   }
 
   protected afterStep() {
-    for (const volume of this.volumes) {
-      const nodes = volume.body.get_m_nodes()
-      const count = (volume.rowCount + 1) * volume.columnCount
-      for (let index = 0; index < count; index += 1) {
-        const position = nodes.at(index)?.get_m_x()
-        const target = volume.points[index]!
-        target.x = position?.x() ?? 0
-        target.y = position?.y() ?? 0
-        target.z = position?.z() ?? 0
-      }
-    }
-
     const now = performance.now()
     if (now - this.lastStatusAt > 450) {
       this.lastStatusAt = now
-      this.setStatus(`Ammo.js 软体运行中：已发射 ${this.projectiles.length} 个小球`)
+      this.setStatus(`Ammo.js 碰撞运行中：已发射 ${this.projectiles.length} 个小球`)
     }
   }
 
@@ -172,130 +124,5 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
       ...this.runtime.stats.value,
       projectileCount: this.projectiles.length,
     }
-  }
-
-  private settleSoftBodies() {
-    for (let step = 0; step < 90; step += 1) {
-      this.runtime.step(1 / 60)
-    }
-    for (const volume of this.volumes) {
-      const nodes = volume.body.get_m_nodes()
-      for (let index = 0; index < volume.points.length; index += 1) {
-        const position = nodes.at(index)?.get_m_x()
-        const target = volume.points[index]!
-        target.x = position?.x() ?? target.x
-        target.y = position?.y() ?? target.y
-        target.z = position?.z() ?? target.z
-      }
-    }
-  }
-
-  private createSoftVolume(options: { center: LocalPoint; color: Color; radii: LocalPoint }) {
-    const worldInfo = this.runtime.worldInfo
-    if (!worldInfo) {
-      throw new Error('软体物理世界未初始化')
-    }
-
-    ensureTriMeshHelperSupport(this.ammo)
-
-    const rowCount = 7
-    const columnCount = 12
-    const vertices: number[] = []
-    const indices: number[] = []
-
-    for (let row = 0; row <= rowCount; row += 1) {
-      const latitude = -Math.PI / 2 + (Math.PI * row) / rowCount
-      const ringRadius = Math.cos(latitude)
-      const z = Math.sin(latitude)
-      for (let column = 0; column < columnCount; column += 1) {
-        const longitude = (Math.PI * 2 * column) / columnCount
-        vertices.push(
-          options.center.x + options.radii.x * ringRadius * Math.cos(longitude),
-          options.center.y + options.radii.y * ringRadius * Math.sin(longitude),
-          options.center.z + options.radii.z * z,
-        )
-      }
-    }
-
-    for (let row = 0; row < rowCount; row += 1) {
-      for (let column = 0; column < columnCount; column += 1) {
-        const nextColumn = (column + 1) % columnCount
-        const a = row * columnCount + column
-        const b = row * columnCount + nextColumn
-        const c = (row + 1) * columnCount + column
-        const d = (row + 1) * columnCount + nextColumn
-        indices.push(a, c, b, b, c, d)
-      }
-    }
-
-    const helpers = new this.ammo.btSoftBodyHelpers()
-    const body = helpers.CreateFromTriMesh(worldInfo, vertices, indices, indices.length / 3, true)
-    this.ammo.destroy(helpers)
-    const config = body.get_m_cfg()
-    config.set_viterations(20)
-    config.set_piterations(20)
-    config.set_collisions(0x11)
-    config.set_kDF(0.1)
-    config.set_kDP(0.01)
-    config.set_kPR(120)
-    body.get_m_materials().at(0)?.set_m_kLST(0.9)
-    body.get_m_materials().at(0)?.set_m_kAST(0.9)
-    body.setTotalMass(15, false)
-    body.getCollisionShape().setMargin(0.05)
-    body.setActivationState(DISABLE_DEACTIVATION)
-    this.runtime.addSoftBody(body)
-
-    const volume: SoftVolumeState = {
-      body,
-      columnCount,
-      points: Array.from({ length: (rowCount + 1) * columnCount }, () => ({
-        x: options.center.x,
-        y: options.center.y,
-        z: options.center.z,
-      })),
-      rowCount,
-    }
-    this.volumes.push(volume)
-    const nodes = body.get_m_nodes()
-    for (let index = 0; index < volume.points.length; index += 1) {
-      const position = nodes.at(index)?.get_m_x()
-      const target = volume.points[index]!
-      target.x = position?.x() ?? options.center.x
-      target.y = position?.y() ?? options.center.y
-      target.z = position?.z() ?? options.center.z
-    }
-
-    for (let row = 0; row <= rowCount; row += 1) {
-      const ids = Array.from(
-        { length: columnCount + 1 },
-        (_, column) => row * columnCount + (column % columnCount),
-      )
-      this.addVolumeLine(volume, ids, options.color, row === 0 ? 3 : 2)
-    }
-    for (let column = 0; column < columnCount; column += 1) {
-      const ids = Array.from({ length: rowCount + 1 }, (_, row) => row * columnCount + column)
-      this.addVolumeLine(volume, ids, options.color.withAlpha(0.72), 1.5)
-    }
-  }
-
-  private addVolumeLine(volume: SoftVolumeState, indices: number[], color: Color, width: number) {
-    const positions = indices.map(() => new Cartesian3())
-    this.runtime.addDynamicPolyline(
-      () => {
-        indices.forEach((index, positionIndex) => {
-          const point = volume.points[index] ?? { x: 0, y: 0, z: 0 }
-          const target = positions[positionIndex]!
-          target.x = point.x
-          target.y = point.y
-          target.z = point.z
-        })
-        return positions
-      },
-      {
-        color,
-        id: `physics-soft-line-${this.lineSerial++}`,
-        width,
-      },
-    )
   }
 }

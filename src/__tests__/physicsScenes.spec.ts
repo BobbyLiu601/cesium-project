@@ -4,9 +4,11 @@ import { Cartesian2, ScreenSpaceEventType } from 'cesium'
 
 import type { PhysicsEngineSceneId } from '@/data/layers'
 import { PHYSICS_SCENE_DEFINITIONS, createPhysicsEngineScene } from '../demos/physicsScene'
+import { fragmentDivisions } from '../demos/physicsEngine/fractureScene'
 import type { PhysicsEngineScene } from '../demos/physicsEngine/types'
 import {
   Viewer,
+  primitiveInstances,
   resetCesiumMock,
   scenePrimitiveAdds,
   scenePrimitiveRemoves,
@@ -24,7 +26,7 @@ const sceneCases: Array<{
   { controlCount: 4, fire: false, id: 'vehicle-motion', softBodyCount: 0 },
   { controlCount: 2, fire: false, id: 'flag-rotation', softBodyCount: 1 },
   { controlCount: 2, fire: false, id: 'ball-rotation', softBodyCount: 1 },
-  { controlCount: 0, fire: true, id: 'soft-body-collision', softBodyCount: 2 },
+  { controlCount: 0, fire: true, id: 'soft-body-collision', softBodyCount: 0 },
   { controlCount: 0, fire: true, id: 'fracture-collision', softBodyCount: 0 },
 ]
 
@@ -108,6 +110,45 @@ describe('physics engine scenes', () => {
         signal: controller.signal,
       }),
     ).rejects.toMatchObject({ name: 'AbortError' })
+  })
+
+  it('renders the vehicle with a car model and wheels without a floor visual', async () => {
+    const viewer = createViewer()
+    const scene = await createPhysicsEngineScene(viewer, 'vehicle-motion', vi.fn())
+
+    const vehicle = viewer.entities.values.find((entity) => entity.id === 'physics-vehicle-body')
+    const wheels = viewer.entities.values.filter((entity) =>
+      entity.id.startsWith('physics-vehicle-wheel-'),
+    )
+
+    expect(vehicle?.model?.uri).toContain('physics-car.glb')
+    expect(wheels).toHaveLength(4)
+    expect(wheels.every((wheel) => wheel.cylinder?.length)).toBe(true)
+    expect(
+      primitiveInstances.some((primitive) => {
+        const geometryInstances = primitive.options.geometryInstances as Array<{
+          options?: { geometry?: { options?: { dimensions?: { x?: number; y?: number } } } }
+        }>
+        return geometryInstances.some((instance) => {
+          const dimensions = instance.options?.geometry?.options?.dimensions
+          return dimensions?.x === 75 && dimensions.y === 75
+        })
+      }),
+    ).toBe(false)
+    scene.dispose()
+  })
+
+  it('uses the taller eight-row flag wall', async () => {
+    const viewer = createViewer()
+    const scene = await createPhysicsEngineScene(viewer, 'flag-rotation', vi.fn())
+
+    expect(scene.stats.value.bodyCount).toBe(59)
+    scene.dispose()
+  })
+
+  it('subdivides fracture walls into smaller chunks while limiting body count', () => {
+    expect(fragmentDivisions({ x: 0.55, y: 2, z: 0.16 })).toEqual({ x: 2, y: 7, z: 1 })
+    expect(fragmentDivisions({ x: 2, y: 2, z: 5 })).toEqual({ x: 4, y: 4, z: 6 })
   })
 
   it('limits reactive physics stats updates while simulation frames keep running', async () => {

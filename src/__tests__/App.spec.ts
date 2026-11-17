@@ -1026,7 +1026,7 @@ describe('App', () => {
     wrapper.unmount()
   })
 
-  it('updates soft-body projectile stats and clears them on reset', async () => {
+  it('updates collision projectile stats and clears them on reset', async () => {
     const wrapper = await mountAt('/effects/physics-engine/3-4-4-soft-body-collision')
 
     await vi.waitFor(() => {
@@ -1043,7 +1043,7 @@ describe('App', () => {
       { timeout: 10_000 },
     )
 
-    expect(globe.attributes('data-soft-body-count')).toBe('2')
+    expect(globe.attributes('data-soft-body-count')).toBe('0')
     expect(globe.attributes('data-body-count')).toBe('2')
     expect(globe.attributes('data-projectile-count')).toBe('0')
 
@@ -1059,7 +1059,7 @@ describe('App', () => {
     await reset?.trigger('click')
     expect(globe.attributes('data-projectile-count')).toBe('0')
     expect(globe.attributes('data-body-count')).toBe('2')
-    expect(globe.attributes('data-soft-body-count')).toBe('2')
+    expect(globe.attributes('data-soft-body-count')).toBe('0')
 
     await dialog.get('.el-dialog__headerbtn').trigger('click')
     await flushPromises()

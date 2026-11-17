@@ -71,9 +71,9 @@ export const PHYSICS_SCENE_DEFINITIONS: Record<
       scene.initialize()
       return scene
     },
-    hint: '单击画布发射小球撞击软体',
+    hint: '单击画布发射小球进行碰撞',
     id: 'soft-body-collision',
-    initialStatus: '正在创建 Ammo.js 软体碰撞场景…',
+    initialStatus: '正在创建 Ammo.js 碰撞场景…',
     site: { height: 50, latitude: 30.46331, longitude: 114.40184 },
   },
   'fracture-collision': {
