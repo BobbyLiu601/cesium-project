@@ -25,6 +25,7 @@ import { ref } from 'vue'
 
 import type { DemoSceneAction } from '@/demos/useDemoGlobe'
 import { PhysicsQualityGovernor, type PhysicsQualitySettings } from './qualityGovernor'
+import { PhysicsStatusPublisher } from './status'
 import type { AmmoApi, PhysicsAnimationState, PhysicsControl, PhysicsSceneStats } from './types'
 
 export interface LocalPoint {
@@ -700,6 +701,7 @@ export class PhysicsRuntime {
 export interface PhysicsSceneControllerOptions {
   ammo: AmmoApi
   site: { height: number; latitude: number; longitude: number }
+  setStatus: (message: string) => void
   viewer: Viewer
 }
 
@@ -711,6 +713,7 @@ export abstract class BasePhysicsScene {
 
   protected readonly ammo: AmmoApi
   protected readonly site: { height: number; latitude: number; longitude: number }
+  protected readonly status: PhysicsStatusPublisher
   protected readonly viewer: Viewer
   protected runtime: PhysicsRuntime
   private lastFrameTime: number | undefined
@@ -719,9 +722,13 @@ export abstract class BasePhysicsScene {
   private readonly qualityGovernor: PhysicsQualityGovernor
   private readonly softBodies: boolean
 
-  constructor({ ammo, site, viewer }: PhysicsSceneControllerOptions, softBodies = false) {
+  constructor(
+    { ammo, setStatus, site, viewer }: PhysicsSceneControllerOptions,
+    softBodies = false,
+  ) {
     this.ammo = ammo
     this.site = site
+    this.status = new PhysicsStatusPublisher(setStatus)
     this.viewer = viewer
     this.softBodies = softBodies
     this.runtime = new PhysicsRuntime(ammo, viewer, site, softBodies, this.stats)

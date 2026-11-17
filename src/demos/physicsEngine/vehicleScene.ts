@@ -17,6 +17,7 @@ import {
   type LocalQuaternion,
   type PhysicsSceneControllerOptions,
 } from './shared'
+import { PHYSICS_STATUS_MESSAGES } from './status'
 import type { AmmoApi, PhysicsControl } from './types'
 
 type VehicleAction = 'acceleration' | 'braking' | 'left' | 'right'
@@ -33,7 +34,6 @@ const MODEL_FORWARD_OFFSET = new Quaternion(0, 0, Math.SQRT1_2, Math.SQRT1_2)
 const CYLINDER_AXLE_OFFSET = new Quaternion(0, Math.SQRT1_2, 0, Math.SQRT1_2)
 
 export class VehiclePhysicsScene extends BasePhysicsScene {
-  private readonly setStatus: (message: string) => void
   private readonly vehicleActions: Record<VehicleAction, boolean> = {
     acceleration: false,
     braking: false,
@@ -50,11 +50,9 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
   }
   private vehicle: InstanceType<AmmoApi['btRaycastVehicle']> | undefined
   private steering = 0
-  private lastStatusAt = 0
 
-  constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
+  constructor(options: PhysicsSceneControllerOptions) {
     super(options)
-    this.setStatus = setStatus
     this.controls.push(
       this.createHoldControl('forward', 'W 前进', '按住 W 前进', ['KeyW'], 'acceleration'),
       this.createHoldControl('brake', 'S 倒车', '按住 S 倒车或刹车', ['KeyS'], 'braking'),
@@ -88,7 +86,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(0, -5, 1.5),
       new HeadingPitchRange(-Math.PI / 4, -0.32, 38),
     )
-    this.setStatus('车辆已就绪：W/S 加减速，A/D 转向')
+    this.status.publishReady(PHYSICS_STATUS_MESSAGES['vehicle-motion'].ready)
   }
 
   protected beforeStep() {
@@ -136,13 +134,14 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
   }
 
   protected afterStep() {
-    if (!this.vehicle) {
+    const vehicle = this.vehicle
+    if (!vehicle) {
       return
     }
 
     for (let index = 0; index < WHEEL_COUNT; index += 1) {
-      this.vehicle.updateWheelTransform(index, true)
-      const transform = this.vehicle.getWheelTransformWS(index)
+      vehicle.updateWheelTransform(index, true)
+      const transform = vehicle.getWheelTransformWS(index)
       const origin = transform.getOrigin()
       const rotation = transform.getRotation()
       const target = this.wheelTransforms[index]
@@ -158,8 +157,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
       target.rotation.z = rotation.z()
     }
 
-    const now = performance.now()
-    const chassisTransform = this.vehicle.getChassisWorldTransform()
+    const chassisTransform = vehicle.getChassisWorldTransform()
     const chassisOrigin = chassisTransform.getOrigin()
     const chassisRotation = chassisTransform.getRotation()
     this.vehicleBodyTransform.position.x = chassisOrigin.x()
@@ -170,15 +168,14 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     this.vehicleBodyTransform.rotation.y = chassisRotation.y()
     this.vehicleBodyTransform.rotation.z = chassisRotation.z()
 
-    if (now - this.lastStatusAt > 450) {
-      this.lastStatusAt = now
-      const speed = Math.abs(this.vehicle.getCurrentSpeedKmHour())
+    this.status.publishRunning(() => {
+      const speed = Math.abs(vehicle.getCurrentSpeedKmHour())
       this.runtime.stats.value = {
         ...this.runtime.stats.value,
         vehicleSpeed: speed,
       }
-      this.setStatus(`车辆运行中：${speed.toFixed(1)} km/h`)
-    }
+      return PHYSICS_STATUS_MESSAGES['vehicle-motion'].running(speed)
+    })
   }
 
   private createHoldControl(

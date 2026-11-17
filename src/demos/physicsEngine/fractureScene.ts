@@ -7,13 +7,8 @@ import {
   ScreenSpaceEventType,
 } from 'cesium'
 
-import {
-  BasePhysicsScene,
-  point,
-  type LocalPoint,
-  type PhysicsSceneControllerOptions,
-  type PhysicsRigidEntry,
-} from './shared'
+import { BasePhysicsScene, point, type LocalPoint, type PhysicsRigidEntry } from './shared'
+import { PHYSICS_STATUS_MESSAGES } from './status'
 
 interface BreakableBody {
   broken: boolean
@@ -67,14 +62,7 @@ export class FracturePhysicsScene extends BasePhysicsScene {
   private readonly breakables: BreakableBody[] = []
   private readonly breakableByPointer = new Map<number, BreakableBody>()
   private readonly projectiles: PhysicsRigidEntry[] = []
-  private readonly setStatus: (message: string) => void
   private brokenCount = 0
-  private lastStatusAt = 0
-
-  constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
-    super(options)
-    this.setStatus = setStatus
-  }
 
   protected buildScene() {
     this.breakables.length = 0
@@ -121,7 +109,7 @@ export class FracturePhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(0, 0, 5),
       new HeadingPitchRange(0.1, -0.28, 35),
     )
-    this.setStatus('断裂体已就绪：单击画布发射撞击球')
+    this.status.publishReady(PHYSICS_STATUS_MESSAGES['fracture-collision'].ready)
   }
 
   protected afterStep() {
@@ -156,13 +144,12 @@ export class FracturePhysicsScene extends BasePhysicsScene {
     }
 
     toBreak.forEach((breakable) => this.breakBody(breakable))
-    const now = performance.now()
-    if (now - this.lastStatusAt > 450) {
-      this.lastStatusAt = now
-      this.setStatus(
-        `断裂体运行中：已击碎 ${this.brokenCount} 个结构，${this.projectiles.length} 个撞击球`,
-      )
-    }
+    this.status.publishRunning(() =>
+      PHYSICS_STATUS_MESSAGES['fracture-collision'].running(
+        this.brokenCount,
+        this.projectiles.length,
+      ),
+    )
   }
 
   private installClickHandler() {

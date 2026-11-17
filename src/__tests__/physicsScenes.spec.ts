@@ -5,6 +5,7 @@ import { Cartesian2, ScreenSpaceEventType } from 'cesium'
 import type { PhysicsEngineSceneId } from '@/data/layers'
 import { PHYSICS_SCENE_DEFINITIONS, createPhysicsEngineScene } from '../demos/physicsScene'
 import { fragmentDivisions } from '../demos/physicsEngine/fractureScene'
+import { PHYSICS_STATUS_MESSAGES } from '../demos/physicsEngine/status'
 import type { PhysicsEngineScene } from '../demos/physicsEngine/types'
 import {
   Viewer,
@@ -99,6 +100,27 @@ describe('physics engine scenes', () => {
       )
     },
   )
+
+  it.each(sceneCases)('publishes framework-free status copy for $id', async ({ id }) => {
+    let now = 1_000
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    const viewer = createViewer()
+    const statuses: string[] = []
+    const scene = await createPhysicsEngineScene(viewer, id, (message) => statuses.push(message))
+
+    expect(statuses).toEqual([
+      PHYSICS_STATUS_MESSAGES[id].initial,
+      PHYSICS_STATUS_MESSAGES[id].ready,
+    ])
+
+    now += 500
+    viewer.scene.preUpdate.raiseEvent()
+
+    expect(statuses).toHaveLength(3)
+    expect(statuses[2]).toContain('运行中')
+    expect(statuses.join('\n')).not.toMatch(/ammo\.js|cesium/i)
+    scene.dispose()
+  })
 
   it('rejects a scene when its abort signal is already cancelled', async () => {
     const viewer = createViewer()

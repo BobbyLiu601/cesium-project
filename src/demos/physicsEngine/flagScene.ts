@@ -6,6 +6,7 @@ import {
   type LocalPoint,
   type PhysicsSceneControllerOptions,
 } from './shared'
+import { PHYSICS_STATUS_MESSAGES } from './status'
 import type { AmmoApi, PhysicsControl } from './types'
 
 const CLOTH_WIDTH = 4
@@ -16,16 +17,13 @@ const CLOTH_TOP = 6
 const DISABLE_DEACTIVATION = 4
 
 export class FlagPhysicsScene extends BasePhysicsScene {
-  private readonly setStatus: (message: string) => void
   private armMovement = 0
   private clothPoints: LocalPoint[] = []
   private hinge: InstanceType<AmmoApi['btHingeConstraint']> | undefined
   private softBody: InstanceType<AmmoApi['btSoftBody']> | undefined
-  private lastStatusAt = 0
 
-  constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
+  constructor(options: PhysicsSceneControllerOptions) {
     super(options, true)
-    this.setStatus = setStatus
     this.controls.push(
       this.createSwingControl('left', 'Q 左摆', '按住 Q 向左摆动旗子', ['KeyQ'], 1),
       this.createSwingControl('right', 'A 右摆', '按住 A 向右摆动旗子', ['KeyA'], -1),
@@ -80,7 +78,7 @@ export class FlagPhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(0, 0, 3.5),
       new HeadingPitchRange(0, -0.2, 20),
     )
-    this.setStatus('旗面软体已就绪：按住 Q/A 左右摆动')
+    this.status.publishReady(PHYSICS_STATUS_MESSAGES['flag-rotation'].ready)
   }
 
   protected beforeStep() {
@@ -89,12 +87,10 @@ export class FlagPhysicsScene extends BasePhysicsScene {
 
   protected afterStep() {
     this.updateClothPoints()
-    const now = performance.now()
-    if (now - this.lastStatusAt > 450) {
-      this.lastStatusAt = now
+    this.status.publishRunning(() => {
       const motion = this.armMovement > 0 ? '向左' : this.armMovement < 0 ? '向右' : '自然复位'
-      this.setStatus(`旗面软体运行中：${motion}`)
-    }
+      return PHYSICS_STATUS_MESSAGES['flag-rotation'].running(motion)
+    })
   }
 
   private createSwingControl(

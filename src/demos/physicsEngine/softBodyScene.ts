@@ -7,26 +7,14 @@ import {
   ScreenSpaceEventType,
 } from 'cesium'
 
-import {
-  BasePhysicsScene,
-  point,
-  quaternionFromAxisAngle,
-  type PhysicsSceneControllerOptions,
-  type PhysicsRigidEntry,
-} from './shared'
+import { BasePhysicsScene, point, quaternionFromAxisAngle, type PhysicsRigidEntry } from './shared'
+import { PHYSICS_STATUS_MESSAGES } from './status'
 
 const MAX_PROJECTILES = 8
 const DISABLE_DEACTIVATION = 4
 
 export class SoftBodyPhysicsScene extends BasePhysicsScene {
-  private readonly setStatus: (message: string) => void
   private readonly projectiles: PhysicsRigidEntry[] = []
-  private lastStatusAt = 0
-
-  constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
-    super(options)
-    this.setStatus = setStatus
-  }
 
   protected buildScene() {
     this.projectiles.length = 0
@@ -48,15 +36,13 @@ export class SoftBodyPhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(1, 0, 3),
       new HeadingPitchRange(0, -0.22, 18),
     )
-    this.setStatus('碰撞场景已就绪：单击画布发射小球')
+    this.status.publishReady(PHYSICS_STATUS_MESSAGES['soft-body-collision'].ready)
   }
 
   protected afterStep() {
-    const now = performance.now()
-    if (now - this.lastStatusAt > 450) {
-      this.lastStatusAt = now
-      this.setStatus(`碰撞运行中：已发射 ${this.projectiles.length} 个小球`)
-    }
+    this.status.publishRunning(() =>
+      PHYSICS_STATUS_MESSAGES['soft-body-collision'].running(this.projectiles.length),
+    )
   }
 
   private installClickHandler() {

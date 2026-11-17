@@ -6,6 +6,7 @@ import {
   type LocalPoint,
   type PhysicsSceneControllerOptions,
 } from './shared'
+import { PHYSICS_STATUS_MESSAGES } from './status'
 import type { AmmoApi, PhysicsControl } from './types'
 
 const ROPE_SEGMENTS = 12
@@ -13,17 +14,14 @@ const ROPE_LENGTH = 4
 const DISABLE_DEACTIVATION = 4
 
 export class BallPhysicsScene extends BasePhysicsScene {
-  private readonly setStatus: (message: string) => void
   private armMovement = 0
   private hinge: InstanceType<AmmoApi['btHingeConstraint']> | undefined
   private ropeNodes: LocalPoint[] = []
   private ropeLinePositions: Cartesian3[] = []
   private ropeBody: InstanceType<AmmoApi['btSoftBody']> | undefined
-  private lastStatusAt = 0
 
-  constructor(options: PhysicsSceneControllerOptions, setStatus: (message: string) => void) {
+  constructor(options: PhysicsSceneControllerOptions) {
     super(options, true)
-    this.setStatus = setStatus
     this.controls.push(
       this.createSwingControl('left', 'Q 左摆', '按住 Q 向左摆动球体', ['KeyQ'], 1),
       this.createSwingControl('right', 'A 右摆', '按住 A 向右摆动球体', ['KeyA'], -1),
@@ -88,7 +86,7 @@ export class BallPhysicsScene extends BasePhysicsScene {
       this.runtime.localToWorld(-1.5, 0, 3),
       new HeadingPitchRange(0, -0.2, 18),
     )
-    this.setStatus('软绳与刚体球已就绪：按住 Q/A 左右摆动')
+    this.status.publishReady(PHYSICS_STATUS_MESSAGES['ball-rotation'].ready)
   }
 
   protected beforeStep() {
@@ -97,12 +95,10 @@ export class BallPhysicsScene extends BasePhysicsScene {
 
   protected afterStep() {
     this.updateRopeNodes()
-    const now = performance.now()
-    if (now - this.lastStatusAt > 450) {
-      this.lastStatusAt = now
+    this.status.publishRunning(() => {
       const motion = this.armMovement > 0 ? '向左' : this.armMovement < 0 ? '向右' : '自然垂摆'
-      this.setStatus(`软绳连接刚体球运行中：${motion}`)
-    }
+      return PHYSICS_STATUS_MESSAGES['ball-rotation'].running(motion)
+    })
   }
 
   private createSwingControl(
