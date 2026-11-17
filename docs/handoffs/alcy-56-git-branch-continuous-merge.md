@@ -58,3 +58,5 @@ Multica 没有向仓库提供 turn 结束 hook。仓库能在 commit 后自动�
   不 force push。
 - 清理只删除本地 task 分支 ref；完成分支、远端 task 分支和 `main` 历史不重写。
 - 删除输出包含 SHA 和 `git branch <name> <sha>` 恢复命令。
+- Multica 沙箱访问 `local_directory` 主检出时可能报 `dubious ownership`；应以宿主权限重新执行完成命令，
+  不要通过全局 `safe.directory` 或 `--no-verify` 绕过安全检查。
