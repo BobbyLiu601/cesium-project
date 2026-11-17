@@ -1,5 +1,6 @@
 import {
   Box,
+  DataAnalysis,
   Film,
   FolderOpened,
   Location,
@@ -46,6 +47,9 @@ import sunlightAnalysisCover from '@/assets/spatial-covers/2-1-2-sunlight-analys
 import waterSurfaceCover from '@/assets/spatial-covers/2-1-3-water-surface.jpg'
 import videoProjectionCover from '@/assets/spatial-covers/2-2-2-video-projection-livestream.jpg'
 import videoTextureCover from '@/assets/spatial-covers/2-2-1-video-texture.jpg'
+import isosurfaceCover from '@/assets/visualization-covers/4-1-3-isosurface.jpg'
+import overlayAnalysisCover from '@/assets/visualization-covers/4-1-1-overlay-analysis.jpg'
+import thiessenPolygonCover from '@/assets/visualization-covers/4-1-2-thiessen-polygon.jpg'
 import allPrimitiveCover from '@/assets/vector-covers/all-primitive.jpg'
 import billboardCover from '@/assets/vector-covers/billboard.jpg'
 import billboardCollectionCover from '@/assets/vector-covers/billboard-collection.jpg'
@@ -121,6 +125,8 @@ export type PhysicsEngineSceneId =
   | 'soft-body-collision'
   | 'fracture-collision'
 
+export type VisualizationSceneId = 'overlay-analysis' | 'thiessen-polygon' | 'isosurface'
+
 export type FeatureKind =
   | 'tianditu'
   | 'amap'
@@ -132,6 +138,7 @@ export type FeatureKind =
   | 'special-shapes'
   | 'particles'
   | 'physics-engine'
+  | 'visualization'
 
 export interface FeatureItem {
   id: string
@@ -153,6 +160,7 @@ export interface FeatureItem {
   specialShapeSceneId?: SpecialShapeSceneId
   particleSceneId?: ParticleSceneId
   physicsEngineSceneId?: PhysicsEngineSceneId
+  visualizationSceneId?: VisualizationSceneId
 }
 
 export interface FeatureSection {
@@ -167,6 +175,7 @@ export interface FeatureSection {
     | 'special-shapes'
     | 'particle-effects'
     | 'physics-engine'
+    | 'gis-client'
   code: string
   title: string
   icon: Component
@@ -174,7 +183,7 @@ export interface FeatureSection {
 }
 
 export interface MenuGroup {
-  id: 'layers' | 'spatial' | 'effects'
+  id: 'layers' | 'spatial' | 'effects' | 'visualization'
   code: string
   title: string
   icon: Component
@@ -868,6 +877,48 @@ export const particleSection: FeatureSection = {
   ],
 }
 
+export const gisClientSection: FeatureSection = {
+  id: 'gis-client',
+  code: '4.1',
+  title: 'GIS客户端',
+  icon: DataAnalysis,
+  items: [
+    defineFeature({
+      id: 'overlay-analysis',
+      code: '4.1.1',
+      name: '叠加分析',
+      imageSrc: overlayAnalysisCover,
+      imageAlt: '叠加分析参考示例封面',
+      kind: 'visualization',
+      visualizationSceneId: 'overlay-analysis',
+      routeName: 'visualization-gis-client-overlay-analysis',
+      routePath: '/visualization/gis-client/4-1-1-overlay-analysis',
+    }),
+    defineFeature({
+      id: 'thiessen-polygon',
+      code: '4.1.2',
+      name: '泰森多边形',
+      imageSrc: thiessenPolygonCover,
+      imageAlt: '泰森多边形参考示例封面',
+      kind: 'visualization',
+      visualizationSceneId: 'thiessen-polygon',
+      routeName: 'visualization-gis-client-thiessen-polygon',
+      routePath: '/visualization/gis-client/4-1-2-thiessen-polygon',
+    }),
+    defineFeature({
+      id: 'isosurface',
+      code: '4.1.3',
+      name: '等值面',
+      imageSrc: isosurfaceCover,
+      imageAlt: '等值面参考示例封面',
+      kind: 'visualization',
+      visualizationSceneId: 'isosurface',
+      routeName: 'visualization-gis-client-isosurface',
+      routePath: '/visualization/gis-client/4-1-3-isosurface',
+    }),
+  ],
+}
+
 export const layersMenuGroup: MenuGroup = {
   id: 'layers',
   code: '1',
@@ -892,7 +943,20 @@ export const effectsMenuGroup: MenuGroup = {
   sections: [effectSection, specialShapeSection, particleSection, physicsEngineSection],
 }
 
-export const menuGroups: MenuGroup[] = [layersMenuGroup, spatialMenuGroup, effectsMenuGroup]
+export const visualizationMenuGroup: MenuGroup = {
+  id: 'visualization',
+  code: '4',
+  title: '可视化',
+  icon: DataAnalysis,
+  sections: [gisClientSection],
+}
+
+export const menuGroups: MenuGroup[] = [
+  layersMenuGroup,
+  spatialMenuGroup,
+  effectsMenuGroup,
+  visualizationMenuGroup,
+]
 
 export const featureSections: FeatureSection[] = [
   ...layerSections,
@@ -902,6 +966,7 @@ export const featureSections: FeatureSection[] = [
   specialShapeSection,
   particleSection,
   physicsEngineSection,
+  gisClientSection,
 ]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)

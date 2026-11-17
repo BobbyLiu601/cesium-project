@@ -1547,6 +1547,10 @@ export const HeightReference = {
   CLAMP_TO_GROUND: 1,
 }
 
+export const LabelStyle = {
+  FILL_AND_OUTLINE: 2,
+}
+
 export const VerticalOrigin = {
   BOTTOM: 1,
 }

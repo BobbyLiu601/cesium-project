@@ -42,7 +42,7 @@ try {
   exitCode = await new Promise((resolveExit, reject) => {
     const playwright = spawn(
       process.execPath,
-      [resolve(root, 'node_modules/@playwright/test/cli.js'), 'test'],
+      [resolve(root, 'node_modules/@playwright/test/cli.js'), 'test', ...process.argv.slice(2)],
       {
         cwd: root,
         env: process.env,

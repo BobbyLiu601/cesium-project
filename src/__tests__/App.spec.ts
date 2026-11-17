@@ -33,6 +33,15 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
+const WAIT_FOR_TIMEOUT = 10_000
+
+function waitForCondition(
+  assertion: () => void | Promise<void>,
+  options: { interval?: number; timeout?: number } = {},
+) {
+  return vi.waitFor(assertion, { timeout: WAIT_FOR_TIMEOUT, ...options })
+}
+
 async function mountAt(path: string) {
   await router.push(path)
   await router.isReady()
@@ -53,7 +62,7 @@ async function mountAt(path: string) {
 async function openGlobe(wrapper: Awaited<ReturnType<typeof mountAt>>) {
   await wrapper.get('[data-feature-id="tianditu"]').trigger('click')
   await flushPromises()
-  await vi.waitFor(() => {
+  await waitForCondition(() => {
     expect(viewerInstances).toHaveLength(1)
   })
   await flushPromises()
@@ -62,7 +71,7 @@ async function openGlobe(wrapper: Awaited<ReturnType<typeof mountAt>>) {
 async function openElevation(wrapper: Awaited<ReturnType<typeof mountAt>>) {
   await wrapper.get('[data-feature-id="elevation"]').trigger('click')
   await flushPromises()
-  await vi.waitFor(() => {
+  await waitForCondition(() => {
     expect(viewerInstances).toHaveLength(1)
   })
   await flushPromises()
@@ -116,11 +125,12 @@ describe('App', () => {
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('#spatial-heading').text()).toBe('2、空间分析')
     expect(wrapper.get('#effects-heading').text()).toBe('3、特效')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(53)
-    expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(3)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(10)
+    expect(wrapper.get('#visualization-heading').text()).toBe('4、可视化')
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(56)
+    expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(4)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(11)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
-    expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(3)
+    expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(4)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
@@ -132,7 +142,7 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(53)
+    expect(cards).toHaveLength(56)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
@@ -172,6 +182,9 @@ describe('App', () => {
     expect(cards[50]?.attributes('data-feature-id')).toBe('ball-rotation')
     expect(cards[51]?.attributes('data-feature-id')).toBe('soft-body-collision')
     expect(cards[52]?.attributes('data-feature-id')).toBe('fracture-collision')
+    expect(cards[53]?.attributes('data-feature-id')).toBe('overlay-analysis')
+    expect(cards[54]?.attributes('data-feature-id')).toBe('thiessen-polygon')
+    expect(cards[55]?.attributes('data-feature-id')).toBe('isosurface')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -205,6 +218,9 @@ describe('App', () => {
     expect(
       wrapper.get('[data-testid="physics-engine-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(5)
+    expect(
+      wrapper.get('[data-testid="gis-client-grid"]').findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(3)
 
     for (const card of cards) {
       expect(card.element.tagName).toBe('BUTTON')
@@ -262,13 +278,16 @@ describe('App', () => {
     expect(cards[50]?.attributes('aria-label')).toBe('打开3.4.3、转动（球）')
     expect(cards[51]?.attributes('aria-label')).toBe('打开3.4.4、撞击（软体）')
     expect(cards[52]?.attributes('aria-label')).toBe('打开3.4.5、撞击断裂体')
+    expect(cards[53]?.attributes('aria-label')).toBe('打开4.1.1、叠加分析')
+    expect(cards[54]?.attributes('aria-label')).toBe('打开4.1.2、泰森多边形')
+    expect(cards[55]?.attributes('aria-label')).toBe('打开4.1.3、等值面')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
     expect(wrapper.text()).not.toContain('从统一入口浏览当前已准备的展示能力')
     expect(
       wrapper.findAll('[data-testid="page-heading"]').map((heading) => heading.text()),
-    ).toEqual(['1、图层', '2、空间分析', '3、特效'])
+    ).toEqual(['1、图层', '2、空间分析', '3、特效', '4、可视化'])
     expect(wrapper.findAll('.showcase__group-title').map((heading) => heading.text())).toEqual([
       '1.1、影像',
       '1.2、地形',
@@ -280,6 +299,7 @@ describe('App', () => {
       '3.2、特殊形状',
       '3.3、粒子效果',
       '3.4、物理引擎',
+      '4.1、GIS客户端',
     ])
 
     wrapper.unmount()
@@ -341,7 +361,7 @@ describe('App', () => {
 
     await wrapper.get('[data-feature-id="amap"]').trigger('click')
     await flushPromises()
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -452,7 +472,7 @@ describe('App', () => {
   it('opens a vector demo from its deep link and returns to the card anchor on close', async () => {
     const wrapper = await mountAt('/layers/vector/1-3-1-entity-point')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -482,7 +502,7 @@ describe('App', () => {
   it('opens a model demo from its deep link and returns to the card anchor on close', async () => {
     const wrapper = await mountAt('/layers/model/1-4-1-model-interpolation-motion')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -521,7 +541,7 @@ describe('App', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const wrapper = await mountAt('/layers/model/1-4-2-wind-turbine')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     const viewer = viewerInstances[0]!
@@ -552,7 +572,7 @@ describe('App', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const wrapper = await mountAt('/layers/model/1-4-2-wind-turbine')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     const viewer = viewerInstances[0]!
@@ -627,7 +647,7 @@ describe('App', () => {
 
     await wrapper.get('[data-feature-id="elevation"]').trigger('click')
     await flushPromises()
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(2)
     })
 
@@ -733,7 +753,7 @@ describe('App', () => {
 
     await card.trigger('click')
     await flushPromises()
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(2)
     })
     expect(viewerInstances[1]?.destroy).not.toHaveBeenCalled()
@@ -787,6 +807,7 @@ describe('App', () => {
       'special-shapes': 220,
       'particle-effects': 300,
       'physics-engine': 400,
+      'gis-client': 500,
     }
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({
@@ -827,6 +848,7 @@ describe('App', () => {
     positions.effects = 40
     positions['special-shapes'] = 180
     positions['particle-effects'] = 260
+    positions['gis-client'] = 500
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -854,6 +876,7 @@ describe('App', () => {
     positions.effects = 20
     positions['special-shapes'] = 150
     positions['particle-effects'] = 220
+    positions['gis-client'] = 500
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -876,6 +899,7 @@ describe('App', () => {
     positions.effects = -20
     positions['special-shapes'] = -10
     positions['particle-effects'] = 0
+    positions['gis-client'] = 500
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -892,13 +916,34 @@ describe('App', () => {
     ).toBe('3.3、粒子效果')
     expect(wrapper.findAll('.el-sub-menu')[2]?.classes()).toContain('is-opened')
 
+    positions.effects = -120
+    positions['special-shapes'] = -100
+    positions['particle-effects'] = -80
+    positions['physics-engine'] = -40
+    positions['gis-client'] = 20
+    for (const [anchor, spy] of Object.entries(spies)) {
+      spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
+    }
+
+    await wrapper.get('main').trigger('scroll')
+    frameCallbacks.splice(0).forEach((callback) => callback(0))
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('[role="menuitem"]')
+        .find((item) => item.attributes('aria-current') === 'location')
+        ?.text(),
+    ).toBe('4.1、GIS客户端')
+    expect(wrapper.findAll('.el-sub-menu')[3]?.classes()).toContain('is-opened')
+
     wrapper.unmount()
   })
 
   it('opens a scene effect from its deep link and returns to the card anchor on close', async () => {
     const wrapper = await mountAt('/effects/scene/3-1-1-skybox')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -926,7 +971,7 @@ describe('App', () => {
   it('opens an animated special shape and exposes only pause and resume controls', async () => {
     const wrapper = await mountAt('/effects/special-shapes/3-2-3-moving-frustum')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -959,7 +1004,7 @@ describe('App', () => {
   it('does not show an animation toggle for a static special shape', async () => {
     const wrapper = await mountAt('/effects/special-shapes/3-2-6-curve-interpolation')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -977,14 +1022,14 @@ describe('App', () => {
   it('opens a physics demo with vehicle controls, pause, reset, and cleanup', async () => {
     const wrapper = await mountAt('/effects/physics-engine/3-4-1-vehicle-motion')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
 
     const dialog = wrapper.get('.feature-dialog--physics-engine')
     const globe = wrapper.get('[data-testid="physics-engine-demo-globe"]')
-    await vi.waitFor(
+    await waitForCondition(
       () => {
         expect(globe.attributes('data-cesium-state')).toBe('ready')
       },
@@ -1030,14 +1075,14 @@ describe('App', () => {
   it('updates collision projectile stats and clears them on reset', async () => {
     const wrapper = await mountAt('/effects/physics-engine/3-4-4-soft-body-collision')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
 
     const dialog = wrapper.get('.feature-dialog--physics-engine')
     const globe = wrapper.get('[data-testid="physics-engine-demo-globe"]')
-    await vi.waitFor(
+    await waitForCondition(
       () => {
         expect(globe.attributes('data-cesium-state')).toBe('ready')
       },
@@ -1074,11 +1119,11 @@ describe('App', () => {
     const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const wrapper = await mountAt('/effects/scene/3-1-4-lightning')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     const globe = wrapper.get('[data-testid="effects-demo-globe"]')
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(globe.attributes('data-audio-state')).toBe('error')
     })
 
@@ -1092,7 +1137,7 @@ describe('App', () => {
   it('opens a particle effect from its deep link and toggles pause without rebuilding the viewer', async () => {
     const wrapper = await mountAt('/effects/particle-effects/3-3-1-fire')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -1141,14 +1186,14 @@ describe('App', () => {
   it('opens the simple inundation demo from its deep link and returns to its card', async () => {
     const wrapper = await mountAt('/spatial-analysis/2-1-1-inundation-analysis-simple')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
 
     const dialog = wrapper.get('.feature-dialog--spatial')
     const globe = wrapper.get('[data-testid="spatial-demo-globe"]')
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(globe.attributes('data-cesium-state')).toBe('ready')
     })
     expect(dialog.text()).toContain('2.1.1、淹没分析（简易）')
@@ -1170,7 +1215,7 @@ describe('App', () => {
   it('opens the sunlight demo with date and time controls that drive the scene clock', async () => {
     const wrapper = await mountAt('/spatial-analysis/2-1-2-sunlight-analysis')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -1202,7 +1247,7 @@ describe('App', () => {
   it('opens the animated water surface demo and renders a water primitive', async () => {
     const wrapper = await mountAt('/spatial-analysis/2-1-3-water-surface')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
     await flushPromises()
@@ -1220,10 +1265,10 @@ describe('App', () => {
   it('opens the aspect analysis demo with color cells, arrows and a legend', async () => {
     const wrapper = await mountAt('/spatial-analysis/2-1-4-aspect-analysis')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(primitiveInstances.length).toBeGreaterThan(0)
       expect(viewerInstances[0]?.entities.values.length).toBeGreaterThan(0)
     })
@@ -1246,10 +1291,10 @@ describe('App', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     const wrapper = await mountAt('/spatial-analysis/2-1-4-aspect-analysis')
 
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
-    await vi.waitFor(() => {
+    await waitForCondition(() => {
       expect(primitiveInstances.length).toBeGreaterThan(0)
     })
     await flushPromises()

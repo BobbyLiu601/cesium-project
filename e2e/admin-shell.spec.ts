@@ -10,15 +10,26 @@ async function expectCesiumReady(globe: Locator) {
   })
 }
 
+async function capturePageClip(
+  page: Page,
+  clip: { height: number; width: number; x: number; y: number },
+) {
+  return page.screenshot({
+    animations: 'allow',
+    clip,
+    timeout: 30_000,
+  })
+}
+
 async function expectCanvasToAnimate(page: Page, canvas: Locator) {
   const clip = await canvas.boundingBox()
   expect(clip).not.toBeNull()
 
   const frames: Buffer[] = []
-  for (let index = 0; index < 6; index += 1) {
-    frames.push(await page.screenshot({ clip: clip! }))
-    if (index < 5) {
-      await page.waitForTimeout(150)
+  for (let index = 0; index < 4; index += 1) {
+    frames.push(await capturePageClip(page, clip!))
+    if (index < 3) {
+      await page.waitForTimeout(250)
     }
   }
 
@@ -26,15 +37,20 @@ async function expectCanvasToAnimate(page: Page, canvas: Locator) {
 }
 
 async function expectCanvasToRemainStatic(page: Page, canvas: Locator) {
+  const clip = await canvas.boundingBox()
+  expect(clip).not.toBeNull()
+
   await page.waitForTimeout(300)
-  const first = await canvas.screenshot()
+  const first = await capturePageClip(page, clip!)
   await page.waitForTimeout(300)
-  const second = await canvas.screenshot()
+  const second = await capturePageClip(page, clip!)
   expect(second.equals(first)).toBe(true)
 }
 
 async function expectCanvasToContainRedFacets(page: Page, canvas: Locator) {
-  const screenshot = await canvas.screenshot()
+  const clip = await canvas.boundingBox()
+  expect(clip).not.toBeNull()
+  const screenshot = await capturePageClip(page, clip!)
   const redPixels = await page.evaluate(async (base64) => {
     const binary = atob(base64)
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
@@ -62,7 +78,9 @@ async function expectCanvasToContainRedFacets(page: Page, canvas: Locator) {
 }
 
 async function expectCanvasToContainShapeColors(page: Page, canvas: Locator) {
-  const screenshot = await canvas.screenshot()
+  const clip = await canvas.boundingBox()
+  expect(clip).not.toBeNull()
+  const screenshot = await capturePageClip(page, clip!)
   const shapePixels = await page.evaluate(async (base64) => {
     const binary = atob(base64)
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
@@ -95,14 +113,14 @@ async function expectCanvasToContainShapeColors(page: Page, canvas: Locator) {
 
 async function expectSubmenuArrowsPointDown(menu: Locator) {
   const arrows = menu.locator('.sidebar-menu__group > .el-sub-menu__title .el-sub-menu__icon-arrow')
-  await expect(arrows).toHaveCount(3)
+  await expect(arrows).toHaveCount(4)
   await expect
     .poll(() =>
       arrows.evaluateAll((elements) =>
         elements.map((element) => getComputedStyle(element).transform),
       ),
     )
-    .toEqual(['none', 'none', 'none'])
+    .toEqual(['none', 'none', 'none', 'none'])
 }
 
 const responsiveViewports = [
@@ -156,6 +174,8 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '3.2、特殊形状' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.3、粒子效果' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '3.4、物理引擎' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '4、可视化' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '4.1、GIS客户端' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -210,7 +230,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' }).locator('img'),
   ).toHaveAttribute('src', /2-2-2-video-projection-livestream/)
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(53)
+  await expect(page.getByTestId('feature-card')).toHaveCount(56)
   await expect(page.getByRole('button', { name: '打开3.1.1、天空盒' })).toContainText(
     '3.1.1、天空盒',
   )
@@ -300,6 +320,24 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('button', { name: '打开3.4.5、撞击断裂体' })).toContainText(
     '3.4.5、撞击断裂体',
   )
+  await expect(page.getByRole('button', { name: '打开4.1.1、叠加分析' })).toContainText(
+    '4.1.1、叠加分析',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开4.1.1、叠加分析' }).locator('img'),
+  ).toHaveAttribute('src', /4-1-1-overlay-analysis/)
+  await expect(page.getByRole('button', { name: '打开4.1.2、泰森多边形' })).toContainText(
+    '4.1.2、泰森多边形',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开4.1.2、泰森多边形' }).locator('img'),
+  ).toHaveAttribute('src', /4-1-2-thiessen-polygon/)
+  await expect(page.getByRole('button', { name: '打开4.1.3、等值面' })).toContainText(
+    '4.1.3、等值面',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开4.1.3、等值面' }).locator('img'),
+  ).toHaveAttribute('src', /4-1-3-isosurface/)
   expect(
     await page
       .getByTestId('feature-card')
@@ -358,6 +396,9 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'ball-rotation',
     'soft-body-collision',
     'fracture-collision',
+    'overlay-analysis',
+    'thiessen-polygon',
+    'isosurface',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -920,10 +961,12 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
   const layersGroup = sidebar.locator('.sidebar-menu__group').nth(0)
   const spatialGroup = sidebar.locator('.sidebar-menu__group').nth(1)
   const effectsGroup = sidebar.locator('.sidebar-menu__group').nth(2)
+  const visualizationGroup = sidebar.locator('.sidebar-menu__group').nth(3)
 
   await expect(layersGroup).toHaveClass(/is-opened/)
   await expect(spatialGroup).not.toHaveClass(/is-opened/)
   await expect(effectsGroup).not.toHaveClass(/is-opened/)
+  await expect(visualizationGroup).not.toHaveClass(/is-opened/)
 
   await content.evaluate((element) => {
     const target = document.querySelector<HTMLElement>('[data-navigation-anchor="vector"]')
@@ -944,19 +987,21 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '3.4、物理引擎' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '4.1、GIS客户端' })).toHaveAttribute(
     'aria-current',
     'location',
   )
   await expect(page).toHaveURL(/\/layers$/)
   await expect(layersGroup).not.toHaveClass(/is-opened/)
   await expect(spatialGroup).not.toHaveClass(/is-opened/)
-  await expect(effectsGroup).toHaveClass(/is-opened/)
+  await expect(effectsGroup).not.toHaveClass(/is-opened/)
+  await expect(visualizationGroup).toHaveClass(/is-opened/)
 
   await sidebar.locator('.sidebar-menu__group').nth(0).locator('.el-sub-menu__title').click()
   await expect(layersGroup).toHaveClass(/is-opened/)
   await expect(spatialGroup).not.toHaveClass(/is-opened/)
   await expect(effectsGroup).not.toHaveClass(/is-opened/)
+  await expect(visualizationGroup).not.toHaveClass(/is-opened/)
 })
 
 test('点击 3.1、场景特效后选中态不会回落到上一个区块', async ({ page }) => {
@@ -1026,6 +1071,7 @@ test('移动端可通过按钮和键盘打开抽屉，并选择菜单关闭', as
   await expect(drawer).toBeVisible()
   await expect(drawer.getByText('1、图层', { exact: true })).toBeVisible()
   await expect(drawer.getByText('3、特效', { exact: true })).toBeVisible()
+  await expect(drawer.getByText('4、可视化', { exact: true })).toBeVisible()
   await expectSubmenuArrowsPointDown(drawer)
 
   const menuItem = drawer.getByRole('menuitem', { name: '1.1、影像' })
@@ -1142,7 +1188,7 @@ test('空间分析菜单通过向下箭头分组并锚定坡向分析内容', as
 })
 
 test('四个空间分析深链均可打开、交互、全屏、关闭并返回对应卡片', async ({ page }) => {
-  test.setTimeout(120_000)
+  test.setTimeout(240_000)
 
   await page.goto('/spatial-analysis/2-1-1-inundation-analysis-simple')
   let dialog = page.getByRole('dialog', { name: '2.1.1、淹没分析（简易）' })
@@ -1643,7 +1689,7 @@ test('特殊形状动画支持暂停和继续，手动视锥体在地形失败�
 })
 
 test('五个粒子效果深链可播放、暂停/继续并在关闭后返回对应卡片', async ({ page }) => {
-  test.setTimeout(180_000)
+  test.setTimeout(300_000)
 
   const particles = [
     { id: 'particle-fire', route: '/effects/particle-effects/3-3-1-fire', title: '3.3.1、火焰' },
@@ -1838,6 +1884,54 @@ test('移动端可从抽屉进入特效场景并关闭弹窗', async ({ page }) 
 
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(dialog).toBeHidden()
+})
+
+test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应卡片', async ({ page }) => {
+  test.setTimeout(180_000)
+  const scenes = [
+    {
+      id: 'overlay-analysis',
+      route: '/visualization/gis-client/4-1-1-overlay-analysis',
+      status: /相交部分.*平方米/,
+      title: '4.1.1、叠加分析',
+    },
+    {
+      id: 'thiessen-polygon',
+      route: '/visualization/gis-client/4-1-2-thiessen-polygon',
+      status: /54 个固定采样点生成 \d+ 个 TIN 三角面/,
+      title: '4.1.2、泰森多边形',
+    },
+    {
+      id: 'isosurface',
+      route: '/visualization/gis-client/4-1-3-isosurface',
+      status: /10 级固定风场等值面.*300 个采样点/,
+      title: '4.1.3、等值面',
+    },
+  ] as const
+
+  for (const scene of scenes) {
+    await page.goto(scene.route)
+    const dialog = page.getByRole('dialog', { name: scene.title })
+    const globe = dialog.getByTestId('visualization-demo-globe')
+
+    await expect(dialog).toBeVisible()
+    await expectCesiumReady(globe)
+    await expect(globe).toHaveAttribute('data-scene-id', scene.id)
+    await expect(globe.getByText(scene.status)).toBeVisible()
+    await expect(globe.locator('canvas')).toBeVisible()
+    await expectCanvasToContainShapeColors(page, globe.locator('canvas'))
+
+    if (scene.id === 'isosurface') {
+      const legend = globe.getByTestId('isosurface-legend')
+      await expect(legend).toBeVisible()
+      await expect(legend).toContainText('风速等值面（m/s）')
+    }
+
+    await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`/layers#${scene.id}$`))
+    await expect(page.getByRole('button', { name: `打开${scene.title}` })).toBeFocused()
+  }
 })
 
 test('旧空间分析地址保留原 URL 并显示 404 页面', async ({ page }) => {

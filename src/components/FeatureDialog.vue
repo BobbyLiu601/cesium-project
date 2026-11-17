@@ -38,6 +38,8 @@ const scenePropResolvers: Partial<
   'physics-engine': (feature) =>
     feature.physicsEngineSceneId ? { sceneId: feature.physicsEngineSceneId } : {},
   vector: (feature) => (feature.sceneId ? { sceneId: feature.sceneId } : {}),
+  visualization: (feature) =>
+    feature.visualizationSceneId ? { sceneId: feature.visualizationSceneId } : {},
 }
 
 const sceneModuleLoaders: Record<FeatureKind, () => Promise<{ default: Component }>> = {
@@ -51,6 +53,7 @@ const sceneModuleLoaders: Record<FeatureKind, () => Promise<{ default: Component
   'physics-engine': () => import('@/demos/PhysicsDemoGlobe.vue'),
   tianditu: () => import('@/components/CesiumGlobe.vue'),
   vector: () => import('@/demos/VectorDemoGlobe.vue'),
+  visualization: () => import('@/demos/VisualizationDemoGlobe.vue'),
 }
 
 const sceneRef = ref<{ resize: () => void } | null>(null)

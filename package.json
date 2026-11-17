@@ -44,6 +44,12 @@
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
+    "@turf/area": "^7.4.0",
+    "@turf/helpers": "^7.4.0",
+    "@turf/intersect": "^7.4.0",
+    "@turf/isobands": "^7.4.0",
+    "@turf/isolines": "^7.4.0",
+    "@turf/tin": "^7.4.0",
     "ammojs-typed": "^1.1.0",
     "cesium": "^1.147.0",
     "element-plus": "^2.14.7",
