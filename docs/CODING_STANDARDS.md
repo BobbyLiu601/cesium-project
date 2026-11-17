@@ -85,7 +85,7 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 - 每次有文件改动的执行必须在交付前提交到当前任务分支，覆盖代码、文档和配置。提交应围绕一个完整目的；任务过程中可以保留临时状态，但交付时不得遗留应提交的未提交改动。
 - 任务交付时默认只推送持久分支并设置其 upstream，交付分支名和提交哈希。`main` 保持不变，不自动创建 PR，也不自动合并。
 - 未合并的 task 分支不得推送；`pre-push` 守卫会拒绝并提示先执行 finalize。已推送的持久分支不因每次交付自动 rebase；只有用户要求同步或明确授权合并时，才按需 rebase 到最新 `origin/main`，解决冲突后重新运行 `pnpm verify`。更新已推送分支最多使用 `git push --force-with-lease origin <分支>`，不得强制推送 `main`，不得使用 `git reset --hard`。
-- 只有用户明确回复“issue完成”后，才执行 `node scripts/cleanup-task-branches.mjs --base <持久分支>` 删除该持久分支下所有已合并且未被工作树占用的 task 分支；清理成功后才把 Issue 状态改为 `done`。清理失败时保留所有 task 分支并报告原因。
+- 只有用户明确回复“issue完成”后，才执行 `node scripts/cleanup-task-branches.mjs --base <持久分支> --keep-current` 删除该持久分支下所有已合并且已释放的 task 分支。当前执行 turn 的活动 task 分支不能在同一 turn 内删除，必须记录 SHA 并报告为 deferred；平台释放工作树后再运行一次不带 `--keep-current` 的清理命令。清理失败时保留 Issue 的评审状态并报告原因。
 
 ### 本地 Git 守卫
 
@@ -115,6 +115,9 @@ node scripts/finalize-task-branch.mjs --fallback <fallback> --target agent/<agen
 node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key> --dry-run
 node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key>
 ```
+
+在“issue完成”评论触发的执行中，当前 task 分支仍被工作树占用，需增加 `--keep-current`；报告中的 deferred
+分支在工作树释放后再清理。
 
 PowerShell 示例：
 

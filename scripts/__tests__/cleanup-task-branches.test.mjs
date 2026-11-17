@@ -153,4 +153,30 @@ describe('cleanup-task-branches', { timeout: 90_000 }, () => {
     expect(result.output).toContain('仍被工作树')
     expect(branchExists(directory, taskBranch)).toBe(true)
   })
+
+  it('issue 完成时保留本次运行的活动 task 分支，并清理其余分支', () => {
+    const directory = createRepository()
+    const persistent = 'agent/deepseek-pro/alcy-51'
+    const previousTask = 'agent/deepseek-pro/alcy-51-111111111111'
+    const activeTask = 'agent/deepseek-pro/alcy-51-222222222222'
+
+    switchBranch(directory, persistent, true)
+    commitFile(directory, 'persistent.txt', 'persistent\n', 'persistent change')
+    switchBranch(directory, previousTask, true)
+    commitFile(directory, 'previous.txt', 'previous\n', 'previous task')
+    switchBranch(directory, persistent)
+    git(directory, ['merge', '--ff-only', previousTask])
+    switchBranch(directory, activeTask, true)
+    commitFile(directory, 'active.txt', 'active\n', 'active task')
+    switchBranch(directory, persistent)
+    git(directory, ['merge', '--ff-only', activeTask])
+    switchBranch(directory, activeTask)
+
+    const result = runCleanup(directory, ['--base', persistent, '--keep-current'])
+
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('暂时无法删除')
+    expect(branchExists(directory, previousTask)).toBe(false)
+    expect(branchExists(directory, activeTask)).toBe(true)
+  })
 })

@@ -31,11 +31,12 @@ node scripts/finalize-task-branch.mjs --fallback <task-branch>
 用户回复“issue完成”后执行：
 
 ```bash
-node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key> --dry-run
-node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key>
+node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key> --dry-run --keep-current
+node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key> --keep-current
 ```
 
-清理全部成功后才把 Issue 状态改为 `done`。清理失败时保留所有 task 分支并报告原因。
+“issue完成”评论本身也占用一条活动 task 分支。`--keep-current` 会保留该分支并删除其余已释放分支；
+平台释放工作树后再运行一次不带 `--keep-current` 的命令即可清空。清理失败时保留 Issue 的评审状态并报告原因。
 
 ## 自动化边界
 

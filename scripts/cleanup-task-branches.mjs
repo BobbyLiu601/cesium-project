@@ -16,7 +16,7 @@ import {
 } from './lib/task-worktrees.mjs'
 
 function printHelp() {
-  console.log(`用法：node scripts/cleanup-task-branches.mjs [--base <持久分支>] [--dry-run]
+  console.log(`用法：node scripts/cleanup-task-branches.mjs [--base <持久分支>] [--dry-run] [--keep-current]
 
 仅在用户明确回复“issue完成”后执行：
   1. 找出所有基于该持久分支创建的 task 分支；
@@ -26,11 +26,12 @@ function printHelp() {
 参数：
   --base <分支>  默认为当前持久分支
   --dry-run      只检查并打印计划，不删除 ref
+  --keep-current 用户回复“issue完成”时保留本次运行占用的活动 task 分支
 `)
 }
 
 function parseArgs(argv) {
-  const options = { base: '', dryRun: false, help: false }
+  const options = { base: '', dryRun: false, keepCurrent: false, help: false }
 
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index]
@@ -45,6 +46,10 @@ function parseArgs(argv) {
     }
     if (argument === '--dry-run') {
       options.dryRun = true
+      continue
+    }
+    if (argument === '--keep-current') {
+      options.keepCurrent = true
       continue
     }
     if (argument === '--help' || argument === '-h') {
@@ -81,10 +86,18 @@ function cleanup(options) {
     return
   }
 
-  const targets = taskBranches.map((branch) => {
+  const current = currentBranch(repoRoot)
+  const deferred = []
+  const targets = []
+
+  for (const branch of taskBranches) {
     const tip = revParse(repoRoot, branch)
     if (!isAncestor(repoRoot, tip, baseTip)) {
       throw new Error(`task 分支 ${branch}（${tip}）尚未合并到 ${base}；拒绝清理`)
+    }
+    if (branch === current && options.keepCurrent) {
+      deferred.push({ branch, tip })
+      continue
     }
 
     const worktrees = worktreesForBranch(repoRoot, branch)
@@ -97,13 +110,18 @@ function cleanup(options) {
       )
     }
 
-    return { branch, tip }
-  })
+    targets.push({ branch, tip })
+  }
 
   if (options.dryRun) {
     for (const target of targets) {
       console.log(
         `[branch-cleanup] dry-run：将删除 ${target.branch}（${target.tip}），恢复命令：git branch ${target.branch} ${target.tip}`,
+      )
+    }
+    for (const branch of deferred) {
+      console.log(
+        `[branch-cleanup] dry-run：保留本次运行的活动 task 分支 ${branch.branch}（${branch.tip}）`,
       )
     }
     return
@@ -113,6 +131,11 @@ function cleanup(options) {
     mustGit(repoRoot, ['update-ref', '-d', `refs/heads/${target.branch}`, target.tip])
     console.log(
       `[branch-cleanup] 已删除 ${target.branch}（${target.tip}），恢复命令：git branch ${target.branch} ${target.tip}`,
+    )
+  }
+  for (const branch of deferred) {
+    console.log(
+      `[branch-cleanup] 本次运行的活动 task 分支 ${branch.branch}（${branch.tip}）暂时无法删除；工作树释放后请再次运行清理。`,
     )
   }
 }
