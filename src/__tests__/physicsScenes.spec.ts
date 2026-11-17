@@ -112,7 +112,7 @@ describe('physics engine scenes', () => {
     ).rejects.toMatchObject({ name: 'AbortError' })
   })
 
-  it('renders the vehicle with a car model and wheels without a floor visual', async () => {
+  it('keeps the vehicle floor, removes the roadside block, and aligns the car with its wheels', async () => {
     const viewer = createViewer()
     const scene = await createPhysicsEngineScene(viewer, 'vehicle-motion', vi.fn())
 
@@ -125,7 +125,7 @@ describe('physics engine scenes', () => {
     expect(wheels).toHaveLength(4)
     expect(wheels.every((wheel) => wheel.cylinder?.length)).toBe(true)
     expect(
-      primitiveInstances.some((primitive) => {
+      primitiveInstances.filter((primitive) => {
         const geometryInstances = primitive.options.geometryInstances as Array<{
           options?: { geometry?: { options?: { dimensions?: { x?: number; y?: number } } } }
         }>
@@ -134,7 +134,44 @@ describe('physics engine scenes', () => {
           return dimensions?.x === 75 && dimensions.y === 75
         })
       }),
+    ).toHaveLength(1)
+    expect(
+      primitiveInstances.some((primitive) => {
+        const geometryInstances = primitive.options.geometryInstances as Array<{
+          options?: {
+            geometry?: { options?: { dimensions?: { x?: number; y?: number; z?: number } } }
+          }
+        }>
+        return geometryInstances.some((instance) => {
+          const dimensions = instance.options?.geometry?.options?.dimensions
+          return dimensions?.x === 8 && dimensions.y === 10 && dimensions.z === 4
+        })
+      }),
     ).toBe(false)
+
+    let now = performance.now()
+    vi.spyOn(performance, 'now').mockImplementation(() => now)
+    scene.controls.find((control) => control.id === 'forward')?.press()
+    for (let frame = 0; frame < 180; frame += 1) {
+      now += 1_000 / 60
+      viewer.scene.preUpdate.raiseEvent()
+    }
+    scene.controls.find((control) => control.id === 'forward')?.release?.()
+
+    const internals = scene as unknown as {
+      vehicleBodyTransform: {
+        position: { z: number }
+        rotation: { x: number; y: number }
+      }
+      wheelTransforms: Array<{ position: { z: number } }>
+    }
+    expect(Math.abs(internals.vehicleBodyTransform.rotation.x)).toBeLessThan(0.01)
+    expect(Math.abs(internals.vehicleBodyTransform.rotation.y)).toBeLessThan(0.01)
+    const wheelCenterHeight =
+      internals.wheelTransforms.reduce((total, wheel) => total + wheel.position.z, 0) /
+      internals.wheelTransforms.length
+    const bodyVisualHeight = (vehicle?.position?.getValue() as { z?: number } | undefined)?.z ?? 0
+    expect(Math.abs(bodyVisualHeight - wheelCenterHeight)).toBeLessThan(0.75)
     scene.dispose()
   })
 

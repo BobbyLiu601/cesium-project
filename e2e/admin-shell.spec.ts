@@ -1433,6 +1433,7 @@ test('五个物理引擎深链均可打开、操作并返回对应卡片', async
     await expect(globe).toHaveAttribute('data-animation-state', 'playing')
     await expect(globe.locator('canvas')).toBeVisible()
     await expect(globe.getByTestId('physics-toolbar')).toBeVisible()
+    expect((await globe.getByTestId('physics-toolbar').boundingBox())?.width).toBeCloseTo(270, 0)
     await expect(globe.getByText(/Ammo\.js/)).toBeVisible()
 
     for (const control of scene.controls) {

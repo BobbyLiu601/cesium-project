@@ -262,7 +262,7 @@ defineExpose({ resize })
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 10px;
-  width: min(540px, calc(100% - 32px));
+  width: min(270px, calc(100% - 32px));
   padding: 14px;
   color: #e8eef6;
   background: linear-gradient(135deg, rgb(9 24 38 / 94%), rgb(5 17 28 / 82%));

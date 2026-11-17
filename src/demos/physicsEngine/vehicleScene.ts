@@ -13,7 +13,6 @@ import physicsCarUrl from '@/assets/models/physics-car.glb?url'
 import {
   BasePhysicsScene,
   point,
-  quaternionFromAxisAngle,
   type LocalPoint,
   type LocalQuaternion,
   type PhysicsSceneControllerOptions,
@@ -28,6 +27,8 @@ const MAX_ENGINE_FORCE = 3_000
 const MAX_BRAKING_FORCE = 100
 const STEERING_CLAMP = 0.5
 const STEERING_INCREMENT = 0.04
+// The GLB is authored above its wheel mounts, so lower only the visual body onto the tires.
+const MODEL_VERTICAL_OFFSET = -0.55
 const MODEL_FORWARD_OFFSET = new Quaternion(0, 0, Math.SQRT1_2, Math.SQRT1_2)
 const CYLINDER_AXLE_OFFSET = new Quaternion(0, Math.SQRT1_2, 0, Math.SQRT1_2)
 
@@ -75,16 +76,9 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     this.steering = 0
 
     this.runtime.addStaticBox({
-      color: Color.TRANSPARENT,
+      color: Color.fromCssColorString('#41515b').withAlpha(0.95),
       halfExtents: point(37.5, 37.5, 0.5),
       position: point(0, 0, -0.5),
-      visible: false,
-    })
-    this.runtime.addStaticBox({
-      color: Color.fromCssColorString('#6d7f88'),
-      halfExtents: point(4, 5, 2),
-      position: point(11, 4, 0),
-      rotation: quaternionFromAxisAngle({ x: 1, y: 0, z: 0 }, Math.PI / 28),
     })
 
     this.createMosaicWall()
@@ -253,6 +247,9 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
     this.vehicle.setCoordinateSystem(0, 2, 1)
     this.runtime.addAction(this.vehicle)
     chassis.body.setActivationState(DISABLE_DEACTIVATION)
+    // Keep acceleration from pitching the chassis away from the raycast wheels.
+    const angularFactor = new this.ammo.btVector3(0, 0, 1)
+    chassis.body.setAngularFactor(angularFactor)
     this.createVehicleModel()
 
     const wheelDirection = new this.ammo.btVector3(0, 0, -1)
@@ -292,6 +289,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
 
     this.addSceneCleanup(() => {
       try {
+        this.ammo.destroy(angularFactor)
         this.ammo.destroy(wheelAxle)
         this.ammo.destroy(wheelDirection)
         this.ammo.destroy(raycaster)
@@ -316,7 +314,7 @@ export class VehiclePhysicsScene extends BasePhysicsScene {
             this.runtime.localToWorld(
               this.vehicleBodyTransform.position.x,
               this.vehicleBodyTransform.position.y,
-              this.vehicleBodyTransform.position.z,
+              this.vehicleBodyTransform.position.z + MODEL_VERTICAL_OFFSET,
               position,
             ),
           false,
