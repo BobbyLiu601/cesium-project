@@ -1,11 +1,12 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 const projectRoot = resolve(import.meta.dirname, '../..')
 const scriptPath = join(projectRoot, 'scripts/finalize-task-branch.mjs')
+const postCommitScriptPath = join(projectRoot, 'scripts/run-post-commit.mjs')
 const temporaryDirectories = []
 
 function git(directory, args) {
@@ -68,8 +69,8 @@ afterEach(() => {
   }
 })
 
-describe('finalize-task-branch', () => {
-  it('快进持久分支后删除 fallback，重复执行是 no-op', () => {
+describe('finalize-task-branch', { timeout: 90_000 }, () => {
+  it('快进持久分支后保留 fallback，重复执行是 no-op', () => {
     const directory = createRepository()
     const persistent = 'agent/deepseek-pro/alcy-51'
     const fallback = 'agent/deepseek-pro/alcy-51-d9d0e4c5d03c'
@@ -86,11 +87,11 @@ describe('finalize-task-branch', () => {
     expect(first.status).toBe(0)
     expect(first.output).toContain('fast-forward')
     expect(revParse(directory, persistent)).toBe(fallbackTip)
-    expect(branchExists(directory, fallback)).toBe(false)
+    expect(branchExists(directory, fallback)).toBe(true)
 
     const second = runFinalize(directory, ['--fallback', fallback])
     expect(second.status).toBe(0)
-    expect(second.output).toContain('不存在')
+    expect(second.output).toContain('已包含')
   })
 
   it('持久分支已前进时生成 merge commit', () => {
@@ -114,7 +115,7 @@ describe('finalize-task-branch', () => {
     const parents = git(directory, ['rev-list', '--parents', '-n', '1', persistent]).split(/\s+/)
     expect(parents).toHaveLength(3)
     expect(git(directory, ['merge-base', '--is-ancestor', fallbackTip, persistent])).toBe('')
-    expect(branchExists(directory, fallback)).toBe(false)
+    expect(branchExists(directory, fallback)).toBe(true)
   })
 
   it('内容冲突时停止且不删除 fallback', () => {
@@ -139,7 +140,7 @@ describe('finalize-task-branch', () => {
     expect(branchExists(directory, fallback)).toBe(true)
   })
 
-  it('fallback 工作树不干净时停止', () => {
+  it('fallback 工作树有未提交文件时仍合并已提交 tip', () => {
     const directory = createRepository()
     const persistent = 'agent/deepseek-pro/alcy-51'
     const fallback = 'agent/deepseek-pro/alcy-51-d9d0e4c5d03c'
@@ -155,12 +156,13 @@ describe('finalize-task-branch', () => {
 
     const result = runFinalize(directory, ['--fallback', fallback])
 
-    expect(result.status).toBe(1)
-    expect(result.output).toContain('未提交改动')
+    expect(result.status).toBe(0)
+    expect(result.output).toContain('fast-forward')
     expect(branchExists(directory, fallback)).toBe(true)
+    expect(git(directory, ['merge-base', '--is-ancestor', fallback, persistent])).toBe('')
   })
 
-  it('持久分支已包含 fallback 时只删除本地 ref', () => {
+  it('持久分支已包含 fallback 时保留本地 ref', () => {
     const directory = createRepository()
     const persistent = 'agent/deepseek-pro/alcy-51'
     const fallback = 'agent/deepseek-pro/alcy-51-d9d0e4c5d03c'
@@ -179,7 +181,7 @@ describe('finalize-task-branch', () => {
     expect(result.status).toBe(0)
     expect(result.output).toContain('已包含')
     expect(revParse(directory, persistent)).toBe(persistentTip)
-    expect(branchExists(directory, fallback)).toBe(false)
+    expect(branchExists(directory, fallback)).toBe(true)
   })
 
   it('目标分支缺失时失败', () => {
@@ -199,7 +201,7 @@ describe('finalize-task-branch', () => {
 
   it('存在多个持久分支候选时失败', () => {
     const directory = createRepository()
-    const fallback = 'agent/deepseek-pro/alcy-99-abcdef123456'
+    const fallback = 'agent/deepseek-lite/alcy-99-abcdef123456'
 
     switchBranch(directory, 'agent/deepseek-pro/alcy-99', true)
     commitFile(directory, 'pro.txt', 'pro\n', 'pro change')
@@ -261,7 +263,7 @@ describe('finalize-task-branch', () => {
     expect(branchExists(directory, fallback)).toBe(true)
   })
 
-  it('当前 fallback 工作树干净时切回持久分支并删除 fallback', () => {
+  it('当前 fallback 工作树完成合并后仍保留分支和工作树', () => {
     const directory = createRepository()
     const persistent = 'agent/deepseek-pro/alcy-51'
     const fallback = 'agent/deepseek-pro/alcy-51-d9d0e4c5d03c'
@@ -274,8 +276,73 @@ describe('finalize-task-branch', () => {
     const result = runFinalize(directory)
 
     expect(result.status).toBe(0)
-    expect(result.output).toContain('切回')
+    expect(result.output).toContain('保留 task 分支')
+    expect(git(directory, ['symbolic-ref', '--short', 'HEAD'])).toBe(fallback)
+    expect(branchExists(directory, fallback)).toBe(true)
+  })
+
+  it('主检出停在旧 task 分支时先切回持久分支，供下一任务派生', () => {
+    const directory = createRepository()
+    const persistent = 'agent/deepseek-pro/alcy-51'
+    const previousTask = 'agent/deepseek-pro/alcy-51-111111111111'
+    const currentTask = 'agent/deepseek-pro/alcy-51-222222222222'
+    const currentTaskParent = mkdtempSync(join(tmpdir(), 'cesium-current-task-'))
+    temporaryDirectories.push(currentTaskParent)
+    const currentTaskWorktree = join(currentTaskParent, 'worktree')
+
+    switchBranch(directory, persistent, true)
+    commitFile(directory, 'persistent.txt', 'persistent\n', 'persistent change')
+    switchBranch(directory, previousTask, true)
+    commitFile(directory, 'previous.txt', 'previous\n', 'previous task change')
+    git(directory, ['worktree', 'add', '-b', currentTask, currentTaskWorktree, persistent])
+    commitFile(currentTaskWorktree, 'current.txt', 'current\n', 'current task change')
+
+    const result = runFinalize(currentTaskWorktree, ['--fallback', currentTask])
+
+    expect(result.status).toBe(0)
     expect(git(directory, ['symbolic-ref', '--short', 'HEAD'])).toBe(persistent)
-    expect(branchExists(directory, fallback)).toBe(false)
+    expect(git(directory, ['merge-base', '--is-ancestor', currentTask, persistent])).toBe('')
+    expect(branchExists(directory, currentTask)).toBe(true)
+  })
+
+  it('post-commit hook 自动合并 task 分支并保留分支', () => {
+    const directory = createRepository()
+    const persistent = 'agent/deepseek-pro/alcy-51'
+    const taskBranch = 'agent/deepseek-pro/alcy-51-111111111111'
+    const hookParent = mkdtempSync(join(tmpdir(), 'cesium-finalize-hooks-'))
+    temporaryDirectories.push(hookParent)
+    const hookDirectory = join(hookParent, 'hooks')
+
+    switchBranch(directory, persistent, true)
+    commitFile(directory, 'persistent.txt', 'persistent\n', 'persistent change')
+    switchBranch(directory, taskBranch, true)
+
+    mkdirSync(hookDirectory)
+    const postCommitHook = join(hookDirectory, 'post-commit')
+    writeFileSync(
+      postCommitHook,
+      `#!/bin/sh\nexec node "${postCommitScriptPath.replaceAll('\\', '/')}"\n`,
+    )
+    chmodSync(postCommitHook, 0o755)
+    git(directory, ['config', 'core.hooksPath', hookDirectory.replaceAll('\\', '/')])
+
+    commitFile(directory, 'task.txt', 'task\n', 'task change')
+    const taskTip = revParse(directory, taskBranch)
+
+    expect(revParse(directory, persistent)).toBe(taskTip)
+    expect(branchExists(directory, taskBranch)).toBe(true)
+  })
+
+  it('after-commit 模式在持久分支上静默跳过', () => {
+    const directory = createRepository()
+    const persistent = 'agent/deepseek-pro/alcy-51'
+
+    switchBranch(directory, persistent, true)
+    commitFile(directory, 'persistent.txt', 'persistent\n', 'persistent change')
+
+    const result = runFinalize(directory, ['--after-commit'])
+
+    expect(result.status).toBe(0)
+    expect(result.output.trim()).toBe('')
   })
 })

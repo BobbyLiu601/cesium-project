@@ -81,7 +81,7 @@ _Avoid_: 工作模式、目录类型
 _Avoid_: 原地模式、共享目录模式
 
 **worktree 执行模式（worktree）**：
-每个任务使用独立 Git 工作树，并与同一 Issue 的后续轮次共享同一条持久任务分支。
+每个任务使用独立 Git 工作树；同一 Issue 保留一条持久任务分支，每条命令另用一条 task 分支写入。
 _Avoid_: 克隆模式、并行目录模式
 
 **任务工作树（Task Worktree）**：
@@ -89,13 +89,17 @@ Multica 为单个任务或会话创建的独立 Git 工作树，用于隔离文�
 _Avoid_: 临时目录、副本目录
 
 **持久任务分支（Persistent Task Branch）**：
-`worktree` 模式下由 Multica 分配并在同一 Issue 多轮执行中复用的平台分支，也是唯一交付对象；命名为 `agent/<agent>/<issue-key>`。
+同一 Issue 从创建到完成期间持续存在、承载全部已合并提交的唯一交付分支；命名为 `agent/<agent>/<issue-key>`。
 _Avoid_: 平台占位分支、交付别名
 
-**临时 fallback 分支（Transient Fallback Branch）**：
-平台无法复用持久任务分支时创建的临时分支，名称为 `agent/<agent>/<issue-key>-<task-id 后 12 位>`；必须包含创建时的持久分支提交，并在交付前合并回持久分支。
-_Avoid_: 第二条任务分支、替代分支
+**task 分支（Task Branch）**：
+每条命令基于持久分支创建的临时写入分支，名称为 `agent/<agent>/<issue-key>-<task-id 后 12 位>`；提交后自动合并回持久分支，但保留到用户回复“issue完成”。
+_Avoid_: 临时 fallback、替代分支
 
-**分支收敛（Finalize）**：
-把临时 fallback 合并回持久任务分支，并在祖先关系和工作树安全检查通过后删除本地 fallback ref 的幂等操作。
-_Avoid_: 分支清理、强制合并
+**持续合并（Continuous Merge）**：
+task 分支每次提交后自动合并到持久分支并保留 task 分支的操作；冲突或工作树不安全时停止，不自动解决冲突。
+_Avoid_: 提交时删除、静默覆盖
+
+**完成清理（Issue Completion Cleanup）**：
+用户明确回复“issue完成”后，删除该持久分支下所有已合并且未被工作树占用的 task 分支，再把 Issue 置为已完成的操作。
+_Avoid_: 自动清理、交付前删除

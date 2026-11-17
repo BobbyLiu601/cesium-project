@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
+import { join, resolve } from 'node:path'
 import {
+  branchExists,
   isAncestor,
   isFallbackBranch,
+  parseTaskBranch,
   resolvePersistentBranch,
   revParse,
 } from './lib/task-branches.mjs'
+import { listWorktrees } from './lib/task-worktrees.mjs'
 
 const MAIN_BRANCH = 'main'
 const BYPASS_VARIABLE = 'ALLOW_MAIN_GIT_UPDATE'
@@ -17,7 +21,7 @@ function printHelp() {
 
 pre-commit  阻止在 main 或 detached HEAD 上创建提交。
 pre-push    从标准输入读取待推送引用，阻止更新远端 main，并拒绝推送
-            尚未合并到持久任务分支的临时 fallback。
+            尚未合并到持久任务分支的 task 分支。
 
 绕过变量（仅限用户明确授权合并时使用）：
   ${BYPASS_VARIABLE}=1
@@ -85,9 +89,9 @@ function fallbackBlocker({ branch, sha }) {
       return ''
     }
 
-    return `fallback ${branch} 尚未合并到持久分支 ${target}。请先执行 node scripts/finalize-task-branch.mjs --fallback ${branch} --target ${target}`
+    return `task 分支 ${branch} 尚未合并到持久分支 ${target}。请先执行 node scripts/finalize-task-branch.mjs --fallback ${branch} --target ${target}`
   } catch (error) {
-    return `fallback ${branch} 的目标持久分支无法确认：${error.message}。请先执行 finalize 并显式指定 --target`
+    return `task 分支 ${branch} 的目标持久分支无法确认：${error.message}。请先执行 finalize 并显式指定 --target`
   }
 }
 
@@ -107,6 +111,46 @@ function allowExplicitMainUpdate(action) {
 
   console.warn(`[main-branch-guard] 显式授权放行${action}。原因：${reason}`)
   return true
+}
+
+function syncPrimaryTaskBranch() {
+  const repoRoot = execFileSync('git', ['rev-parse', '--show-toplevel'], {
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim()
+  const primary = listWorktrees(repoRoot)[0]
+  if (!primary?.branch || resolve(primary.path) === resolve(repoRoot)) {
+    return ''
+  }
+
+  const task = parseTaskBranch(primary.branch)
+  if (!task || !branchExists(repoRoot, task.baseBranch)) {
+    return ''
+  }
+
+  const result = spawnSync(
+    process.execPath,
+    [
+      join(import.meta.dirname, 'finalize-task-branch.mjs'),
+      '--fallback',
+      primary.branch,
+      '--target',
+      task.baseBranch,
+    ],
+    {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    },
+  )
+
+  if (result.stdout.trim()) {
+    console.log(result.stdout.trim())
+  }
+  if (result.status !== 0) {
+    return result.stderr.trim() || `git 分支同步退出码 ${result.status}`
+  }
+
+  return ''
 }
 
 function reject(action, detail, nextStep) {
@@ -149,6 +193,16 @@ async function checkPreCommit() {
         '请切回该 Issue 的任务分支后再提交。',
       )
     }
+    return
+  }
+
+  const syncProblem = syncPrimaryTaskBranch()
+  if (syncProblem) {
+    reject(
+      '提交前同步主检出中的 task 分支',
+      syncProblem,
+      '先确认旧 task 分支已合并到持久分支，再重新提交。',
+    )
   }
 }
 
@@ -165,7 +219,7 @@ async function checkPrePush() {
 
   const fallbackProblems = unmergedFallbackPushes(input).map(fallbackBlocker).filter(Boolean)
   for (const problem of fallbackProblems) {
-    reject('推送未合并的 fallback 分支', problem, '先运行 finalize 收敛 fallback 后再推送。')
+    reject('推送未合并的 task 分支', problem, '先运行 finalize 合并 task 分支后再推送。')
   }
 }
 

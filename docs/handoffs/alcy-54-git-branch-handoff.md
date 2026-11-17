@@ -1,5 +1,8 @@
 # ALCY-54 Git 分支收敛 Handoff
 
+> 已被 `docs/handoffs/alcy-56-git-branch-continuous-merge.md` 和 ADR 0009 取代。本文保留当时实现记录；
+> 当前流程不在 task 分支交付前删除分支，而是在用户回复“issue完成”后统一清理。
+
 ## 目标
 
 修复 `worktree` 模式下同一 Issue 出现多条长期分支的问题：保留一条持久任务分支，把平台因无法复用该分支而创建的 fallback 作为临时分支，交付前自动合并回持久分支并删除本地 ref。

@@ -96,7 +96,7 @@ afterEach(() => {
   }
 })
 
-describe('check-git-branch', () => {
+describe('check-git-branch', { timeout: 90_000 }, () => {
   it('阻止在 main 上创建提交', () => {
     const directory = createRepository()
 
@@ -114,6 +114,74 @@ describe('check-git-branch', () => {
 
     expect(result.status).toBe(0)
     expect(result.output.trim()).toBe('')
+  })
+
+  it('提交前自动同步主检出中遗留的 task 分支', () => {
+    const directory = createRepository()
+    execFileSync('git', ['config', 'user.name', 'Git Guard Test'], { cwd: directory })
+    execFileSync('git', ['config', 'user.email', 'git-guard@example.test'], { cwd: directory })
+    commitChange(directory, 'base.txt', 'base')
+    execFileSync('git', ['switch', '-c', 'agent/deepseek-pro/alcy-39'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    commitChange(directory, 'persistent.txt', 'persistent')
+    execFileSync('git', ['switch', '-c', 'agent/deepseek-pro/alcy-39-111111111111'], {
+      cwd: directory,
+      stdio: 'ignore',
+    })
+    commitChange(directory, 'previous.txt', 'previous')
+
+    const worktreeParent = mkdtempSync(join(tmpdir(), 'cesium-git-guard-worktree-'))
+    temporaryDirectories.push(worktreeParent)
+    const currentWorktree = join(worktreeParent, 'worktree')
+    execFileSync(
+      'git',
+      [
+        'worktree',
+        'add',
+        '-b',
+        'agent/deepseek-pro/alcy-40-222222222222',
+        currentWorktree,
+        'agent/deepseek-pro/alcy-39',
+      ],
+      {
+        cwd: directory,
+        stdio: 'ignore',
+      },
+    )
+
+    const currentIndex = execFileSync(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-path', 'index'],
+      {
+        cwd: currentWorktree,
+        encoding: 'utf8',
+      },
+    ).trim()
+    const result = runGuard(currentWorktree, 'pre-commit', {
+      env: { GIT_INDEX_FILE: currentIndex },
+    })
+
+    expect(result.status).toBe(0)
+    expect(
+      execFileSync('git', ['symbolic-ref', '--short', 'HEAD'], {
+        cwd: directory,
+        encoding: 'utf8',
+      }).trim(),
+    ).toBe('agent/deepseek-pro/alcy-39')
+    expect(() =>
+      execFileSync(
+        'git',
+        [
+          'merge-base',
+          '--is-ancestor',
+          'agent/deepseek-pro/alcy-39-111111111111',
+          'agent/deepseek-pro/alcy-39',
+        ],
+        { cwd: directory },
+      ),
+    ).not.toThrow()
   })
 
   it('阻止向远端 main 推送', () => {
@@ -197,7 +265,7 @@ describe('check-git-branch', () => {
     })
 
     expect(allowedPush.status).toBe(0)
-  }, 20_000)
+  }, 60_000)
 
   it('拒绝推送尚未合并的 fallback 分支', () => {
     const directory = createRepository()

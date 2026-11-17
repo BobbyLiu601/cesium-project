@@ -74,34 +74,46 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 
 ## Git 分支与交付
 
-- 一个 Issue 只有一条持久任务分支；同一 Issue 的多轮执行复用该分支。只读调查、问答和评审不创建分支。
-- `worktree` 模式下，持久任务分支是 Multica 分配的 `agent/<agent>/<issue-key>`，也是唯一交付对象。不得再创建 `<type>/<issue-key>-<slug>` 交付别名。`in_place` 模式直接使用一条任务分支。
-- 平台无法复用持久任务分支时创建的 `agent/<agent>/<issue-key>-<task-id 后 12 位>` 是临时 fallback。fallback 可以提交工作，但交付前必须用 `node scripts/finalize-task-branch.mjs`（或 `pnpm finalize:branch`）合并回持久任务分支并删除本地 ref。
-- finalize 优先 fast-forward；持久任务分支已前进时允许普通 merge commit。禁止 rebase fallback、禁止 force、禁止 reset 持久任务分支、禁止自动更新 `main`。删除 fallback 前必须确认持久任务分支包含其 tip、相关工作树干净且没有进行中的 merge/rebase/cherry-pick；命令会输出删除前 SHA 和恢复命令。
-- 目标分支默认按 `agent/*/<issue-key>` 解析；存在多个候选时，只有唯一一个已包含 fallback tip 的候选才能自动采用。无法唯一确定时必须显式传入 `--target`，不能猜测。
-- 开始修改前确认工作区干净并执行 `git fetch origin`。`local_directory` 的任务分支从主检出当前 HEAD 派生，因此主检出必须干净且停在 `main`；如果继承了其他任务分支，停止并报告，不自动 stash、提交、迁移或强推这些改动。
+- 一个 Issue 只有一条持久任务分支 `agent/<agent>/<issue-key>`；每条执行命令使用一条基于该持久分支的 task 分支 `agent/<agent>/<issue-key>-<task-id 后 12 位>`。只读调查、问答和评审不创建分支。
+- `worktree` 模式下，持久任务分支是唯一交付对象；task 分支是本次命令的临时写入口。不得创建 `<type>/<issue-key>-<slug>` 交付别名。`in_place` 模式直接使用一条任务分支。
+- task 分支执行期间不删除。每次 commit 后，`post-commit` hook 通过 `scripts/run-post-commit.mjs` 调用 `node scripts/finalize-task-branch.mjs --after-commit`，把 task 分支 tip 合并回持久分支；合并成功后 task 分支仍保留，供下一轮审计和最终统一清理。
+- 下一次提交的 `pre-commit` 会先检查主检出中遗留的旧 task 分支；若主检出干净，就先合并回持久分支并切回持久分支。执行 agent 仍必须在结束前手动提交，不能依赖平台代提交后的 hook 恢复。
+- finalize 优先 fast-forward；持久分支已前进时允许普通 merge commit。禁止 rebase task 分支、禁止 force、禁止 reset 持久分支、禁止自动更新 `main`。发生冲突或持久分支工作树不干净时停止，不自动解决冲突，不删除任何分支。
+- 合并成功后，如果主检出停在旧 task 分支且工作树干净，命令会把它切回持久分支，使下一条命令再次从持久分支创建新的 task 分支。主检出不干净时只报告，不 stash、不丢弃改动。
+- 目标分支默认优先采用与 task 分支同 agent、同 Issue key 的持久分支；没有同名候选时才检查 `agent/*/<issue-key>`。存在多个候选且无法唯一确定时必须显式传入 `--target`，不能猜测。
+- 开始修改前确认工作区干净并执行 `git fetch origin`。`local_directory` 的新命令应让主检出停在对应 Issue 的持久分支，不能从旧 task 分支或未合并提交派生；无法满足时停止并报告。
 - 每次有文件改动的执行必须在交付前提交到当前任务分支，覆盖代码、文档和配置。提交应围绕一个完整目的；任务过程中可以保留临时状态，但交付时不得遗留应提交的未提交改动。
-- 任务完成后默认只推送持久任务分支并设置其 upstream，交付分支名和提交哈希。`main` 保持不变，不自动创建 PR，也不自动合并。
-- 未合并的 fallback 不得推送；`pre-push` 守卫会拒绝并提示先执行 finalize。已推送的持久任务分支不因每次交付自动 rebase；只有用户要求同步或明确授权合并时，才按需 rebase 到最新 `origin/main`，解决冲突后重新运行 `pnpm verify`。更新已推送分支最多使用 `git push --force-with-lease origin <分支>`，不得强制推送 `main`，不得使用 `git reset --hard`。
+- 任务交付时默认只推送持久分支并设置其 upstream，交付分支名和提交哈希。`main` 保持不变，不自动创建 PR，也不自动合并。
+- 未合并的 task 分支不得推送；`pre-push` 守卫会拒绝并提示先执行 finalize。已推送的持久分支不因每次交付自动 rebase；只有用户要求同步或明确授权合并时，才按需 rebase 到最新 `origin/main`，解决冲突后重新运行 `pnpm verify`。更新已推送分支最多使用 `git push --force-with-lease origin <分支>`，不得强制推送 `main`，不得使用 `git reset --hard`。
+- 只有用户明确回复“issue完成”后，才执行 `node scripts/cleanup-task-branches.mjs --base <持久分支>` 删除该持久分支下所有已合并且未被工作树占用的 task 分支；清理成功后才把 Issue 状态改为 `done`。清理失败时保留所有 task 分支并报告原因。
 
 ### 本地 Git 守卫
 
 - `simple-git-hooks` 的 `pre-commit` 调用 `scripts/check-git-branch.mjs pre-commit`，阻止在 `main` 或 detached HEAD 上创建提交；随后仍执行暂存区密钥扫描。
-- `pre-push` 调用 `scripts/check-git-branch.mjs pre-push`，阻止任何更新远端 `main` 的推送（包括删除 `main`），并拒绝推送尚未合并到持久任务分支的 fallback。
+- `pre-commit` 在分支检查通过后还会同步主检出中遗留的已提交 task 分支，避免平台跳过 hook 的代提交长期不收敛。
+- `post-commit` 通过 `scripts/run-post-commit.mjs` 调用 `scripts/finalize-task-branch.mjs --after-commit`，自动把当前 task 分支合并到持久分支并保留 task 分支。
+- `pre-push` 调用 `scripts/check-git-branch.mjs pre-push`，阻止任何更新远端 `main` 的推送（包括删除 `main`），并拒绝推送尚未合并到持久分支的 task 分支。
 - 用户明确授权合并后，执行合并操作时可临时设置 `ALLOW_MAIN_GIT_UPDATE=1` 和非空 `MAIN_GIT_UPDATE_REASON`。守卫会打印授权原因；操作结束后立即清除变量。
 - 不得通过 `git commit --no-verify` 或 `git push --no-verify` 绕过守卫，因为这会同时绕过安全检查。需要绕过时只使用上述带原因的环境变量，并在交付说明中写明授权来源。
 
-fallback 收敛示例：
+task 分支持续合并示例：
 
 ```bash
 node scripts/finalize-task-branch.mjs --fallback agent/deepseek-pro/alcy-51-d9d0e4c5d03c --dry-run
 node scripts/finalize-task-branch.mjs --fallback agent/deepseek-pro/alcy-51-d9d0e4c5d03c
 ```
 
-目标分支存在多个候选时必须显式指定：
+正常提交会由 `post-commit` 自动执行上一步。目标分支存在多个候选时必须显式指定：
 
 ```bash
 node scripts/finalize-task-branch.mjs --fallback <fallback> --target agent/<agent>/<issue-key>
+```
+
+用户回复“issue完成”后统一清理：
+
+```bash
+node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key> --dry-run
+node scripts/cleanup-task-branches.mjs --base agent/<agent>/<issue-key>
 ```
 
 PowerShell 示例：
@@ -117,7 +129,7 @@ Remove-Item Env:MAIN_GIT_UPDATE_REASON
 ### 显式合并授权
 
 - 只有用户在具体 Issue 或评论中明确要求合并时，才可更新 `main`；任务完成、测试通过或 Issue 进入评审都不构成合并授权。
-- 合并前确认 fallback 已收敛到持久任务分支，并在持久任务分支按需 rebase 最新 `origin/main`、重新运行 `pnpm verify`。随后切换到干净的 `main`，执行 `git pull --ff-only`、`git merge --ff-only <持久任务分支>`，再按本地 Git 守卫的显式放行流程推送 `main`。
+- 合并前确认 task 分支已收敛到持久分支，并在持久分支按需 rebase 最新 `origin/main`、重新运行 `pnpm verify`。随后切换到干净的 `main`，执行 `git pull --ff-only`、`git merge --ff-only <持久分支>`，再按本地 Git 守卫的显式放行流程推送 `main`。
 - 合并后保留本地持久任务分支。若远端保护规则拒绝推送，停止并报告，不绕过保护。
 
 ### 远端 main 保护（人工配置项）

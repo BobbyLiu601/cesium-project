@@ -1,13 +1,32 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 
-const FALLBACK_PATTERN = /^agent\/([^/]+)\/(.+)-([0-9a-f]{12})$/
+const TASK_BRANCH_PATTERN = /^agent\/([^/]+)\/(.+)-([0-9a-fA-F]{12})$/
 
 export const MAIN_BRANCH = 'main'
+
+// Git hooks export worktree-specific paths; never leak them into another worktree.
+function gitEnvironment() {
+  const environment = { ...process.env }
+  for (const variable of [
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_COMMON_DIR',
+    'GIT_DIR',
+    'GIT_INDEX_FILE',
+    'GIT_NAMESPACE',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_PREFIX',
+    'GIT_WORK_TREE',
+  ]) {
+    delete environment[variable]
+  }
+  return environment
+}
 
 function runGit(cwd, args) {
   return execFileSync('git', args, {
     cwd,
     encoding: 'utf8',
+    env: gitEnvironment(),
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim()
 }
@@ -16,6 +35,7 @@ export function gitStatus(cwd, args) {
   return spawnSync('git', args, {
     cwd,
     encoding: 'utf8',
+    env: gitEnvironment(),
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 }
@@ -33,12 +53,12 @@ export function listLocalBranches(cwd) {
   return output ? output.split(/\r?\n/) : []
 }
 
-export function isFallbackBranch(branch) {
-  return FALLBACK_PATTERN.test(branch)
+export function isTaskBranch(branch) {
+  return TASK_BRANCH_PATTERN.test(branch)
 }
 
-export function parseFallbackBranch(branch) {
-  const match = FALLBACK_PATTERN.exec(branch)
+export function parseTaskBranch(branch) {
+  const match = TASK_BRANCH_PATTERN.exec(branch)
   if (!match) {
     return null
   }
@@ -47,7 +67,24 @@ export function parseFallbackBranch(branch) {
     agent: match[1],
     issueKey: match[2],
     taskSuffix: match[3],
+    baseBranch: `agent/${match[1]}/${match[2]}`,
   }
+}
+
+export function isFallbackBranch(branch) {
+  return isTaskBranch(branch)
+}
+
+export function parseFallbackBranch(branch) {
+  return parseTaskBranch(branch)
+}
+
+export function taskBranchBase(branch) {
+  return parseTaskBranch(branch)?.baseBranch ?? ''
+}
+
+export function listTaskBranchesForBase(cwd, baseBranch) {
+  return listLocalBranches(cwd).filter((branch) => taskBranchBase(branch) === baseBranch)
 }
 
 export function isAncestor(cwd, ancestor, descendant) {
@@ -74,9 +111,9 @@ function escapeRegExp(value) {
  * candidate that already contains the fallback tip is considered unambiguous.
  */
 export function resolvePersistentBranch({ cwd, fallbackBranch, fallbackTip, target }) {
-  const fallback = parseFallbackBranch(fallbackBranch)
+  const fallback = parseTaskBranch(fallbackBranch)
   if (!fallback) {
-    throw new Error(`分支 ${fallbackBranch} 不是带 task id 后缀的临时 fallback 分支`)
+    throw new Error(`分支 ${fallbackBranch} 不是带 task id 后缀的 task 分支`)
   }
 
   const branches = listLocalBranches(cwd)
@@ -91,7 +128,7 @@ export function resolvePersistentBranch({ cwd, fallbackBranch, fallbackTip, targ
       throw new Error('禁止把 fallback 自动合并到 main')
     }
     if (isFallbackBranch(target)) {
-      throw new Error('目标分支不能是临时 fallback 分支')
+      throw new Error('目标分支不能是 task 分支')
     }
     if (!branches.includes(target)) {
       throw new Error(`目标分支 ${target} 不存在`)
@@ -104,6 +141,9 @@ export function resolvePersistentBranch({ cwd, fallbackBranch, fallbackTip, targ
     throw new Error(
       `无法确定 ${fallbackBranch} 的持久分支：没有找到 agent/*/${fallback.issueKey}；请用 --target 显式指定`,
     )
+  }
+  if (candidates.includes(fallback.baseBranch)) {
+    return { target: fallback.baseBranch, candidates, source: 'name' }
   }
   if (candidates.length === 1) {
     return { target: candidates[0], candidates, source: 'name' }

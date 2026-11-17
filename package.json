@@ -28,6 +28,7 @@
     "check:pages": "node scripts/check-pages-build.mjs",
     "check:template": "node scripts/check-template-content.mjs",
     "finalize:branch": "node scripts/finalize-task-branch.mjs",
+    "cleanup:branches": "node scripts/cleanup-task-branches.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "generate:models": "node scripts/generate-project-models.mjs",
@@ -37,6 +38,7 @@
   },
   "simple-git-hooks": {
     "pre-commit": "node scripts/check-git-branch.mjs pre-commit && node scripts/check-secrets.mjs --staged",
+    "post-commit": "test ! -f scripts/run-post-commit.mjs || node scripts/run-post-commit.mjs",
     "pre-push": "node scripts/check-git-branch.mjs pre-push"
   },
   "dependencies": {
