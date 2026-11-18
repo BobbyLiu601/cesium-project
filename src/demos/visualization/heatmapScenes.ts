@@ -40,10 +40,6 @@ function createRegionPositions(region: Region, height: number) {
   ]
 }
 
-function sampleHeatmap3dFieldAt(longitude: number, latitude: number) {
-  return sampleHeatmap3dField(longitude, latitude)
-}
-
 function createHeatmapTexture() {
   const size = HEATMAP_3D_TEXTURE_SIZE
   const longitudeStep = (heatmap3dRegion.east - heatmap3dRegion.west) / size
@@ -58,12 +54,12 @@ function createHeatmapTexture() {
       const longitude =
         heatmap3dRegion.west +
         ((column + 0.5) / size) * (heatmap3dRegion.east - heatmap3dRegion.west)
-      const value = sampleHeatmap3dFieldAt(longitude, latitude)
+      const value = sampleHeatmap3dField(longitude, latitude)
       const [red, green, blue] = sampleHeatColor(value)
-      const west = sampleHeatmap3dFieldAt(longitude - longitudeStep, latitude)
-      const east = sampleHeatmap3dFieldAt(longitude + longitudeStep, latitude)
-      const south = sampleHeatmap3dFieldAt(longitude, latitude - latitudeStep)
-      const north = sampleHeatmap3dFieldAt(longitude, latitude + latitudeStep)
+      const west = sampleHeatmap3dField(longitude - longitudeStep, latitude)
+      const east = sampleHeatmap3dField(longitude + longitudeStep, latitude)
+      const south = sampleHeatmap3dField(longitude, latitude - latitudeStep)
+      const north = sampleHeatmap3dField(longitude, latitude + latitudeStep)
       const light = clamp(0.82 + (west - east) * 1.8 + (south - north) * 1.25, 0.58, 1.2)
       const offset = (row * size + column) * 4
       pixels[offset] = clampByte(red * light)
@@ -91,7 +87,7 @@ function createHeatmapSurfaceGeometry() {
       const longitude =
         heatmap3dRegion.west +
         (column / (gridSize - 1)) * (heatmap3dRegion.east - heatmap3dRegion.west)
-      const value = sampleHeatmap3dFieldAt(longitude, latitude)
+      const value = sampleHeatmap3dField(longitude, latitude)
       const position = Cesium.Cartesian3.fromDegrees(
         longitude,
         latitude,
@@ -140,8 +136,8 @@ function createHeatmapSkirtGeometry() {
   const indices: number[] = []
 
   const addWall = (first: [number, number], second: [number, number]) => {
-    const firstValue = sampleHeatmap3dFieldAt(first[0], first[1])
-    const secondValue = sampleHeatmap3dFieldAt(second[0], second[1])
+    const firstValue = sampleHeatmap3dField(first[0], first[1])
+    const secondValue = sampleHeatmap3dField(second[0], second[1])
     const topFirst = Cesium.Cartesian3.fromDegrees(
       first[0],
       first[1],

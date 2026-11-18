@@ -9,6 +9,8 @@ const RETRY_STORAGE_PREFIX = 'cesium-project:scene-module-retry:'
 const FRESH_RELOAD_PARAM = '__scene_refresh'
 const RESTORE_ROUTE_PARAM = '__scene_route'
 
+export const VISUALIZATION_SCENE_RETRY_KEY = 'visualization-scene'
+
 export const sceneModuleLoaders: Record<FeatureKind, () => Promise<SceneModule>> = {
   amap: () => import('@/components/CesiumGlobe.vue'),
   effects: () => import('@/demos/EffectsDemoGlobe.vue'),
@@ -23,8 +25,8 @@ export const sceneModuleLoaders: Record<FeatureKind, () => Promise<SceneModule>>
   visualization: () => import('@/demos/VisualizationDemoGlobe.vue'),
 }
 
-function getRetryStorageKey(kind: FeatureKind) {
-  return `${RETRY_STORAGE_PREFIX}${kind}`
+function getRetryStorageKey(kind: FeatureKind, retryKey?: string) {
+  return `${RETRY_STORAGE_PREFIX}${retryKey ?? kind}`
 }
 
 export function createFreshReloadUrl(href: string, now = Date.now()) {
@@ -77,14 +79,14 @@ export function isSceneModuleFetchError(error: unknown) {
     return false
   }
 
-  return /(?:failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module|chunkloaderror)/i.test(
+  return /(?:failed to fetch dynamically imported module|importing a module script failed|error loading dynamically imported module|chunkloaderror|does not provide an export named|outdated optimize dep|unable to preload css|failed to resolve module specifier)/i.test(
     `${error.name}: ${error.message}`,
   )
 }
 
-export function clearSceneModuleRetry(feature: { kind: FeatureKind }) {
+export function clearSceneModuleRetry(feature: { kind: FeatureKind }, retryKey?: string) {
   try {
-    window.sessionStorage.removeItem(getRetryStorageKey(feature.kind))
+    window.sessionStorage.removeItem(getRetryStorageKey(feature.kind, retryKey))
   } catch {
     // Storage can be unavailable in privacy modes; the scene itself can still load.
   }
@@ -107,13 +109,14 @@ export function reloadSceneModuleAfterFetchFailure(
     now = Date.now(),
     online = navigator.onLine,
     reload = reloadPageFresh,
-  }: { now?: number; online?: boolean; reload?: () => void } = {},
+    retryKey,
+  }: { now?: number; online?: boolean; reload?: () => void; retryKey?: string } = {},
 ) {
   if (!isSceneModuleFetchError(error) || !online) {
     return false
   }
 
-  const key = getRetryStorageKey(feature.kind)
+  const key = getRetryStorageKey(feature.kind, retryKey)
 
   try {
     const storedAttempt = window.sessionStorage.getItem(key)

@@ -1995,6 +1995,39 @@ test('可视化懒加载模块失效时自动刷新一次并恢复目标场景',
   await expect(page).toHaveURL(/\/visualization\/gis-client\/4-1-1-overlay-analysis$/)
 })
 
+test('可视化场景实现模块失效时自动刷新一次并恢复目标场景', async ({ page }) => {
+  test.setTimeout(90_000)
+  let failedSceneRequest = false
+  const navigations: string[] = []
+
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) {
+      navigations.push(frame.url())
+    }
+  })
+
+  await page.route(/\/src\/demos\/visualization\/heatmapScenes\.ts(?:\?.*)?$/, async (route) => {
+    if (!failedSceneRequest) {
+      failedSceneRequest = true
+      await route.abort('failed')
+      return
+    }
+
+    await route.continue()
+  })
+
+  await page.goto('/visualization/data-visualization/4-2-2-3d-heatmap')
+
+  const dialog = page.getByRole('dialog', { name: '4.2.2、3d热力图' })
+  const globe = dialog.getByTestId('visualization-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-scene-id', '3d-heatmap')
+  await expect(globe.getByText(/192 × 192 网格的三维热力地形/)).toBeVisible()
+  expect(failedSceneRequest).toBe(true)
+  expect(navigations.some((url) => url.includes('__scene_refresh='))).toBe(true)
+  await expect(page).toHaveURL(/\/visualization\/data-visualization\/4-2-2-3d-heatmap$/)
+})
+
 test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应卡片', async ({ page }) => {
   test.setTimeout(180_000)
   const scenes = [

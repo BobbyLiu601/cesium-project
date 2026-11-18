@@ -29,6 +29,16 @@ export default defineConfig({
   optimizeDeps: {
     include: ['cesium'],
   },
+  server: {
+    watch: {
+      // Worktree snapshots may replace files in place; wait for the final write
+      // so Vite cannot cache an empty intermediate transform.
+      awaitWriteFinish: {
+        pollInterval: 50,
+        stabilityThreshold: 300,
+      },
+    },
+  },
   build: {
     manifest: true,
   },

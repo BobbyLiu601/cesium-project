@@ -38,6 +38,8 @@ interface UseDemoGlobeOptions {
   errorStatus: string
   initialStatus: string
   loadScene: (context: DemoSceneContext) => Promise<DemoScene>
+  onSceneReady?: () => void
+  recoverFromLoadError?: (error: unknown) => boolean
   scenePrefix: string
   sceneId: string
 }
@@ -52,6 +54,8 @@ export function useDemoGlobe({
   errorStatus,
   initialStatus,
   loadScene,
+  onSceneReady,
+  recoverFromLoadError,
   scenePrefix,
   sceneId,
 }: UseDemoGlobeOptions) {
@@ -222,6 +226,7 @@ export function useDemoGlobe({
       viewer.resize()
       viewer.scene.requestRender()
       sceneState.value = 'ready'
+      onSceneReady?.()
       scheduleSceneRenders(viewer)
     } catch (error) {
       const aborted = sceneAbortController?.signal.aborted ?? false
@@ -238,6 +243,10 @@ export function useDemoGlobe({
 
       host?.remove()
       if (aborted) {
+        return
+      }
+
+      if (recoverFromLoadError?.(error)) {
         return
       }
 

@@ -77,6 +77,15 @@ async function openElevation(wrapper: Awaited<ReturnType<typeof mountAt>>) {
   await flushPromises()
 }
 
+async function waitForVisualizationReady(wrapper: Awaited<ReturnType<typeof mountAt>>) {
+  await waitForCondition(() => {
+    expect(
+      wrapper.get('[data-testid="visualization-demo-globe"]').attributes('data-cesium-state'),
+    ).toBe('ready')
+  })
+  await flushPromises()
+}
+
 const frameCallbacks: FrameRequestCallback[] = []
 
 describe('App', () => {
@@ -1011,7 +1020,7 @@ describe('App', () => {
     await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
-    await flushPromises()
+    await waitForVisualizationReady(wrapper)
 
     const dialog = wrapper.get('.feature-dialog--visualization')
     const globe = wrapper.get('[data-testid="visualization-demo-globe"]')
@@ -1046,7 +1055,7 @@ describe('App', () => {
     await waitForCondition(() => {
       expect(viewerInstances).toHaveLength(1)
     })
-    await flushPromises()
+    await waitForVisualizationReady(wrapper)
 
     const globe = wrapper.get('[data-testid="visualization-demo-globe"]')
     expect(globe.attributes('data-scene-id')).toBe('3d-heatmap')

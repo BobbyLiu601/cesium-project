@@ -2,6 +2,11 @@
 import { computed, ref } from 'vue'
 import { ElButton } from 'element-plus'
 
+import {
+  clearSceneModuleRetry,
+  reloadSceneModuleAfterFetchFailure,
+  VISUALIZATION_SCENE_RETRY_KEY,
+} from '@/components/sceneModuleLoader'
 import type { VisualizationSceneId } from '@/data/layers'
 import { createVisualizationScene, type VisualizationScene } from '@/demos/visualizationScene'
 import { useDemoGlobe } from '@/demos/useDemoGlobe'
@@ -21,6 +26,12 @@ const { resize, scene, sceneState, statusMessage } = useDemoGlobe({
   initialStatus: '正在准备 Cesium 数据可视化场景…',
   loadScene: ({ viewer, setStatus, signal }) =>
     createVisualizationScene(viewer, props.sceneId, setStatus, { signal }),
+  onSceneReady: () =>
+    clearSceneModuleRetry({ kind: 'visualization' }, VISUALIZATION_SCENE_RETRY_KEY),
+  recoverFromLoadError: (error) =>
+    reloadSceneModuleAfterFetchFailure({ kind: 'visualization' }, error, {
+      retryKey: VISUALIZATION_SCENE_RETRY_KEY,
+    }),
   sceneId: props.sceneId,
   scenePrefix: 'visualization-demo-globe',
 })

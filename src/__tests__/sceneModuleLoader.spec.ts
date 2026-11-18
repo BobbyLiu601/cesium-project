@@ -6,6 +6,7 @@ import {
   isSceneModuleFetchError,
   reloadSceneModuleAfterFetchFailure,
   restoreFreshReloadTarget,
+  VISUALIZATION_SCENE_RETRY_KEY,
 } from '@/components/sceneModuleLoader'
 
 const feature = { id: 'ocean-current', kind: 'visualization' } as const
@@ -23,6 +24,19 @@ describe('scene module loading', () => {
   it('recognizes stale or unreachable dynamic chunks', () => {
     expect(isSceneModuleFetchError(chunkError)).toBe(true)
     expect(isSceneModuleFetchError(new Error('Importing a module script failed.'))).toBe(true)
+    expect(isSceneModuleFetchError(new Error('504 (Outdated Optimize Dep)'))).toBe(true)
+    expect(
+      isSceneModuleFetchError(
+        new SyntaxError(
+          "The requested module '/src/demos/visualization/heatmapScenes.ts' does not provide an export named 'createHeatmap3dScene'",
+        ),
+      ),
+    ).toBe(true)
+    expect(
+      isSceneModuleFetchError(
+        new Error('Unable to preload CSS for /assets/VisualizationDemoGlobe.css'),
+      ),
+    ).toBe(true)
     expect(isSceneModuleFetchError(new Error('Unexpected module evaluation error'))).toBe(false)
   })
 
@@ -105,6 +119,37 @@ describe('scene module loading', () => {
       }),
     ).toBe(false)
     expect(reload).not.toHaveBeenCalled()
+  })
+
+  it('keeps scene implementation retries separate from the host module retry', () => {
+    const reload = vi.fn<() => void>()
+
+    reloadSceneModuleAfterFetchFailure(feature, chunkError, {
+      now: 10_000,
+      online: true,
+      reload,
+    })
+    reload.mockClear()
+
+    expect(
+      reloadSceneModuleAfterFetchFailure(feature, chunkError, {
+        now: 20_000,
+        online: true,
+        reload,
+        retryKey: VISUALIZATION_SCENE_RETRY_KEY,
+      }),
+    ).toBe(true)
+    expect(reload).toHaveBeenCalledOnce()
+
+    clearSceneModuleRetry(feature, VISUALIZATION_SCENE_RETRY_KEY)
+    expect(
+      reloadSceneModuleAfterFetchFailure(feature, chunkError, {
+        now: 30_000,
+        online: true,
+        reload,
+        retryKey: VISUALIZATION_SCENE_RETRY_KEY,
+      }),
+    ).toBe(true)
   })
 
   it('allows another recovery after the retry window and clears it after success', () => {
