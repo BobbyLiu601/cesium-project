@@ -94,6 +94,7 @@ export interface MockEntity {
   properties?: Record<string, { getValue: (time?: unknown) => unknown }>
   polygon?: Record<string, unknown>
   polyline?: Record<string, unknown>
+  rectangle?: Record<string, unknown>
   point?: Record<string, unknown>
   label?: Record<string, unknown>
   billboard?: Record<string, unknown>
@@ -455,6 +456,18 @@ export class PolygonGeometry {
   static fromPositions(options: Record<string, unknown>) {
     return { type: 'PolygonGeometry', options }
   }
+}
+
+export class GeometryAttribute {
+  constructor(public options: Record<string, unknown>) {}
+}
+
+export class GeometryAttributes {
+  constructor(public attributes: Record<string, unknown>) {}
+}
+
+export class Geometry {
+  constructor(public options: Record<string, unknown>) {}
 }
 
 export class PolygonHierarchy {
@@ -930,6 +943,19 @@ export class BoundingSphere {
   static fromPoints(points: unknown[]) {
     return new BoundingSphere(points[0], 0)
   }
+
+  static fromVertices(vertices: number[]) {
+    return new BoundingSphere(vertices.slice(0, 3), 1)
+  }
+}
+
+export const ComponentDatatype = {
+  DOUBLE: 1,
+  FLOAT: 2,
+}
+
+export const PrimitiveType = {
+  TRIANGLES: 1,
 }
 
 export class WebMapTileServiceImageryProvider implements MockTileProvider {

@@ -3,15 +3,18 @@ import { ref } from 'vue'
 
 import {
   createFlowParticleSeeds,
-  FLOW_TRAIL_LENGTH,
   OCEAN_FLOW_SEED,
+  OCEAN_FLOW_TRAIL_LENGTH,
   OCEAN_PARTICLE_COUNT,
   oceanCurrentColors,
   oceanFlowRegion,
   pickStableColor,
+  sampleHeatColor,
   sampleOceanCurrent,
+  sampleOceanCurrentHeat,
   sampleWindField,
   WIND_FLOW_SEED,
+  WIND_FLOW_TRAIL_LENGTH,
   WIND_PARTICLE_COUNT,
   windFieldColors,
   windFlowRegion,
@@ -20,6 +23,7 @@ import {
   type FlowVector,
 } from '@/data/dataVisualization'
 import { framePositions, throwIfAborted } from '@/demos/visualization/shared'
+import { createRgbaPngDataUri } from '@/demos/visualization/texture'
 import type {
   StatusReporter,
   VisualizationAnimationState,
@@ -30,14 +34,17 @@ interface FlowFieldDefinition {
   colors: readonly string[]
   count: number
   height: number
-  label: string
+  idPrefix: string
+  opacity: number
   pausedStatus: string
   playingStatus: string
   region: FlowRegion
   resumedStatus: string
   sample: (longitude: number, latitude: number) => FlowVector
   seed: number
+  speedScale: number
   stepDegrees: number
+  trailLength: number
   trailWidth: number
 }
 
@@ -51,31 +58,84 @@ interface FlowParticle {
 const OCEAN_FIELD: FlowFieldDefinition = {
   colors: oceanCurrentColors,
   count: OCEAN_PARTICLE_COUNT,
-  height: 350,
-  label: '海流',
-  pausedStatus: '海流动画已暂停，可查看当前流向与流速。',
-  playingStatus: '海流场已就绪，96 条确定性流线正在东亚至西太平洋循环。',
+  height: 620,
+  idPrefix: 'ocean-current',
+  opacity: 0.9,
+  pausedStatus: '海流热力图动画已暂停，可查看当前流向与流速。',
+  playingStatus: `海流热力图已就绪，${OCEAN_PARTICLE_COUNT} 条确定性流线正在东亚至西太平洋循环。`,
   region: oceanFlowRegion,
-  resumedStatus: '海流动画继续播放中。',
+  resumedStatus: '海流热力图继续播放中。',
   sample: sampleOceanCurrent,
   seed: OCEAN_FLOW_SEED,
-  stepDegrees: 0.07,
-  trailWidth: 3.2,
+  speedScale: 1.35,
+  stepDegrees: 0.035,
+  trailLength: OCEAN_FLOW_TRAIL_LENGTH,
+  trailWidth: 1.45,
 }
 
 const WIND_FIELD: FlowFieldDefinition = {
   colors: windFieldColors,
   count: WIND_PARTICLE_COUNT,
-  height: 900,
-  label: '风场',
-  pausedStatus: '风场动画已暂停，可查看当前风向与风速。',
-  playingStatus: '风场已就绪，112 条确定性流线正在中国及周边区域循环。',
+  height: 1200,
+  idPrefix: 'wind-field',
+  opacity: 0.82,
+  pausedStatus: '风场流线动画已暂停，可查看当前风向与风速。',
+  playingStatus: `风场流线已就绪，${WIND_PARTICLE_COUNT} 条确定性流线正在中国及周边区域循环。`,
   region: windFlowRegion,
-  resumedStatus: '风场动画继续播放中。',
+  resumedStatus: '风场流线继续播放中。',
   sample: sampleWindField,
   seed: WIND_FLOW_SEED,
-  stepDegrees: 0.08,
-  trailWidth: 2.8,
+  speedScale: 2.1,
+  stepDegrees: 0.022,
+  trailLength: WIND_FLOW_TRAIL_LENGTH,
+  trailWidth: 0.95,
+}
+
+function createOceanHeatmapTexture() {
+  const width = 192
+  const height = 144
+  const pixels = new Uint8Array(width * height * 4)
+
+  for (let row = 0; row < height; row += 1) {
+    const latitude =
+      oceanFlowRegion.north -
+      ((row + 0.5) / height) * (oceanFlowRegion.north - oceanFlowRegion.south)
+
+    for (let column = 0; column < width; column += 1) {
+      const longitude =
+        oceanFlowRegion.west +
+        ((column + 0.5) / width) * (oceanFlowRegion.east - oceanFlowRegion.west)
+      const value = sampleOceanCurrentHeat(longitude, latitude)
+      const [red, green, blue] = sampleHeatColor(value)
+      const offset = (row * width + column) * 4
+      pixels[offset] = red
+      pixels[offset + 1] = green
+      pixels[offset + 2] = blue
+      pixels[offset + 3] = Math.round(45 + value * 185)
+    }
+  }
+
+  return createRgbaPngDataUri(width, height, pixels)
+}
+
+function createOceanHeatmapEntity(viewer: Cesium.Viewer) {
+  return viewer.entities.add({
+    id: 'ocean-current-heatmap',
+    rectangle: {
+      coordinates: Cesium.Rectangle.fromDegrees(
+        oceanFlowRegion.west,
+        oceanFlowRegion.south,
+        oceanFlowRegion.east,
+        oceanFlowRegion.north,
+      ),
+      height: 220,
+      material: new Cesium.ImageMaterialProperty({
+        color: Cesium.Color.WHITE.withAlpha(0.9),
+        image: createOceanHeatmapTexture(),
+        transparent: true,
+      }),
+    },
+  })
 }
 
 function seedTrail(seed: FlowParticleSeed, field: FlowFieldDefinition) {
@@ -83,7 +143,7 @@ function seedTrail(seed: FlowParticleSeed, field: FlowFieldDefinition) {
   let longitude = seed.longitude
   let latitude = seed.latitude
 
-  for (let index = 0; index < FLOW_TRAIL_LENGTH; index += 1) {
+  for (let index = 0; index < field.trailLength; index += 1) {
     trail.unshift([longitude, latitude])
     const vector = field.sample(longitude, latitude)
     longitude -= vector.eastward * field.stepDegrees * 0.8
@@ -111,7 +171,7 @@ function advanceParticle(particle: FlowParticle, field: FlowFieldDefinition) {
   }
 
   particle.trail.push([particle.longitude, particle.latitude])
-  if (particle.trail.length > FLOW_TRAIL_LENGTH) {
+  if (particle.trail.length > field.trailLength) {
     particle.trail.shift()
   }
 }
@@ -146,11 +206,15 @@ function createFlowFieldScene(
   const particles: FlowParticle[] = []
   const entities: Cesium.Entity[] = []
 
+  if (field.idPrefix === 'ocean-current') {
+    entities.push(createOceanHeatmapEntity(viewer))
+  }
+
   for (const seed of seeds) {
     const vector = field.sample(seed.longitude, seed.latitude)
     const color = Cesium.Color.fromCssColorString(
-      pickStableColor(vector.speed / 1.15, field.colors),
-    ).withAlpha(0.94)
+      pickStableColor(vector.speed / field.speedScale, field.colors),
+    ).withAlpha(field.opacity)
     const trail = seedTrail(seed, field)
     const particle: FlowParticle = {
       latitude: seed.latitude,
@@ -162,7 +226,7 @@ function createFlowFieldScene(
 
     entities.push(
       viewer.entities.add({
-        id: `${field.label}-flow-${particles.length - 1}`,
+        id: `${field.idPrefix}-flow-${particles.length - 1}`,
         polyline: {
           positions: new Cesium.CallbackProperty(
             () => toPositions(particle.trail, field.height),
@@ -175,7 +239,13 @@ function createFlowFieldScene(
     )
   }
 
-  framePositions(viewer, createFlowRegionPositions(field.region, field.height), 0, -62, 1.6)
+  framePositions(
+    viewer,
+    createFlowRegionPositions(field.region, field.height),
+    field.idPrefix === 'wind-field' ? -10 : 0,
+    field.idPrefix === 'wind-field' ? -38 : -66,
+    field.idPrefix === 'wind-field' ? 1.25 : 1.2,
+  )
   setStatus(field.playingStatus)
 
   const animationState = ref<VisualizationAnimationState>('playing')

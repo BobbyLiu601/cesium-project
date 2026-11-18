@@ -1960,14 +1960,14 @@ test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应
 })
 
 test('四个数据可视化深链可打开、暂停动态场景并在关闭后返回对应卡片', async ({ page }) => {
-  test.setTimeout(240_000)
+  test.setTimeout(360_000)
   const scenes = [
     {
       animated: true,
       featureId: 'ocean-current',
       id: 'ocean-current',
       route: '/visualization/data-visualization/4-2-1-ocean-current',
-      status: /96 条确定性流线.*东亚至西太平洋/,
+      status: /260 条确定性流线.*东亚至西太平洋/,
       title: '4.2.1、海流',
     },
     {
@@ -1976,7 +1976,7 @@ test('四个数据可视化深链可打开、暂停动态场景并在关闭后�
       id: '3d-heatmap',
       legend: '三维热力强度',
       route: '/visualization/data-visualization/4-2-2-3d-heatmap',
-      status: /384 个固定热力网格柱体/,
+      status: /96 × 96 网格的三维热力地形/,
       title: '4.2.2、3d热力图',
     },
     {
@@ -1984,7 +1984,7 @@ test('四个数据可视化深链可打开、暂停动态场景并在关闭后�
       featureId: 'wind-field',
       id: 'wind-field',
       route: '/visualization/data-visualization/4-2-3-wind-field',
-      status: /112 条确定性流线.*中国及周边区域/,
+      status: /900 条确定性流线.*中国及周边区域/,
       title: '4.2.3、风场',
     },
     {
@@ -1993,7 +1993,7 @@ test('四个数据可视化深链可打开、暂停动态场景并在关闭后�
       id: 'honeycomb-heatmap',
       legend: '蜂窝热力强度',
       route: '/visualization/data-visualization/4-2-4-honeycomb-heatmap',
-      status: /150 个固定六边形蜂窝单元/,
+      status: /40 × 40 个固定网格热力单元/,
       title: '4.2.4、蜂窝热力图',
     },
   ] as const
