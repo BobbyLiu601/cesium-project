@@ -1,7 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { featuredRoutes } from '../data/layers'
+import { restoreFreshReloadTarget } from '../components/sceneModuleLoader'
 import NotFoundView from '../views/NotFoundView.vue'
 import ShowcaseView from '../views/ShowcaseView.vue'
+
+restoreFreshReloadTarget()
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),

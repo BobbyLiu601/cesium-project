@@ -5,6 +5,7 @@ import {
   createFreshReloadUrl,
   isSceneModuleFetchError,
   reloadSceneModuleAfterFetchFailure,
+  restoreFreshReloadTarget,
 } from '@/components/sceneModuleLoader'
 
 const feature = { id: 'ocean-current', kind: 'visualization' } as const
@@ -39,14 +40,31 @@ describe('scene module loading', () => {
   })
 
   it('builds a cache-busting reload URL without losing the current route', () => {
-    expect(
+    const reloadUrl = new URL(
       createFreshReloadUrl(
-        'https://example.test/cesium-project/visualization/data-visualization/4-2-1-ocean-current?source=card&__scene_refresh=old#legend',
+        'https://example.test/visualization/data-visualization/4-2-1-ocean-current?source=card&__scene_refresh=old#legend',
         123,
       ),
-    ).toBe(
-      'https://example.test/cesium-project/visualization/data-visualization/4-2-1-ocean-current?source=card&__scene_refresh=123#legend',
     )
+
+    expect(reloadUrl.pathname).toBe('/index.html')
+    expect(reloadUrl.searchParams.get('__scene_refresh')).toBe('123')
+    expect(reloadUrl.searchParams.get('__scene_route')).toBe(
+      '/visualization/data-visualization/4-2-1-ocean-current?source=card#legend',
+    )
+  })
+
+  it('restores the scene route before the router reads the fresh index URL', () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/index.html?__scene_refresh=123&__scene_route=%2Fvisualization%2Fdata-visualization%2F4-2-1-ocean-current%3Fsource%3Dcard%23legend',
+    )
+
+    expect(restoreFreshReloadTarget()).toBe(true)
+    expect(window.location.pathname).toBe('/visualization/data-visualization/4-2-1-ocean-current')
+    expect(window.location.search).toBe('?source=card')
+    expect(window.location.hash).toBe('#legend')
   })
 
   it('does not enter a reload loop when the chunk still cannot be fetched', () => {

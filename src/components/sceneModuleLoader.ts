@@ -7,6 +7,7 @@ type SceneModule = { default: Component }
 const RETRY_WINDOW_MS = 30_000
 const RETRY_STORAGE_PREFIX = 'cesium-project:scene-module-retry:'
 const FRESH_RELOAD_PARAM = '__scene_refresh'
+const RESTORE_ROUTE_PARAM = '__scene_route'
 
 export const sceneModuleLoaders: Record<FeatureKind, () => Promise<SceneModule>> = {
   amap: () => import('@/components/CesiumGlobe.vue'),
@@ -27,9 +28,44 @@ function getRetryStorageKey(kind: FeatureKind) {
 }
 
 export function createFreshReloadUrl(href: string, now = Date.now()) {
-  const url = new URL(href)
-  url.searchParams.set(FRESH_RELOAD_PARAM, String(now))
-  return url.toString()
+  const currentUrl = new URL(href)
+  const targetUrl = new URL(currentUrl)
+  targetUrl.searchParams.delete(FRESH_RELOAD_PARAM)
+  targetUrl.searchParams.delete(RESTORE_ROUTE_PARAM)
+
+  const refreshUrl = new URL(`${import.meta.env.BASE_URL}index.html`, currentUrl.origin)
+  refreshUrl.searchParams.set(FRESH_RELOAD_PARAM, String(now))
+  refreshUrl.searchParams.set(
+    RESTORE_ROUTE_PARAM,
+    `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`,
+  )
+  return refreshUrl.toString()
+}
+
+export function restoreFreshReloadTarget() {
+  try {
+    const currentUrl = new URL(window.location.href)
+    const target = currentUrl.searchParams.get(RESTORE_ROUTE_PARAM)
+    if (!target) {
+      return false
+    }
+
+    const targetUrl = new URL(target, currentUrl.origin)
+    const baseUrl = new URL(import.meta.env.BASE_URL, currentUrl.origin)
+    if (
+      targetUrl.origin !== currentUrl.origin ||
+      !targetUrl.pathname.startsWith(baseUrl.pathname)
+    ) {
+      return false
+    }
+
+    targetUrl.searchParams.delete(FRESH_RELOAD_PARAM)
+    targetUrl.searchParams.delete(RESTORE_ROUTE_PARAM)
+    window.history.replaceState(window.history.state, '', targetUrl)
+    return true
+  } catch {
+    return false
+  }
 }
 
 export function reloadPageFresh() {

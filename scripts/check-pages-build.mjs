@@ -295,6 +295,21 @@ async function validateBrowserBehavior(origin, basePath) {
         `可视化懒加载恢复没有使用缓存绕过地址：${navigations.join(', ')}`,
       )
     }
+    if (
+      !navigations.some((url) => {
+        const navigation = new URL(url)
+        return (
+          navigation.pathname === `${basePath}index.html` &&
+          navigation.searchParams.has('__scene_route')
+        )
+      })
+    ) {
+      addFailure(
+        failures,
+        'visualization-fresh-shell-missing',
+        `可视化懒加载恢复没有导航到全新入口页：${navigations.join(', ')}`,
+      )
+    }
     if (new URL(page.url()).searchParams.has('__scene_refresh')) {
       addFailure(
         failures,

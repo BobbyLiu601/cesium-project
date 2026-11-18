@@ -1986,6 +1986,12 @@ test('可视化懒加载模块失效时自动刷新一次并恢复目标场景',
   await expect(globe).toHaveAttribute('data-scene-id', 'overlay-analysis')
   expect(failedChunkRequest).toBe(true)
   expect(navigations.some((url) => url.includes('__scene_refresh='))).toBe(true)
+  expect(
+    navigations.some((url) => {
+      const navigation = new URL(url)
+      return navigation.pathname === '/index.html' && navigation.searchParams.has('__scene_route')
+    }),
+  ).toBe(true)
   await expect(page).toHaveURL(/\/visualization\/gis-client\/4-1-1-overlay-analysis$/)
 })
 
