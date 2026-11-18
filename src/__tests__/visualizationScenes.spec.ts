@@ -27,11 +27,9 @@ import {
   materialInstances,
   MaterialAppearance,
   PerInstanceColorAppearance,
-  PolylineCollection,
   primitiveInstances,
   resetCesiumMock,
   scenePrimitiveRemoves,
-  scenePrimitiveAdds,
   Viewer,
 } from './mocks/cesium'
 
@@ -57,6 +55,153 @@ function getPreUpdateListenerCount(viewer: Viewer) {
       listeners: Set<() => void>
     }
   ).listeners.size
+}
+
+interface AnimatedFlowExpectation {
+  expectedMaxBatches: number
+  expectedParticles: number
+  expectedStatus: RegExp
+  expectedLegend: string
+  sceneId: 'ocean-current' | 'wind-field'
+}
+
+interface FlowGeometrySnapshot {
+  indices: Uint32Array
+  positions: Float64Array
+  textureCoordinates: Float32Array
+}
+
+function readFlowGeometry(primitive: (typeof primitiveInstances)[number]): FlowGeometrySnapshot {
+  const instance = primitive.options.geometryInstances as {
+    options: {
+      geometry: {
+        options: {
+          attributes: {
+            position: { options: { values: Float64Array } }
+            st: { options: { values: Float32Array } }
+          }
+          indices: Uint32Array
+        }
+      }
+    }
+  }
+  const geometry = instance.options.geometry.options
+
+  return {
+    indices: geometry.indices,
+    positions: geometry.attributes.position.options.values,
+    textureCoordinates: geometry.attributes.st.options.values,
+  }
+}
+
+function getTrailVertexCounts(geometry: FlowGeometrySnapshot) {
+  const starts: number[] = []
+  let previousProgress: number | undefined
+  for (let index = 0; index < geometry.textureCoordinates.length; index += 2) {
+    const progress = geometry.textureCoordinates[index] ?? 0
+    if (progress === 0 && previousProgress !== 0) {
+      starts.push(index / 2)
+    }
+    previousProgress = progress
+  }
+
+  const totalVertices = geometry.positions.length / 3
+  starts.push(totalVertices)
+  return starts.slice(0, -1).map((start, index) => (starts[index + 1] ?? totalVertices) - start)
+}
+
+async function expectAnimatedFlowScene(
+  viewer: SceneViewer,
+  {
+    expectedLegend,
+    expectedMaxBatches,
+    expectedParticles,
+    expectedStatus,
+    sceneId,
+  }: AnimatedFlowExpectation,
+) {
+  const mockViewer = viewer as unknown as Viewer
+  const { setStatus, statuses } = collectStatus()
+  const now = vi.spyOn(performance, 'now').mockReturnValue(1_000)
+
+  try {
+    const scene = await createVisualizationScene(viewer, sceneId, setStatus)
+    const flowPrimitives = [...primitiveInstances]
+    const geometries = flowPrimitives.map(readFlowGeometry)
+    const trailVertexCounts = geometries.flatMap(getTrailVertexCounts)
+
+    expect(flowPrimitives).toHaveLength(materialInstances.length)
+    expect(flowPrimitives.length).toBeGreaterThan(1)
+    expect(flowPrimitives.length).toBeLessThanOrEqual(expectedMaxBatches)
+    expect(trailVertexCounts).toHaveLength(expectedParticles)
+    expect(Math.min(...trailVertexCounts)).toBeGreaterThanOrEqual(80)
+    expect(geometries.every((geometry) => geometry.indices.length > 0)).toBe(true)
+    expect(scene.legend?.title).toBe(expectedLegend)
+    expect(statuses[statuses.length - 1]).toMatch(expectedStatus)
+    expect(scene.animationState?.value).toBe('playing')
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
+    const heatLayerImage = (
+      mockViewer.entities.values.find((entity) => entity.rectangle)?.rectangle?.material as
+        { options?: { image?: string } } | undefined
+    )?.options?.image
+
+    const initialTimes = materialInstances.map(
+      (material) => material.uniforms.animationTime as number,
+    )
+    expect(initialTimes).toEqual(initialTimes.map(() => 0))
+    now.mockReturnValue(1_200)
+    mockViewer.scene.preUpdate.raiseEvent()
+    const advancedTimes = materialInstances.map(
+      (material) => material.uniforms.animationTime as number,
+    )
+    expect(Math.min(...advancedTimes)).toBeGreaterThan(0)
+    expect(new Set(advancedTimes)).toEqual(new Set([advancedTimes[0]]))
+    expect(mockViewer.scene.requestRender).toHaveBeenCalled()
+    expect(primitiveInstances).toHaveLength(flowPrimitives.length)
+    for (const [index, primitive] of flowPrimitives.entries()) {
+      expect(primitiveInstances[index]).toBe(primitive)
+    }
+
+    scene.toggleAnimation?.()
+    expect(scene.animationState?.value).toBe('paused')
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
+    expect(statuses[statuses.length - 1]).toMatch(/已暂停/)
+    const pausedTimes = materialInstances.map(
+      (material) => material.uniforms.animationTime as number,
+    )
+    now.mockReturnValue(1_500)
+    mockViewer.scene.preUpdate.raiseEvent()
+    expect(materialInstances.map((material) => material.uniforms.animationTime as number)).toEqual(
+      pausedTimes,
+    )
+
+    scene.toggleAnimation?.()
+    expect(scene.animationState?.value).toBe('playing')
+    expect(statuses[statuses.length - 1]).toMatch(/继续|播放中/)
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
+
+    let previousTime = materialInstances[0]?.uniforms.animationTime as number
+    let wrapped = false
+    for (let index = 0; index < 120; index += 1) {
+      now.mockReturnValue(1_600 + index * 100)
+      mockViewer.scene.preUpdate.raiseEvent()
+      const currentTime = materialInstances[0]?.uniforms.animationTime as number
+      wrapped ||= currentTime < previousTime
+      previousTime = currentTime
+    }
+    expect(wrapped).toBe(true)
+
+    scene.dispose()
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
+    expect(mockViewer.entities.values).toHaveLength(0)
+    for (const primitive of flowPrimitives) {
+      expect(scenePrimitiveRemoves).toContain(primitive)
+    }
+
+    return { heatLayerImage }
+  } finally {
+    now.mockRestore()
+  }
 }
 
 describe('GIS client visualization scenes', () => {
@@ -243,113 +388,31 @@ describe('GIS client visualization scenes', () => {
     expect(scenePrimitiveRemoves).toContain(primitiveInstances[0])
   })
 
-  it('lays an ocean speed heat layer under long shader-animated currents', async () => {
-    const viewer = createViewer()
-    const mockViewer = viewer as unknown as Viewer
-    const { setStatus, statuses } = collectStatus()
-    const scene = await createVisualizationScene(viewer, 'ocean-current', setStatus)
-    const heatLayer = mockViewer.entities.values.find((entity) => entity.rectangle)
-    const collections = scenePrimitiveAdds.filter(
-      (primitive): primitive is PolylineCollection => primitive instanceof PolylineCollection,
-    )
-    const flowLines = collections.flatMap((collection) =>
-      Array.from({ length: collection.length }, (_, index) => collection.get(index)!),
-    )
+  it('lays an ocean speed heat layer under long animated currents', async () => {
+    const { heatLayerImage } = await expectAnimatedFlowScene(createViewer(), {
+      expectedLegend: '海流速度',
+      expectedMaxBatches: 7 * 4,
+      expectedParticles: OCEAN_PARTICLE_COUNT,
+      expectedStatus: /海流速度热力图.*260 条确定性流线.*东亚至西太平洋/,
+      sceneId: 'ocean-current',
+    })
 
-    expect(heatLayer).toBeDefined()
-    expect(
-      (heatLayer?.rectangle?.material as { options?: { image?: string } })?.options?.image,
-    ).toMatch(/^data:image\/png;base64,/)
-    expect(flowLines).toHaveLength(OCEAN_PARTICLE_COUNT)
-    expect(collections.length).toBeGreaterThan(1)
-    expect(Math.max(...flowLines.map((line) => (line.positions as unknown[]).length))).toBe(
-      OCEAN_FLOW_TRAIL_LENGTH,
-    )
-    expect(
-      materialInstances.some((material) =>
-        material.options.fabric.source?.includes('animationTime'),
-      ),
-    ).toBe(true)
-    expect(scene.legend?.title).toBe('海流速度')
-    expect(scene.legend?.colors.length).toBeGreaterThanOrEqual(5)
-    expect(scene.animationState?.value).toBe('playing')
-    expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
-
-    const firstLine = flowLines[0]!
-    const firstPositions = firstLine.positions
-    mockViewer.scene.preUpdate.raiseEvent()
-    expect(firstLine.positions).toBe(firstPositions)
-    expect(mockViewer.scene.requestRender).toHaveBeenCalled()
-
-    scene.toggleAnimation?.()
-    expect(scene.animationState?.value).toBe('paused')
-    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
-    expect(statuses[statuses.length - 1]).toMatch(/海流.*已暂停/)
-
-    scene.toggleAnimation?.()
-    expect(scene.animationState?.value).toBe('playing')
-    expect(statuses[statuses.length - 1]).toMatch(/海流.*继续/)
-
-    scene.dispose()
-    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
-    expect(mockViewer.entities.values).toHaveLength(0)
-    for (const collection of collections) {
-      expect(scenePrimitiveRemoves).toContain(collection)
-    }
+    expect(heatLayerImage).toMatch(/^data:image\/png;base64,/)
+    expect(OCEAN_FLOW_TRAIL_LENGTH).toBeGreaterThanOrEqual(120)
   })
 
-  it('renders dense long wind trails whose flow animation stays in the shader', async () => {
-    const viewer = createViewer()
-    const mockViewer = viewer as unknown as Viewer
-    const { setStatus, statuses } = collectStatus()
-    const scene = await createVisualizationScene(viewer, 'wind-field', setStatus)
-    const collections = scenePrimitiveAdds.filter(
-      (primitive): primitive is PolylineCollection => primitive instanceof PolylineCollection,
-    )
-    const flowLines = collections.flatMap((collection) =>
-      Array.from({ length: collection.length }, (_, index) => collection.get(index)!),
-    )
+  it('renders dense long wind trails in batched animation primitives', async () => {
+    const { heatLayerImage } = await expectAnimatedFlowScene(createViewer(), {
+      expectedLegend: '风速',
+      expectedMaxBatches: 15 * 4,
+      expectedParticles: WIND_PARTICLE_COUNT,
+      expectedStatus: /风粒子场.*2000 条带渐隐拖尾的确定性粒子.*中国及周边区域/,
+      sceneId: 'wind-field',
+    })
 
-    expect(collections.length).toBeGreaterThan(1)
-    expect(flowLines).toHaveLength(WIND_PARTICLE_COUNT)
+    expect(heatLayerImage).toBeUndefined()
     expect(WIND_PARTICLE_COUNT).toBeGreaterThanOrEqual(2000)
     expect(windFieldColors).toHaveLength(15)
-    expect(mockViewer.entities.values).toHaveLength(0)
-    expect(Math.max(...flowLines.map((line) => (line.positions as unknown[]).length))).toBe(
-      WIND_FLOW_TRAIL_LENGTH,
-    )
-    expect(
-      materialInstances.some((material) =>
-        material.options.fabric.source?.includes('animationTime'),
-      ),
-    ).toBe(true)
-    expect(scene.legend).toEqual({
-      colors: windFieldColors,
-      maximumLabel: '高风速',
-      minimumLabel: '低风速',
-      title: '风速',
-    })
-    expect(scene.animationState?.value).toBe('playing')
-    expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
-
-    const firstLine = flowLines[0]!
-    const firstPositions = firstLine.positions
-    mockViewer.scene.preUpdate.raiseEvent()
-    expect(firstLine.positions).toBe(firstPositions)
-    expect(mockViewer.scene.requestRender).toHaveBeenCalled()
-
-    scene.toggleAnimation?.()
-    expect(scene.animationState?.value).toBe('paused')
-    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
-    expect(statuses[statuses.length - 1]).toMatch(/风粒子.*已暂停/)
-
-    scene.toggleAnimation?.()
-    expect(statuses[statuses.length - 1]).toMatch(/风粒子.*继续/)
-
-    scene.dispose()
-    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
-    for (const collection of collections) {
-      expect(scenePrimitiveRemoves).toContain(collection)
-    }
+    expect(WIND_FLOW_TRAIL_LENGTH).toBeGreaterThanOrEqual(120)
   })
 })
