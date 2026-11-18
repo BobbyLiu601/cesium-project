@@ -12,6 +12,11 @@ import {
 import { ElButton, ElDialog } from 'element-plus'
 import { FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 
+import {
+  clearSceneModuleRetry,
+  reloadSceneModuleAfterFetchFailure,
+  sceneModuleLoaders,
+} from '@/components/sceneModuleLoader'
 import { disposeActiveSession } from '@/components/cesiumGlobeSession'
 import type { FeatureItem, FeatureKind } from '@/data/layers'
 
@@ -40,20 +45,6 @@ const scenePropResolvers: Partial<
   vector: (feature) => (feature.sceneId ? { sceneId: feature.sceneId } : {}),
   visualization: (feature) =>
     feature.visualizationSceneId ? { sceneId: feature.visualizationSceneId } : {},
-}
-
-const sceneModuleLoaders: Record<FeatureKind, () => Promise<{ default: Component }>> = {
-  amap: () => import('@/components/CesiumGlobe.vue'),
-  effects: () => import('@/demos/EffectsDemoGlobe.vue'),
-  elevation: () => import('@/components/ElevationGlobe.vue'),
-  model: () => import('@/demos/ModelDemoGlobe.vue'),
-  particles: () => import('@/demos/ParticleDemoGlobe.vue'),
-  spatial: () => import('@/demos/SpatialDemoGlobe.vue'),
-  'special-shapes': () => import('@/demos/SpecialShapesDemoGlobe.vue'),
-  'physics-engine': () => import('@/demos/PhysicsDemoGlobe.vue'),
-  tianditu: () => import('@/components/CesiumGlobe.vue'),
-  vector: () => import('@/demos/VectorDemoGlobe.vue'),
-  visualization: () => import('@/demos/VisualizationDemoGlobe.vue'),
 }
 
 const sceneRef = ref<{ resize: () => void } | null>(null)
@@ -85,8 +76,13 @@ async function loadScene() {
       const module = await sceneModuleLoaders[props.feature.kind]()
 
       loadedSceneComponent = markRaw(module.default)
+      clearSceneModuleRetry(props.feature)
       sceneReady.value = true
     } catch (error) {
+      if (reloadSceneModuleAfterFetchFailure(props.feature, error)) {
+        return
+      }
+
       loadFailed.value = true
       console.error(`Cesium 示例模块加载失败：${props.feature.name}`, error)
     } finally {
@@ -101,6 +97,11 @@ async function toggleFullscreen() {
   isFullscreen.value = !isFullscreen.value
   await nextTick()
   sceneRef.value?.resize()
+}
+
+function reloadScene() {
+  clearSceneModuleRetry(props.feature)
+  window.location.reload()
 }
 
 function handleBeforeClose(done: () => void) {
@@ -165,7 +166,8 @@ onBeforeUnmount(disposeActiveSession)
         v-bind="sceneProps"
       />
       <div v-else-if="loadFailed" class="feature-dialog__error" role="alert">
-        示例场景加载失败，请关闭后重试。
+        <span>示例场景加载失败，请重新加载页面。</span>
+        <ElButton type="primary" size="small" @click="reloadScene">重新加载页面</ElButton>
       </div>
       <div v-else class="feature-dialog__loading" aria-live="polite">正在加载示例…</div>
     </div>
@@ -260,7 +262,13 @@ onBeforeUnmount(disposeActiveSession)
 }
 
 .feature-dialog__error {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
   color: #ffd4d7;
+  text-align: center;
 }
 
 @media (max-width: 767px) {

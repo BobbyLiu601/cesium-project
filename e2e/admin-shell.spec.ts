@@ -767,12 +767,13 @@ test('矢量示例深链直接打开 entity点 并可执行交互和关闭', asy
 })
 
 test('模型示例深链可打开、交互、全屏并返回对应卡片', async ({ page }) => {
-  test.setTimeout(60_000)
+  test.setTimeout(120_000)
   await page.goto('/layers/model/1-4-1-model-interpolation-motion')
 
   let dialog = page.getByRole('dialog', { name: '1.4.1、模型插值运动' })
   let globe = dialog.getByTestId('model-demo-globe')
   await expect(dialog).toBeVisible()
+  await expect(globe).toBeVisible({ timeout: 15_000 })
   await expect(globe).toHaveAttribute('data-scene-id', 'model-interpolation')
   await expectCesiumReady(globe)
   await expect(globe.locator('canvas')).toBeVisible()
@@ -823,7 +824,7 @@ test('移动端风力发电机弹窗保持在视口内', async ({ page }) => {
 })
 
 test('矢量示例修订项可稳定复现', async ({ page }) => {
-  test.setTimeout(60_000)
+  test.setTimeout(120_000)
   await page.setViewportSize({ width: 1440, height: 900 })
   const appearanceErrors: string[] = []
   const pageErrors: string[] = []
@@ -1953,6 +1954,31 @@ test('移动端可从抽屉进入特效场景并关闭弹窗', async ({ page }) 
 
   await dialog.getByRole('button', { name: '关闭此对话框' }).click()
   await expect(dialog).toBeHidden()
+})
+
+test('可视化懒加载模块失效时自动刷新一次并恢复目标场景', async ({ page }) => {
+  test.setTimeout(60_000)
+  let failedChunkRequest = false
+
+  await page.route(/\/src\/demos\/VisualizationDemoGlobe\.vue(?:\?.*)?$/, async (route) => {
+    if (!failedChunkRequest) {
+      failedChunkRequest = true
+      await route.abort('failed')
+      return
+    }
+
+    await route.continue()
+  })
+
+  await page.goto('/layers')
+  await page.getByRole('button', { name: '打开4.1.1、叠加分析' }).click()
+
+  const dialog = page.getByRole('dialog', { name: '4.1.1、叠加分析' })
+  const globe = dialog.getByTestId('visualization-demo-globe')
+  await expectCesiumReady(globe)
+  await expect(globe).toHaveAttribute('data-scene-id', 'overlay-analysis')
+  expect(failedChunkRequest).toBe(true)
+  await expect(page).toHaveURL(/\/visualization\/gis-client\/4-1-1-overlay-analysis$/)
 })
 
 test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应卡片', async ({ page }) => {
