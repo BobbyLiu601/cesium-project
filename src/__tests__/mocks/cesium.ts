@@ -502,6 +502,7 @@ export class PolylineCollection {
   readonly polylines: Polyline[] = []
   modelMatrix: unknown
   show = true
+  destroyed = false
 
   constructor(options: Record<string, unknown> = {}) {
     this.modelMatrix = options.modelMatrix
@@ -533,6 +534,13 @@ export class PolylineCollection {
   removeAll() {
     this.polylines.length = 0
   }
+
+  destroy = vi.fn<() => void>(() => {
+    this.destroyed = true
+    this.polylines.length = 0
+  })
+
+  isDestroyed = vi.fn<() => boolean>(() => this.destroyed)
 }
 
 export class RectangleGeometry {
@@ -1134,6 +1142,9 @@ export class Material implements MockMaterial {
 
 export class MaterialAppearance {
   static MaterialSupport = {
+    BASIC: {
+      vertexFormat: {},
+    },
     TEXTURED: {
       vertexFormat: {},
     },

@@ -9,6 +9,7 @@ import {
   oceanCurrentColors,
   oceanFlowRegion,
   pickStableColor,
+  pickStableColorIndex,
   sampleHeatColor,
   sampleOceanCurrent,
   sampleOceanCurrentHeat,
@@ -16,6 +17,8 @@ import {
   WIND_FLOW_SEED,
   WIND_FLOW_TRAIL_LENGTH,
   WIND_PARTICLE_COUNT,
+  WIND_PARTICLE_MAX_AGE,
+  WIND_TRAIL_FADE_STEPS,
   windFieldColors,
   windFlowRegion,
   type FlowParticleSeed,
@@ -27,6 +30,7 @@ import { createRgbaPngDataUri } from '@/demos/visualization/texture'
 import type {
   StatusReporter,
   VisualizationAnimationState,
+  VisualizationLegend,
   VisualizationScene,
 } from '@/demos/visualization/types'
 
@@ -34,8 +38,7 @@ interface FlowFieldDefinition {
   colors: readonly string[]
   count: number
   height: number
-  idPrefix: string
-  opacity: number
+  legend: VisualizationLegend
   pausedStatus: string
   playingStatus: string
   region: FlowRegion
@@ -55,16 +58,26 @@ interface FlowParticle {
   trail: Array<[longitude: number, latitude: number]>
 }
 
+interface WindParticle extends FlowParticle {
+  colorIndex: number
+  fadeStep: number
+  remaining: number
+}
+
 const OCEAN_FIELD: FlowFieldDefinition = {
   colors: oceanCurrentColors,
   count: OCEAN_PARTICLE_COUNT,
   height: 620,
-  idPrefix: 'ocean-current',
-  opacity: 0.9,
-  pausedStatus: '海流热力图动画已暂停，可查看当前流向与流速。',
-  playingStatus: `海流热力图已就绪，${OCEAN_PARTICLE_COUNT} 条确定性流线正在东亚至西太平洋循环。`,
+  legend: {
+    colors: oceanCurrentColors,
+    maximumLabel: '高流速',
+    minimumLabel: '低流速',
+    title: '海流速度',
+  },
+  pausedStatus: '海流速度热力图动画已暂停，可查看当前流向与流速。',
+  playingStatus: `海流速度热力图已就绪，${OCEAN_PARTICLE_COUNT} 条确定性流线正在东亚至西太平洋循环。`,
   region: oceanFlowRegion,
-  resumedStatus: '海流热力图继续播放中。',
+  resumedStatus: '海流速度热力图继续播放中。',
   sample: sampleOceanCurrent,
   seed: OCEAN_FLOW_SEED,
   speedScale: 1.35,
@@ -77,23 +90,29 @@ const WIND_FIELD: FlowFieldDefinition = {
   colors: windFieldColors,
   count: WIND_PARTICLE_COUNT,
   height: 1200,
-  idPrefix: 'wind-field',
-  opacity: 0.82,
-  pausedStatus: '风场流线动画已暂停，可查看当前风向与风速。',
-  playingStatus: `风场流线已就绪，${WIND_PARTICLE_COUNT} 条确定性流线正在中国及周边区域循环。`,
+  legend: {
+    colors: windFieldColors,
+    maximumLabel: '高风速',
+    minimumLabel: '低风速',
+    title: '风速',
+  },
+  pausedStatus: '风粒子动画已暂停，可查看当前风速色带与长尾轨迹。',
+  playingStatus: `风粒子场已就绪，${WIND_PARTICLE_COUNT} 条带渐隐拖尾的确定性粒子正在中国及周边区域循环。`,
   region: windFlowRegion,
-  resumedStatus: '风场流线继续播放中。',
+  resumedStatus: '风粒子动画继续播放中。',
   sample: sampleWindField,
   seed: WIND_FLOW_SEED,
-  speedScale: 2.1,
-  stepDegrees: 0.022,
+  speedScale: 1.15,
+  stepDegrees: 0.05,
   trailLength: WIND_FLOW_TRAIL_LENGTH,
-  trailWidth: 0.95,
+  trailWidth: 1.05,
 }
 
+const WIND_FADE_ALPHAS = [0.92, 0.68, 0.43, 0.18] as const
+
 function createOceanHeatmapTexture() {
-  const width = 192
-  const height = 144
+  const width = 256
+  const height = 192
   const pixels = new Uint8Array(width * height * 4)
 
   for (let row = 0; row < height; row += 1) {
@@ -111,7 +130,7 @@ function createOceanHeatmapTexture() {
       pixels[offset] = red
       pixels[offset + 1] = green
       pixels[offset + 2] = blue
-      pixels[offset + 3] = Math.round(45 + value * 185)
+      pixels[offset + 3] = Math.round(34 + value * 202)
     }
   }
 
@@ -130,7 +149,7 @@ function createOceanHeatmapEntity(viewer: Cesium.Viewer) {
       ),
       height: 220,
       material: new Cesium.ImageMaterialProperty({
-        color: Cesium.Color.WHITE.withAlpha(0.9),
+        color: Cesium.Color.WHITE,
         image: createOceanHeatmapTexture(),
         transparent: true,
       }),
@@ -167,13 +186,39 @@ function advanceParticle(particle: FlowParticle, field: FlowFieldDefinition) {
     particle.longitude = particle.seed.longitude
     particle.latitude = particle.seed.latitude
     particle.trail = seedTrail(particle.seed, field)
-    return
+    return field.sample(particle.seed.longitude, particle.seed.latitude).speed
   }
 
   particle.trail.push([particle.longitude, particle.latitude])
   if (particle.trail.length > field.trailLength) {
     particle.trail.shift()
   }
+
+  return vector.speed
+}
+
+function advanceWindParticle(particle: WindParticle, field: FlowFieldDefinition) {
+  particle.remaining -= 1
+  const speed = advanceParticle(particle, field)
+  if (particle.remaining > 0) {
+    return speed
+  }
+
+  resetWindParticle(particle, field)
+  return field.sample(particle.seed.longitude, particle.seed.latitude).speed
+}
+
+function resetWindParticle(particle: WindParticle, field: FlowFieldDefinition) {
+  particle.longitude = particle.seed.longitude
+  particle.latitude = particle.seed.latitude
+  particle.trail = seedTrail(particle.seed, field)
+  particle.remaining = windParticleLifetime(particle.seed)
+}
+
+function windParticleLifetime(seed: FlowParticleSeed) {
+  return Math.round(
+    WIND_FLOW_TRAIL_LENGTH + seed.phase * (WIND_PARTICLE_MAX_AGE - WIND_FLOW_TRAIL_LENGTH),
+  )
 }
 
 function toPositions(trail: Array<[number, number]>, height: number) {
@@ -191,10 +236,28 @@ function createFlowRegionPositions(region: FlowRegion, height: number) {
   ]
 }
 
-function createFlowFieldScene(
+function createWindMaterial(color: string, alpha: number) {
+  return new Cesium.Material({
+    fabric: {
+      type: 'PolylineGlow',
+      uniforms: {
+        color: Cesium.Color.fromCssColorString(color).withAlpha(alpha),
+        glowPower: 0.16,
+        taperPower: 0.48,
+      },
+    },
+    translucent: true,
+  })
+}
+
+function windFadeStep(remaining: number) {
+  const normalized = Math.min(0.999_999, Math.max(0, 1 - remaining / WIND_PARTICLE_MAX_AGE))
+  return Math.min(WIND_TRAIL_FADE_STEPS - 1, Math.floor(normalized * WIND_TRAIL_FADE_STEPS))
+}
+
+function buildOceanCurrentScene(
   viewer: Cesium.Viewer,
   setStatus: StatusReporter,
-  field: FlowFieldDefinition,
   signal?: AbortSignal,
 ): VisualizationScene {
   throwIfAborted(signal)
@@ -202,31 +265,27 @@ function createFlowFieldScene(
   viewer.scene.globe.enableLighting = false
   viewer.clock.shouldAnimate = false
 
+  const field = OCEAN_FIELD
   const seeds = createFlowParticleSeeds(field.region, field.count, field.seed)
   const particles: FlowParticle[] = []
-  const entities: Cesium.Entity[] = []
-
-  if (field.idPrefix === 'ocean-current') {
-    entities.push(createOceanHeatmapEntity(viewer))
-  }
+  const entities: Cesium.Entity[] = [createOceanHeatmapEntity(viewer)]
 
   for (const seed of seeds) {
     const vector = field.sample(seed.longitude, seed.latitude)
     const color = Cesium.Color.fromCssColorString(
       pickStableColor(vector.speed / field.speedScale, field.colors),
-    ).withAlpha(field.opacity)
-    const trail = seedTrail(seed, field)
+    ).withAlpha(0.9)
     const particle: FlowParticle = {
       latitude: seed.latitude,
       longitude: seed.longitude,
       seed,
-      trail,
+      trail: seedTrail(seed, field),
     }
     particles.push(particle)
 
     entities.push(
       viewer.entities.add({
-        id: `${field.idPrefix}-flow-${particles.length - 1}`,
+        id: `ocean-current-flow-${particles.length - 1}`,
         polyline: {
           positions: new Cesium.CallbackProperty(
             () => toPositions(particle.trail, field.height),
@@ -239,13 +298,8 @@ function createFlowFieldScene(
     )
   }
 
-  framePositions(
-    viewer,
-    createFlowRegionPositions(field.region, field.height),
-    field.idPrefix === 'wind-field' ? -10 : 0,
-    field.idPrefix === 'wind-field' ? -38 : -66,
-    field.idPrefix === 'wind-field' ? 1.25 : 1.2,
-  )
+  throwIfAborted(signal)
+  framePositions(viewer, createFlowRegionPositions(field.region, field.height), 0, -66, 1.2)
   setStatus(field.playingStatus)
 
   const animationState = ref<VisualizationAnimationState>('playing')
@@ -293,6 +347,134 @@ function createFlowFieldScene(
       }
       entities.length = 0
     },
+    legend: field.legend,
+    toggleAnimation() {
+      if (animationState.value === 'playing') {
+        animationState.value = 'paused'
+        stopListening()
+        setStatus(field.pausedStatus)
+      } else {
+        animationState.value = 'playing'
+        startListening()
+        setStatus(field.resumedStatus)
+      }
+      viewer.scene.requestRender()
+    },
+  }
+}
+
+function buildWindFieldScene(
+  viewer: Cesium.Viewer,
+  setStatus: StatusReporter,
+  signal?: AbortSignal,
+): VisualizationScene {
+  throwIfAborted(signal)
+
+  viewer.scene.globe.enableLighting = false
+  viewer.clock.shouldAnimate = false
+
+  const field = WIND_FIELD
+  const seeds = createFlowParticleSeeds(field.region, field.count, field.seed)
+  const collection = new Cesium.PolylineCollection()
+  const materials: Cesium.Material[] = []
+  const particles: WindParticle[] = []
+  const polylines: Cesium.Polyline[] = []
+
+  for (const seed of seeds) {
+    const initialVector = field.sample(seed.longitude, seed.latitude)
+    const particle: WindParticle = {
+      colorIndex: pickStableColorIndex(initialVector.speed / field.speedScale, field.colors.length),
+      fadeStep: 0,
+      latitude: seed.latitude,
+      longitude: seed.longitude,
+      remaining: windParticleLifetime(seed),
+      seed,
+      trail: seedTrail(seed, field),
+    }
+    particles.push(particle)
+    const material = createWindMaterial(
+      field.colors[particle.colorIndex] ?? field.colors[0] ?? '#ffffff',
+      WIND_FADE_ALPHAS[particle.fadeStep] ?? WIND_FADE_ALPHAS[0],
+    )
+    materials.push(material)
+
+    const polyline = collection.add({
+      positions: toPositions(particle.trail, field.height),
+      width: field.trailWidth,
+      material,
+    })
+    polylines.push(polyline)
+  }
+
+  viewer.scene.primitives.add(collection)
+  throwIfAborted(signal)
+  framePositions(viewer, createFlowRegionPositions(field.region, field.height), -10, -38, 1.25)
+  setStatus(field.playingStatus)
+
+  const animationState = ref<VisualizationAnimationState>('playing')
+  let listening = false
+
+  const tick = () => {
+    if (animationState.value !== 'playing') {
+      return
+    }
+
+    particles.forEach((particle, index) => {
+      const speed = advanceWindParticle(particle, field)
+      const colorIndex = pickStableColorIndex(speed / field.speedScale, field.colors.length)
+      const fadeStep = windFadeStep(particle.remaining)
+      const polyline = polylines[index]
+      if (!polyline) {
+        return
+      }
+
+      polyline.positions = toPositions(particle.trail, field.height)
+      if (colorIndex !== particle.colorIndex || fadeStep !== particle.fadeStep) {
+        particle.colorIndex = colorIndex
+        particle.fadeStep = fadeStep
+        const material = materials[index]
+        if (material) {
+          material.uniforms.color = Cesium.Color.fromCssColorString(
+            field.colors[colorIndex] ?? field.colors[0] ?? '#ffffff',
+          ).withAlpha(WIND_FADE_ALPHAS[fadeStep] ?? WIND_FADE_ALPHAS[0])
+        }
+      }
+    })
+    viewer.scene.requestRender()
+  }
+
+  const startListening = () => {
+    if (listening) {
+      return
+    }
+
+    listening = true
+    viewer.scene.preUpdate.addEventListener(tick)
+    viewer.scene.requestRender()
+  }
+
+  const stopListening = () => {
+    if (!listening) {
+      return
+    }
+
+    listening = false
+    viewer.scene.preUpdate.removeEventListener(tick)
+  }
+
+  startListening()
+
+  return {
+    actions: [],
+    animationState,
+    dispose() {
+      stopListening()
+      viewer.scene.primitives.remove(collection)
+      particles.length = 0
+      polylines.length = 0
+      materials.length = 0
+    },
+    legend: field.legend,
     toggleAnimation() {
       if (animationState.value === 'playing') {
         animationState.value = 'paused'
@@ -313,7 +495,7 @@ export function createOceanCurrentScene(
   setStatus: StatusReporter,
   signal?: AbortSignal,
 ) {
-  return createFlowFieldScene(viewer, setStatus, OCEAN_FIELD, signal)
+  return buildOceanCurrentScene(viewer, setStatus, signal)
 }
 
 export function createWindFieldScene(
@@ -321,5 +503,5 @@ export function createWindFieldScene(
   setStatus: StatusReporter,
   signal?: AbortSignal,
 ) {
-  return createFlowFieldScene(viewer, setStatus, WIND_FIELD, signal)
+  return buildWindFieldScene(viewer, setStatus, signal)
 }

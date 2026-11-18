@@ -2,11 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   HEATMAP_3D_GRID_SIZE,
+  HONEYCOMB_COLUMNS,
+  HONEYCOMB_ROWS,
   heatmap3dSamples,
   heatmap3dColors,
   honeycombCells,
   honeycombColors,
   sampleHeatmap3dField,
+  WIND_FLOW_TRAIL_LENGTH,
+  WIND_PARTICLE_COUNT,
+  windFieldColors,
 } from '@/data/dataVisualization'
 import {
   isosurfaceGrid,
@@ -17,9 +22,12 @@ import {
 import { createVisualizationScene } from '@/demos/visualizationScene'
 import {
   materialInstances,
+  MaterialAppearance,
+  PolylineCollection,
   primitiveInstances,
   resetCesiumMock,
   scenePrimitiveRemoves,
+  scenePrimitiveAdds,
   Viewer,
 } from './mocks/cesium'
 
@@ -145,7 +153,7 @@ describe('GIS client visualization scenes', () => {
     scene.dispose()
   })
 
-  it('renders a deterministic textured 3D heatmap surface with a stable color legend', async () => {
+  it('renders a dense continuous 3D heatmap surface with shaded texture and a skirt', async () => {
     const viewer = createViewer()
     const mockViewer = viewer as unknown as Viewer
     const { setStatus, statuses } = collectStatus()
@@ -153,11 +161,26 @@ describe('GIS client visualization scenes', () => {
 
     expect(heatmap3dSamples).toHaveLength(50)
     expect(sampleHeatmap3dField(116.46, 39.92)).toBe(sampleHeatmap3dField(116.46, 39.92))
-    expect(HEATMAP_3D_GRID_SIZE).toBe(96)
+    expect(HEATMAP_3D_GRID_SIZE).toBeGreaterThanOrEqual(128)
     expect(mockViewer.entities.values).toHaveLength(0)
-    expect(primitiveInstances).toHaveLength(1)
+    expect(primitiveInstances).toHaveLength(2)
+    const surface = primitiveInstances[0]
+    const skirt = primitiveInstances[1]
+    const surfaceInstance = surface?.options.geometryInstances as {
+      options?: { geometry?: { options?: { attributes?: Record<string, unknown> } } }
+    }
+    const positions = (
+      surfaceInstance.options?.geometry?.options?.attributes?.position as {
+        options?: { values?: Float64Array }
+      }
+    )?.options?.values
+
+    expect(positions?.length).toBe(HEATMAP_3D_GRID_SIZE ** 2 * 3)
+    expect(skirt?.options.appearance).toBeInstanceOf(MaterialAppearance)
     expect(materialInstances[0]?.options.fabric.uniforms.image).toMatch(/^data:image\/png;base64,/)
-    expect(statuses[statuses.length - 1]).toContain('96 × 96 网格的三维热力地形')
+    expect(statuses[statuses.length - 1]).toContain(
+      `${HEATMAP_3D_GRID_SIZE} × ${HEATMAP_3D_GRID_SIZE} 网格的三维热力地形`,
+    )
     expect(scene.animationState).toBeUndefined()
     expect(scene.toggleAnimation).toBeUndefined()
     expect(scene.legend).toEqual({
@@ -168,24 +191,34 @@ describe('GIS client visualization scenes', () => {
     })
 
     scene.dispose()
-    expect(scenePrimitiveRemoves).toContain(primitiveInstances[0])
+    expect(scenePrimitiveRemoves).toContain(surface)
+    expect(scenePrimitiveRemoves).toContain(skirt)
   })
 
-  it('renders a deterministic extruded heat grid matching the reference', async () => {
+  it('renders a deterministic fine-grained honeycomb surface in one batched primitive', async () => {
     const viewer = createViewer()
     const mockViewer = viewer as unknown as Viewer
     const { setStatus, statuses } = collectStatus()
     const scene = await createVisualizationScene(viewer, 'honeycomb-heatmap', setStatus)
 
-    expect(honeycombCells).toHaveLength(1600)
-    expect(new Set(honeycombCells.map((cell) => cell.height.toFixed(3))).size).toBeGreaterThan(900)
-    expect(mockViewer.entities.values).toHaveLength(honeycombCells.length)
-    expect(mockViewer.entities.values[0]?.polygon).toMatchObject({
-      extrudedHeight: expect.any(Number),
-      height: 0,
-      outline: false,
-    })
-    expect(statuses[statuses.length - 1]).toContain('40 × 40 个固定网格热力单元')
+    expect(HONEYCOMB_COLUMNS).toBeGreaterThanOrEqual(40)
+    expect(HONEYCOMB_ROWS).toBeGreaterThanOrEqual(40)
+    expect(honeycombCells).toHaveLength(HONEYCOMB_COLUMNS * HONEYCOMB_ROWS)
+    expect(new Set(honeycombCells.map((cell) => cell.height.toFixed(3))).size).toBeGreaterThan(1200)
+    expect(mockViewer.entities.values).toHaveLength(0)
+    expect(primitiveInstances).toHaveLength(1)
+    expect(primitiveInstances[0]?.options.geometryInstances).toHaveLength(honeycombCells.length)
+    const firstHoneycombInstance = (
+      primitiveInstances[0]!.options.geometryInstances as Array<{
+        options: { geometry: { options: { extrudedHeight: number } } }
+      }>
+    )[0]!
+    expect(firstHoneycombInstance.options.geometry.options.extrudedHeight).toEqual(
+      expect.any(Number),
+    )
+    expect(statuses[statuses.length - 1]).toContain(
+      `${HONEYCOMB_COLUMNS} × ${HONEYCOMB_ROWS} 个固定网格热力单元`,
+    )
     expect(scene.animationState).toBeUndefined()
     expect(scene.legend).toEqual({
       colors: honeycombColors,
@@ -195,66 +228,90 @@ describe('GIS client visualization scenes', () => {
     })
 
     scene.dispose()
+    expect(scenePrimitiveRemoves).toContain(primitiveInstances[0])
+  })
+
+  it('lays an ocean speed heat layer under animated current vectors and exposes its legend', async () => {
+    const viewer = createViewer()
+    const mockViewer = viewer as unknown as Viewer
+    const { setStatus, statuses } = collectStatus()
+    const scene = await createVisualizationScene(viewer, 'ocean-current', setStatus)
+    const heatLayer = mockViewer.entities.values.find((entity) => entity.rectangle)
+    const flowEntities = mockViewer.entities.values.filter((entity) => entity.polyline)
+
+    expect(heatLayer).toBeDefined()
+    expect(
+      (heatLayer?.rectangle?.material as { options?: { image?: string } })?.options?.image,
+    ).toMatch(/^data:image\/png;base64,/)
+    expect(flowEntities.length).toBeGreaterThan(200)
+    expect(scene.legend?.title).toBe('海流速度')
+    expect(scene.legend?.colors.length).toBeGreaterThanOrEqual(5)
+    expect(scene.animationState?.value).toBe('playing')
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
+
+    mockViewer.scene.preUpdate.raiseEvent()
+    const firstFrame = getPolylinePositions(flowEntities[0]!)
+    mockViewer.scene.preUpdate.raiseEvent()
+    expect(getPolylinePositions(flowEntities[0]!)).not.toEqual(firstFrame)
+
+    scene.toggleAnimation?.()
+    expect(scene.animationState?.value).toBe('paused')
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
+    expect(statuses[statuses.length - 1]).toMatch(/海流.*已暂停/)
+    const pausedFrame = getPolylinePositions(flowEntities[0]!)
+    mockViewer.scene.preUpdate.raiseEvent()
+    expect(getPolylinePositions(flowEntities[0]!)).toEqual(pausedFrame)
+
+    scene.toggleAnimation?.()
+    expect(scene.animationState?.value).toBe('playing')
+    expect(statuses[statuses.length - 1]).toMatch(/海流.*继续/)
+
+    scene.dispose()
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
     expect(mockViewer.entities.values).toHaveLength(0)
   })
 
-  it.each([
-    {
-      count: 260,
-      hasHeatmap: true,
-      id: 'ocean-current' as const,
-      pause: /海流.*已暂停/,
-      resume: /海流.*继续/,
-    },
-    {
-      count: 900,
-      hasHeatmap: false,
-      id: 'wind-field' as const,
-      pause: /风场.*已暂停/,
-      resume: /风场.*继续/,
-    },
-  ])(
-    'animates $id, pauses without changing particles, and resumes',
-    async ({ count, hasHeatmap, id, pause, resume }) => {
-      const viewer = createViewer()
-      const mockViewer = viewer as unknown as Viewer
-      const { setStatus, statuses } = collectStatus()
-      const scene = await createVisualizationScene(viewer, id, setStatus)
-      const flowEntities = mockViewer.entities.values.filter((entity) => entity.polyline)
+  it('renders a dense fading wind-particle layer in one polyline collection', async () => {
+    const viewer = createViewer()
+    const mockViewer = viewer as unknown as Viewer
+    const { setStatus, statuses } = collectStatus()
+    const scene = await createVisualizationScene(viewer, 'wind-field', setStatus)
+    const collection = scenePrimitiveAdds.find(
+      (primitive): primitive is PolylineCollection => primitive instanceof PolylineCollection,
+    )
 
-      expect(flowEntities).toHaveLength(count)
-      expect(mockViewer.entities.values.filter((entity) => entity.rectangle)).toHaveLength(
-        hasHeatmap ? 1 : 0,
-      )
-      expect(scene.animationState?.value).toBe('playing')
-      expect(scene.toggleAnimation).toBeTypeOf('function')
-      expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
+    expect(collection).toBeDefined()
+    expect(collection?.length).toBe(WIND_PARTICLE_COUNT)
+    expect(WIND_PARTICLE_COUNT).toBeGreaterThanOrEqual(2000)
+    expect(windFieldColors).toHaveLength(15)
+    expect(mockViewer.entities.values).toHaveLength(0)
+    expect((collection!.get(0)!.positions as unknown[]).length).toBe(WIND_FLOW_TRAIL_LENGTH)
+    expect(scene.legend).toEqual({
+      colors: windFieldColors,
+      maximumLabel: '高风速',
+      minimumLabel: '低风速',
+      title: '风速',
+    })
+    expect(scene.animationState?.value).toBe('playing')
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
 
-      mockViewer.scene.preUpdate.raiseEvent()
-      const firstFrame = getPolylinePositions(flowEntities[0]!)
-      mockViewer.scene.preUpdate.raiseEvent()
-      const secondFrame = getPolylinePositions(flowEntities[0]!)
+    const firstFrame = collection!.get(0)!.positions
+    mockViewer.scene.preUpdate.raiseEvent()
+    expect(collection!.get(0)!.positions).not.toEqual(firstFrame)
 
-      expect(secondFrame).not.toEqual(firstFrame)
+    scene.toggleAnimation?.()
+    expect(scene.animationState?.value).toBe('paused')
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
+    expect(statuses[statuses.length - 1]).toMatch(/风粒子.*已暂停/)
+    const pausedFrame = collection!.get(0)!.positions
+    mockViewer.scene.preUpdate.raiseEvent()
+    expect(collection!.get(0)!.positions).toEqual(pausedFrame)
 
-      scene.toggleAnimation?.()
-      expect(scene.animationState?.value).toBe('paused')
-      expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
-      expect(statuses[statuses.length - 1]).toMatch(pause)
-      const pausedFrame = getPolylinePositions(flowEntities[0]!)
-      mockViewer.scene.preUpdate.raiseEvent()
-      expect(getPolylinePositions(flowEntities[0]!)).toEqual(pausedFrame)
+    scene.toggleAnimation?.()
+    expect(statuses[statuses.length - 1]).toMatch(/风粒子.*继续/)
 
-      scene.toggleAnimation?.()
-      expect(scene.animationState?.value).toBe('playing')
-      expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
-      expect(statuses[statuses.length - 1]).toMatch(resume)
-      mockViewer.scene.preUpdate.raiseEvent()
-      expect(getPolylinePositions(flowEntities[0]!)).not.toEqual(pausedFrame)
-
-      scene.dispose()
-      expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
-      expect(mockViewer.entities.values).toHaveLength(0)
-    },
-  )
+    scene.dispose()
+    expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
+    expect(scenePrimitiveRemoves).toContain(collection)
+  })
 })

@@ -47,9 +47,11 @@ export const windFlowRegion: FlowRegion = {
 }
 
 export const OCEAN_PARTICLE_COUNT = 260
-export const WIND_PARTICLE_COUNT = 900
+export const WIND_PARTICLE_COUNT = 2000
 export const OCEAN_FLOW_TRAIL_LENGTH = 42
-export const WIND_FLOW_TRAIL_LENGTH = 70
+export const WIND_FLOW_TRAIL_LENGTH = 42
+export const WIND_PARTICLE_MAX_AGE = 140
+export const WIND_TRAIL_FADE_STEPS = 4
 export const OCEAN_FLOW_SEED = 0x4_2_1
 export const WIND_FLOW_SEED = 0x4_2_3
 
@@ -60,6 +62,7 @@ export const oceanCurrentColors = [
   '#bef264',
   '#facc15',
   '#fb923c',
+  '#dc2626',
 ] as const
 export const windFieldColors = [
   '#2468b4',
@@ -127,11 +130,11 @@ export const honeycombRegion = {
   west: 110,
 }
 
-export const HEATMAP_3D_GRID_SIZE = 96
-export const HEATMAP_3D_TEXTURE_SIZE = 192
+export const HEATMAP_3D_GRID_SIZE = 192
+export const HEATMAP_3D_TEXTURE_SIZE = 384
 export const HEATMAP_3D_MAX_HEIGHT = 1500
-export const HONEYCOMB_COLUMNS = 40
-export const HONEYCOMB_ROWS = 40
+export const HONEYCOMB_COLUMNS = 50
+export const HONEYCOMB_ROWS = 50
 export const HONEYCOMB_MAX_HEIGHT = 800
 
 const OCEAN_EDDIES = [
@@ -239,8 +242,16 @@ export function createFlowParticleSeeds(
 }
 
 export function pickStableColor(value: number, colors: readonly string[]) {
+  return colors[pickStableColorIndex(value, colors.length)] ?? colors[0] ?? '#ffffff'
+}
+
+export function pickStableColorIndex(value: number, count: number) {
+  if (count <= 0) {
+    return 0
+  }
+
   const normalized = Math.min(0.999_999, Math.max(0, value))
-  return colors[Math.floor(normalized * colors.length)] ?? colors[0] ?? '#ffffff'
+  return Math.floor(normalized * count)
 }
 
 export function sampleHeatColor(value: number): readonly [number, number, number] {

@@ -111,6 +111,50 @@ async function expectCanvasToContainShapeColors(page: Page, canvas: Locator, min
   expect(shapePixels).toBeGreaterThan(minimumPixels)
 }
 
+async function expectCanvasToContainHeatGradient(
+  page: Page,
+  canvas: Locator,
+  minimumClasses = 4,
+  minimumPixelsPerClass = 24,
+  label = 'heat gradient',
+) {
+  const clip = await canvas.boundingBox()
+  expect(clip).not.toBeNull()
+  const screenshot = await capturePageClip(page, clip!)
+  const classCounts = await page.evaluate(async (base64) => {
+    const binary = atob(base64)
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0))
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: 'image/png' }))
+    const bitmapCanvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+    const context = bitmapCanvas.getContext('2d')
+    if (!context) {
+      return []
+    }
+    context.drawImage(bitmap, 0, 0)
+    const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data
+    const counts = [0, 0, 0, 0, 0, 0]
+    for (let index = 0; index < pixels.length; index += 16) {
+      const red = pixels[index] ?? 0
+      const green = pixels[index + 1] ?? 0
+      const blue = pixels[index + 2] ?? 0
+      if (blue > 105 && blue > red * 1.2 && blue > green * 1.05) counts[0]! += 1
+      if (green > 100 && blue > 105 && red < green * 0.82) counts[1]! += 1
+      if (green > 100 && green > red * 1.18 && green > blue * 1.02) counts[2]! += 1
+      if (red > 105 && green > 85 && blue < green * 0.72) counts[3]! += 1
+      if (red > 145 && green > 55 && green < red * 0.78 && blue < green * 0.7) counts[4]! += 1
+      if (red > 120 && red > green * 1.38 && red > blue * 1.24) counts[5]! += 1
+    }
+    return counts
+  }, screenshot.toString('base64'))
+
+  const visibleClasses = classCounts.filter((count) => count >= minimumPixelsPerClass).length
+  if (visibleClasses < minimumClasses) {
+    throw new Error(
+      `${label}: expected at least ${minimumClasses} heat color classes, received ${visibleClasses}`,
+    )
+  }
+}
+
 async function expectSubmenuArrowsPointDown(menu: Locator) {
   const arrows = menu.locator('.sidebar-menu__group > .el-sub-menu__title .el-sub-menu__icon-arrow')
   await expect(arrows).toHaveCount(4)
@@ -1959,15 +2003,16 @@ test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应
   }
 })
 
-test('四个数据可视化深链可打开、暂停动态场景并在关闭后返回对应卡片', async ({ page }) => {
+test('四个数据可视化深链可打开、暂停动态场景并在关闭后返回对应卡片', async ({ page }, testInfo) => {
   test.setTimeout(360_000)
   const scenes = [
     {
       animated: true,
       featureId: 'ocean-current',
       id: 'ocean-current',
+      legend: '海流速度',
       route: '/visualization/data-visualization/4-2-1-ocean-current',
-      status: /260 条确定性流线.*东亚至西太平洋/,
+      status: /海流速度热力图.*260 条确定性流线.*东亚至西太平洋/,
       title: '4.2.1、海流',
     },
     {
@@ -1976,15 +2021,16 @@ test('四个数据可视化深链可打开、暂停动态场景并在关闭后�
       id: '3d-heatmap',
       legend: '三维热力强度',
       route: '/visualization/data-visualization/4-2-2-3d-heatmap',
-      status: /96 × 96 网格的三维热力地形/,
+      status: /192 × 192 网格的三维热力地形/,
       title: '4.2.2、3d热力图',
     },
     {
       animated: true,
       featureId: 'wind-field',
       id: 'wind-field',
+      legend: '风速',
       route: '/visualization/data-visualization/4-2-3-wind-field',
-      status: /900 条确定性流线.*中国及周边区域/,
+      status: /2000 条带渐隐拖尾的确定性粒子.*中国及周边区域/,
       title: '4.2.3、风场',
     },
     {
@@ -1993,7 +2039,7 @@ test('四个数据可视化深链可打开、暂停动态场景并在关闭后�
       id: 'honeycomb-heatmap',
       legend: '蜂窝热力强度',
       route: '/visualization/data-visualization/4-2-4-honeycomb-heatmap',
-      status: /40 × 40 个固定网格热力单元/,
+      status: /50 × 50 个固定网格热力单元/,
       title: '4.2.4、蜂窝热力图',
     },
   ] as const
@@ -2009,6 +2055,10 @@ test('四个数据可视化深链可打开、暂停动态场景并在关闭后�
     await expect(globe.getByText(scene.status)).toBeVisible()
     await expect(globe.locator('canvas')).toBeVisible()
     await expectCanvasToContainShapeColors(page, globe.locator('canvas'), scene.animated ? 40 : 100)
+    await expectCanvasToContainHeatGradient(page, globe.locator('canvas'), 4, 24, scene.id)
+    const legend = globe.getByTestId('visualization-legend')
+    await expect(legend).toBeVisible()
+    await expect(legend).toContainText(scene.legend)
 
     if (scene.animated) {
       await expect(globe).toHaveAttribute('data-animation-state', 'playing')
@@ -2022,10 +2072,14 @@ test('四个数据可视化深链可打开、暂停动态场景并在关闭后�
     } else {
       await expect(globe).not.toHaveAttribute('data-animation-state', /.*/)
       await expect(globe.getByRole('button', { name: '暂停动画' })).toHaveCount(0)
-      const legend = globe.getByTestId('visualization-legend')
-      await expect(legend).toBeVisible()
-      await expect(legend).toContainText(scene.legend)
     }
+
+    await page.waitForTimeout(500)
+    const screenshot = await dialog.screenshot({ animations: 'disabled' })
+    await testInfo.attach(`${scene.id}.png`, {
+      body: screenshot,
+      contentType: 'image/png',
+    })
 
     await dialog.getByRole('button', { name: '关闭此对话框' }).click()
     await expect(dialog).toBeHidden()
