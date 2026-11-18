@@ -4,6 +4,9 @@ import {
   HEATMAP_3D_GRID_SIZE,
   HONEYCOMB_COLUMNS,
   HONEYCOMB_ROWS,
+  HONEYCOMB_SURFACE_ALPHA,
+  OCEAN_FLOW_TRAIL_LENGTH,
+  OCEAN_PARTICLE_COUNT,
   heatmap3dSamples,
   heatmap3dColors,
   honeycombCells,
@@ -23,6 +26,7 @@ import { createVisualizationScene } from '@/demos/visualizationScene'
 import {
   materialInstances,
   MaterialAppearance,
+  PerInstanceColorAppearance,
   PolylineCollection,
   primitiveInstances,
   resetCesiumMock,
@@ -45,13 +49,6 @@ function collectStatus() {
     setStatus: (message: string) => statuses.push(message),
     statuses,
   }
-}
-
-function getPolylinePositions(entity: Viewer['entities']['values'][number]) {
-  const positions = entity.polyline?.positions as
-    Array<Record<string, number>> | { getValue: () => Array<Record<string, number>> } | undefined
-
-  return positions && 'getValue' in positions ? positions.getValue() : positions
 }
 
 function getPreUpdateListenerCount(viewer: Viewer) {
@@ -210,9 +207,24 @@ describe('GIS client visualization scenes', () => {
     expect(primitiveInstances[0]?.options.geometryInstances).toHaveLength(honeycombCells.length)
     const firstHoneycombInstance = (
       primitiveInstances[0]!.options.geometryInstances as Array<{
-        options: { geometry: { options: { extrudedHeight: number } } }
+        options: {
+          attributes: {
+            color: {
+              color: {
+                alpha: number
+              }
+            }
+          }
+          geometry: { options: { extrudedHeight: number } }
+        }
       }>
     )[0]!
+    const appearance = primitiveInstances[0]?.options.appearance
+    expect(appearance).toBeInstanceOf(PerInstanceColorAppearance)
+    expect((appearance as PerInstanceColorAppearance).options?.translucent).toBe(true)
+    expect(firstHoneycombInstance.options.attributes.color.color.alpha).toBeCloseTo(
+      HONEYCOMB_SURFACE_ALPHA,
+    )
     expect(firstHoneycombInstance.options.geometry.options.extrudedHeight).toEqual(
       expect.any(Number),
     )
@@ -231,36 +243,48 @@ describe('GIS client visualization scenes', () => {
     expect(scenePrimitiveRemoves).toContain(primitiveInstances[0])
   })
 
-  it('lays an ocean speed heat layer under animated current vectors and exposes its legend', async () => {
+  it('lays an ocean speed heat layer under long shader-animated currents', async () => {
     const viewer = createViewer()
     const mockViewer = viewer as unknown as Viewer
     const { setStatus, statuses } = collectStatus()
     const scene = await createVisualizationScene(viewer, 'ocean-current', setStatus)
     const heatLayer = mockViewer.entities.values.find((entity) => entity.rectangle)
-    const flowEntities = mockViewer.entities.values.filter((entity) => entity.polyline)
+    const collections = scenePrimitiveAdds.filter(
+      (primitive): primitive is PolylineCollection => primitive instanceof PolylineCollection,
+    )
+    const flowLines = collections.flatMap((collection) =>
+      Array.from({ length: collection.length }, (_, index) => collection.get(index)!),
+    )
 
     expect(heatLayer).toBeDefined()
     expect(
       (heatLayer?.rectangle?.material as { options?: { image?: string } })?.options?.image,
     ).toMatch(/^data:image\/png;base64,/)
-    expect(flowEntities.length).toBeGreaterThan(200)
+    expect(flowLines).toHaveLength(OCEAN_PARTICLE_COUNT)
+    expect(collections.length).toBeGreaterThan(1)
+    expect(Math.max(...flowLines.map((line) => (line.positions as unknown[]).length))).toBe(
+      OCEAN_FLOW_TRAIL_LENGTH,
+    )
+    expect(
+      materialInstances.some((material) =>
+        material.options.fabric.source?.includes('animationTime'),
+      ),
+    ).toBe(true)
     expect(scene.legend?.title).toBe('海流速度')
     expect(scene.legend?.colors.length).toBeGreaterThanOrEqual(5)
     expect(scene.animationState?.value).toBe('playing')
     expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
 
+    const firstLine = flowLines[0]!
+    const firstPositions = firstLine.positions
     mockViewer.scene.preUpdate.raiseEvent()
-    const firstFrame = getPolylinePositions(flowEntities[0]!)
-    mockViewer.scene.preUpdate.raiseEvent()
-    expect(getPolylinePositions(flowEntities[0]!)).not.toEqual(firstFrame)
+    expect(firstLine.positions).toBe(firstPositions)
+    expect(mockViewer.scene.requestRender).toHaveBeenCalled()
 
     scene.toggleAnimation?.()
     expect(scene.animationState?.value).toBe('paused')
     expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
     expect(statuses[statuses.length - 1]).toMatch(/海流.*已暂停/)
-    const pausedFrame = getPolylinePositions(flowEntities[0]!)
-    mockViewer.scene.preUpdate.raiseEvent()
-    expect(getPolylinePositions(flowEntities[0]!)).toEqual(pausedFrame)
 
     scene.toggleAnimation?.()
     expect(scene.animationState?.value).toBe('playing')
@@ -269,23 +293,36 @@ describe('GIS client visualization scenes', () => {
     scene.dispose()
     expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
     expect(mockViewer.entities.values).toHaveLength(0)
+    for (const collection of collections) {
+      expect(scenePrimitiveRemoves).toContain(collection)
+    }
   })
 
-  it('renders a dense fading wind-particle layer in one polyline collection', async () => {
+  it('renders dense long wind trails whose flow animation stays in the shader', async () => {
     const viewer = createViewer()
     const mockViewer = viewer as unknown as Viewer
     const { setStatus, statuses } = collectStatus()
     const scene = await createVisualizationScene(viewer, 'wind-field', setStatus)
-    const collection = scenePrimitiveAdds.find(
+    const collections = scenePrimitiveAdds.filter(
       (primitive): primitive is PolylineCollection => primitive instanceof PolylineCollection,
     )
+    const flowLines = collections.flatMap((collection) =>
+      Array.from({ length: collection.length }, (_, index) => collection.get(index)!),
+    )
 
-    expect(collection).toBeDefined()
-    expect(collection?.length).toBe(WIND_PARTICLE_COUNT)
+    expect(collections.length).toBeGreaterThan(1)
+    expect(flowLines).toHaveLength(WIND_PARTICLE_COUNT)
     expect(WIND_PARTICLE_COUNT).toBeGreaterThanOrEqual(2000)
     expect(windFieldColors).toHaveLength(15)
     expect(mockViewer.entities.values).toHaveLength(0)
-    expect((collection!.get(0)!.positions as unknown[]).length).toBe(WIND_FLOW_TRAIL_LENGTH)
+    expect(Math.max(...flowLines.map((line) => (line.positions as unknown[]).length))).toBe(
+      WIND_FLOW_TRAIL_LENGTH,
+    )
+    expect(
+      materialInstances.some((material) =>
+        material.options.fabric.source?.includes('animationTime'),
+      ),
+    ).toBe(true)
     expect(scene.legend).toEqual({
       colors: windFieldColors,
       maximumLabel: '高风速',
@@ -295,23 +332,24 @@ describe('GIS client visualization scenes', () => {
     expect(scene.animationState?.value).toBe('playing')
     expect(getPreUpdateListenerCount(mockViewer)).toBe(1)
 
-    const firstFrame = collection!.get(0)!.positions
+    const firstLine = flowLines[0]!
+    const firstPositions = firstLine.positions
     mockViewer.scene.preUpdate.raiseEvent()
-    expect(collection!.get(0)!.positions).not.toEqual(firstFrame)
+    expect(firstLine.positions).toBe(firstPositions)
+    expect(mockViewer.scene.requestRender).toHaveBeenCalled()
 
     scene.toggleAnimation?.()
     expect(scene.animationState?.value).toBe('paused')
     expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
     expect(statuses[statuses.length - 1]).toMatch(/风粒子.*已暂停/)
-    const pausedFrame = collection!.get(0)!.positions
-    mockViewer.scene.preUpdate.raiseEvent()
-    expect(collection!.get(0)!.positions).toEqual(pausedFrame)
 
     scene.toggleAnimation?.()
     expect(statuses[statuses.length - 1]).toMatch(/风粒子.*继续/)
 
     scene.dispose()
     expect(getPreUpdateListenerCount(mockViewer)).toBe(0)
-    expect(scenePrimitiveRemoves).toContain(collection)
+    for (const collection of collections) {
+      expect(scenePrimitiveRemoves).toContain(collection)
+    }
   })
 })

@@ -48,10 +48,8 @@ export const windFlowRegion: FlowRegion = {
 
 export const OCEAN_PARTICLE_COUNT = 260
 export const WIND_PARTICLE_COUNT = 2000
-export const OCEAN_FLOW_TRAIL_LENGTH = 42
-export const WIND_FLOW_TRAIL_LENGTH = 42
-export const WIND_PARTICLE_MAX_AGE = 140
-export const WIND_TRAIL_FADE_STEPS = 4
+export const OCEAN_FLOW_TRAIL_LENGTH = 120
+export const WIND_FLOW_TRAIL_LENGTH = 120
 export const OCEAN_FLOW_SEED = 0x4_2_1
 export const WIND_FLOW_SEED = 0x4_2_3
 
@@ -136,6 +134,7 @@ export const HEATMAP_3D_MAX_HEIGHT = 1500
 export const HONEYCOMB_COLUMNS = 50
 export const HONEYCOMB_ROWS = 50
 export const HONEYCOMB_MAX_HEIGHT = 800
+export const HONEYCOMB_SURFACE_ALPHA = 0.72
 
 const OCEAN_EDDIES = [
   { amplitude: 0.58, latitude: 9, latitudeScale: 2.4, longitude: 113, longitudeScale: 3.1 },

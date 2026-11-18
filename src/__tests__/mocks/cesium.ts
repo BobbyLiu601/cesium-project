@@ -1293,7 +1293,9 @@ export class Color {
   static TRANSPARENT = new Color(0, 0, 0, 0)
 
   static fromCssColorString(value: string) {
-    return new Color(0.5, 0.5, 0.5, value.length > 8 ? 0.7 : 1)
+    const alphaMatch = value.match(/^rgba?\(\s*[^,]+,\s*[^,]+,\s*[^,]+(?:,\s*([\d.]+))?\s*\)$/)
+    const alpha = alphaMatch?.[1] ? Number(alphaMatch[1]) : 1
+    return new Color(0.5, 0.5, 0.5, alpha)
   }
 
   withAlpha(alpha: number) {

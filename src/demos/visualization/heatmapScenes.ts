@@ -11,6 +11,7 @@ import {
   HONEYCOMB_COLUMNS,
   HONEYCOMB_MAX_HEIGHT,
   HONEYCOMB_ROWS,
+  HONEYCOMB_SURFACE_ALPHA,
   honeycombRegion,
   sampleHeatColor,
   sampleHeatmap3dField,
@@ -313,7 +314,9 @@ function createHoneycombPrimitive(viewer: Cesium.Viewer) {
     return new Cesium.GeometryInstance({
       attributes: {
         color: Cesium.ColorGeometryInstanceAttribute.fromColor(
-          Cesium.Color.fromCssColorString(sampleHoneycombColorCss(cell.value)),
+          Cesium.Color.fromCssColorString(
+            sampleHoneycombColorCss(cell.value, HONEYCOMB_SURFACE_ALPHA),
+          ),
         ),
       },
       geometry: Cesium.PolygonGeometry.fromPositions({
@@ -330,7 +333,7 @@ function createHoneycombPrimitive(viewer: Cesium.Viewer) {
     appearance: new Cesium.PerInstanceColorAppearance({
       closed: true,
       flat: false,
-      translucent: false,
+      translucent: true,
     }),
     asynchronous: false,
     geometryInstances: instances,
