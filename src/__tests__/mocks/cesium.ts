@@ -97,6 +97,7 @@ export interface MockEntity {
   point?: Record<string, unknown>
   label?: Record<string, unknown>
   billboard?: Record<string, unknown>
+  box?: Record<string, unknown>
   cylinder?: Record<string, unknown>
   ellipse?: Record<string, unknown>
   ellipsoid?: Record<string, unknown>

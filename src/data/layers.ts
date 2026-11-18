@@ -50,6 +50,10 @@ import videoTextureCover from '@/assets/spatial-covers/2-2-1-video-texture.jpg'
 import isosurfaceCover from '@/assets/visualization-covers/4-1-3-isosurface.jpg'
 import overlayAnalysisCover from '@/assets/visualization-covers/4-1-1-overlay-analysis.jpg'
 import thiessenPolygonCover from '@/assets/visualization-covers/4-1-2-thiessen-polygon.jpg'
+import heatmap3dCover from '@/assets/visualization-covers/4-2-2-3d-heatmap.jpg'
+import honeycombHeatmapCover from '@/assets/visualization-covers/4-2-4-honeycomb-heatmap.jpg'
+import oceanCurrentCover from '@/assets/visualization-covers/4-2-1-ocean-current.jpg'
+import windFieldCover from '@/assets/visualization-covers/4-2-3-wind-field.jpg'
 import allPrimitiveCover from '@/assets/vector-covers/all-primitive.jpg'
 import billboardCover from '@/assets/vector-covers/billboard.jpg'
 import billboardCollectionCover from '@/assets/vector-covers/billboard-collection.jpg'
@@ -125,7 +129,14 @@ export type PhysicsEngineSceneId =
   | 'soft-body-collision'
   | 'fracture-collision'
 
-export type VisualizationSceneId = 'overlay-analysis' | 'thiessen-polygon' | 'isosurface'
+export type VisualizationSceneId =
+  | 'overlay-analysis'
+  | 'thiessen-polygon'
+  | 'isosurface'
+  | 'ocean-current'
+  | '3d-heatmap'
+  | 'wind-field'
+  | 'honeycomb-heatmap'
 
 export type FeatureKind =
   | 'tianditu'
@@ -176,6 +187,7 @@ export interface FeatureSection {
     | 'particle-effects'
     | 'physics-engine'
     | 'gis-client'
+    | 'data-visualization'
   code: string
   title: string
   icon: Component
@@ -919,6 +931,59 @@ export const gisClientSection: FeatureSection = {
   ],
 }
 
+export const dataVisualizationSection: FeatureSection = {
+  id: 'data-visualization',
+  code: '4.2',
+  title: '数据可视化',
+  icon: DataAnalysis,
+  items: [
+    defineFeature({
+      id: 'ocean-current',
+      code: '4.2.1',
+      name: '海流',
+      imageSrc: oceanCurrentCover,
+      imageAlt: '海流数据可视化参考示例封面',
+      kind: 'visualization',
+      visualizationSceneId: 'ocean-current',
+      routeName: 'visualization-data-ocean-current',
+      routePath: '/visualization/data-visualization/4-2-1-ocean-current',
+    }),
+    defineFeature({
+      id: 'heatmap-3d',
+      code: '4.2.2',
+      name: '3d热力图',
+      imageSrc: heatmap3dCover,
+      imageAlt: '3d热力图数据可视化参考示例封面',
+      kind: 'visualization',
+      visualizationSceneId: '3d-heatmap',
+      routeName: 'visualization-data-heatmap-3d',
+      routePath: '/visualization/data-visualization/4-2-2-3d-heatmap',
+    }),
+    defineFeature({
+      id: 'wind-field',
+      code: '4.2.3',
+      name: '风场',
+      imageSrc: windFieldCover,
+      imageAlt: '风场数据可视化参考示例封面',
+      kind: 'visualization',
+      visualizationSceneId: 'wind-field',
+      routeName: 'visualization-data-wind-field',
+      routePath: '/visualization/data-visualization/4-2-3-wind-field',
+    }),
+    defineFeature({
+      id: 'honeycomb-heatmap',
+      code: '4.2.4',
+      name: '蜂窝热力图',
+      imageSrc: honeycombHeatmapCover,
+      imageAlt: '蜂窝热力图数据可视化参考示例封面',
+      kind: 'visualization',
+      visualizationSceneId: 'honeycomb-heatmap',
+      routeName: 'visualization-data-honeycomb-heatmap',
+      routePath: '/visualization/data-visualization/4-2-4-honeycomb-heatmap',
+    }),
+  ],
+}
+
 export const layersMenuGroup: MenuGroup = {
   id: 'layers',
   code: '1',
@@ -948,7 +1013,7 @@ export const visualizationMenuGroup: MenuGroup = {
   code: '4',
   title: '可视化',
   icon: DataAnalysis,
-  sections: [gisClientSection],
+  sections: [gisClientSection, dataVisualizationSection],
 }
 
 export const menuGroups: MenuGroup[] = [
@@ -967,6 +1032,7 @@ export const featureSections: FeatureSection[] = [
   particleSection,
   physicsEngineSection,
   gisClientSection,
+  dataVisualizationSection,
 ]
 export const allFeatures = featureSections.flatMap((section) => section.items)
 export const featureAnchors = allFeatures.map((feature) => feature.id)

@@ -80,5 +80,11 @@ export function createIsosurfaceScene(
         viewer.entities.remove(entity)
       }
     },
+    legend: {
+      colors: isosurfaceColors,
+      maximumLabel: `${isosurfaceBreaks[isosurfaceBreaks.length - 2] ?? 9}+`,
+      minimumLabel: '0',
+      title: '风速等值面（m/s）',
+    },
   }
 }

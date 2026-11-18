@@ -126,9 +126,9 @@ describe('App', () => {
     expect(wrapper.get('#spatial-heading').text()).toBe('2、空间分析')
     expect(wrapper.get('#effects-heading').text()).toBe('3、特效')
     expect(wrapper.get('#visualization-heading').text()).toBe('4、可视化')
-    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(56)
+    expect(wrapper.findAll('[data-testid="feature-card"]')).toHaveLength(60)
     expect(wrapper.findAll('.sidebar-menu__group')).toHaveLength(4)
-    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(11)
+    expect(wrapper.findAll('.sidebar-menu__section-item')).toHaveLength(12)
     expect(wrapper.get('.sidebar-menu').text()).not.toContain('1.1.1、天地图')
     expect(wrapper.findAll('.el-sub-menu__icon-arrow')).toHaveLength(4)
     expect(wrapper.find('.sidebar-menu__marker').exists()).toBe(false)
@@ -142,7 +142,7 @@ describe('App', () => {
     const wrapper = await mountAt('/layers')
     const cards = wrapper.findAll('[data-testid="feature-card"]')
 
-    expect(cards).toHaveLength(56)
+    expect(cards).toHaveLength(60)
     expect(cards[0]?.attributes('data-feature-id')).toBe('tianditu')
     expect(cards[1]?.attributes('data-feature-id')).toBe('amap')
     expect(cards[2]?.attributes('data-feature-id')).toBe('elevation')
@@ -185,6 +185,10 @@ describe('App', () => {
     expect(cards[53]?.attributes('data-feature-id')).toBe('overlay-analysis')
     expect(cards[54]?.attributes('data-feature-id')).toBe('thiessen-polygon')
     expect(cards[55]?.attributes('data-feature-id')).toBe('isosurface')
+    expect(cards[56]?.attributes('data-feature-id')).toBe('ocean-current')
+    expect(cards[57]?.attributes('data-feature-id')).toBe('heatmap-3d')
+    expect(cards[58]?.attributes('data-feature-id')).toBe('wind-field')
+    expect(cards[59]?.attributes('data-feature-id')).toBe('honeycomb-heatmap')
     expect(cards.map((card) => card.attributes('id'))).toEqual(
       cards.map((card) => card.attributes('data-feature-id')),
     )
@@ -221,6 +225,11 @@ describe('App', () => {
     expect(
       wrapper.get('[data-testid="gis-client-grid"]').findAll('[data-testid="feature-card"]'),
     ).toHaveLength(3)
+    expect(
+      wrapper
+        .get('[data-testid="data-visualization-grid"]')
+        .findAll('[data-testid="feature-card"]'),
+    ).toHaveLength(4)
 
     for (const card of cards) {
       expect(card.element.tagName).toBe('BUTTON')
@@ -281,6 +290,10 @@ describe('App', () => {
     expect(cards[53]?.attributes('aria-label')).toBe('打开4.1.1、叠加分析')
     expect(cards[54]?.attributes('aria-label')).toBe('打开4.1.2、泰森多边形')
     expect(cards[55]?.attributes('aria-label')).toBe('打开4.1.3、等值面')
+    expect(cards[56]?.attributes('aria-label')).toBe('打开4.2.1、海流')
+    expect(cards[57]?.attributes('aria-label')).toBe('打开4.2.2、3d热力图')
+    expect(cards[58]?.attributes('aria-label')).toBe('打开4.2.3、风场')
+    expect(cards[59]?.attributes('aria-label')).toBe('打开4.2.4、蜂窝热力图')
     expect(wrapper.get('h1').text()).toBe('1、图层')
     expect(wrapper.get('h2').text()).toBe('1.1、影像')
     expect(wrapper.text()).not.toContain('展示能力')
@@ -300,6 +313,7 @@ describe('App', () => {
       '3.3、粒子效果',
       '3.4、物理引擎',
       '4.1、GIS客户端',
+      '4.2、数据可视化',
     ])
 
     wrapper.unmount()
@@ -808,6 +822,7 @@ describe('App', () => {
       'particle-effects': 300,
       'physics-engine': 400,
       'gis-client': 500,
+      'data-visualization': 600,
     }
 
     vi.spyOn(content, 'getBoundingClientRect').mockReturnValue({
@@ -849,6 +864,7 @@ describe('App', () => {
     positions['special-shapes'] = 180
     positions['particle-effects'] = 260
     positions['gis-client'] = 500
+    positions['data-visualization'] = 600
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -877,6 +893,7 @@ describe('App', () => {
     positions['special-shapes'] = 150
     positions['particle-effects'] = 220
     positions['gis-client'] = 500
+    positions['data-visualization'] = 600
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -900,6 +917,7 @@ describe('App', () => {
     positions['special-shapes'] = -10
     positions['particle-effects'] = 0
     positions['gis-client'] = 500
+    positions['data-visualization'] = 600
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -921,6 +939,7 @@ describe('App', () => {
     positions['particle-effects'] = -80
     positions['physics-engine'] = -40
     positions['gis-client'] = 20
+    positions['data-visualization'] = 140
     for (const [anchor, spy] of Object.entries(spies)) {
       spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
     }
@@ -935,6 +954,24 @@ describe('App', () => {
         .find((item) => item.attributes('aria-current') === 'location')
         ?.text(),
     ).toBe('4.1、GIS客户端')
+    expect(wrapper.findAll('.el-sub-menu')[3]?.classes()).toContain('is-opened')
+
+    positions['gis-client'] = -20
+    positions['data-visualization'] = 20
+    for (const [anchor, spy] of Object.entries(spies)) {
+      spy.mockReturnValue({ top: positions[anchor as keyof typeof positions] } as DOMRect)
+    }
+
+    await wrapper.get('main').trigger('scroll')
+    frameCallbacks.splice(0).forEach((callback) => callback(0))
+    await flushPromises()
+
+    expect(
+      wrapper
+        .findAll('[role="menuitem"]')
+        .find((item) => item.attributes('aria-current') === 'location')
+        ?.text(),
+    ).toBe('4.2、数据可视化')
     expect(wrapper.findAll('.el-sub-menu')[3]?.classes()).toContain('is-opened')
 
     wrapper.unmount()
@@ -964,6 +1001,67 @@ describe('App', () => {
     expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
     expect(wrapper.find('[data-testid="effects-demo-globe"]').exists()).toBe(false)
     expect(getActiveSession()).toBeUndefined()
+
+    wrapper.unmount()
+  })
+
+  it('opens the animated ocean current demo from its deep link and toggles playback', async () => {
+    const wrapper = await mountAt('/visualization/data-visualization/4-2-1-ocean-current')
+
+    await waitForCondition(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const dialog = wrapper.get('.feature-dialog--visualization')
+    const globe = wrapper.get('[data-testid="visualization-demo-globe"]')
+    expect(dialog.text()).toContain('4.2.1、海流')
+    expect(globe.attributes('data-scene-id')).toBe('ocean-current')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.attributes('data-animation-state')).toBe('playing')
+    expect(globe.text()).toContain('96 条确定性流线')
+
+    const pauseButton = globe.findAll('button').find((button) => button.text() === '暂停动画')
+    await pauseButton?.trigger('click')
+    expect(globe.attributes('data-animation-state')).toBe('paused')
+    expect(globe.text()).toContain('海流动画已暂停')
+
+    const resumeButton = globe.findAll('button').find((button) => button.text() === '继续播放')
+    await resumeButton?.trigger('click')
+    expect(globe.attributes('data-animation-state')).toBe('playing')
+    expect(globe.text()).toContain('海流动画继续播放中')
+
+    await dialog.get('.el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/layers#ocean-current')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
+
+    wrapper.unmount()
+  })
+
+  it('keeps the 3D heatmap static and shows its read-only legend', async () => {
+    const wrapper = await mountAt('/visualization/data-visualization/4-2-2-3d-heatmap')
+
+    await waitForCondition(() => {
+      expect(viewerInstances).toHaveLength(1)
+    })
+    await flushPromises()
+
+    const globe = wrapper.get('[data-testid="visualization-demo-globe"]')
+    expect(globe.attributes('data-scene-id')).toBe('3d-heatmap')
+    expect(globe.attributes('data-cesium-state')).toBe('ready')
+    expect(globe.attributes('data-animation-state')).toBeUndefined()
+    expect(globe.findAll('button')).toHaveLength(0)
+    expect(globe.text()).toContain('384 个固定热力网格柱体')
+    const legend = globe.get('[data-testid="visualization-legend"]')
+    expect(legend.attributes('data-legend-title')).toBe('三维热力强度')
+    expect(legend.text()).toContain('三维热力强度')
+    expect(viewerInstances[0]?.entities.values).toHaveLength(384)
+
+    await wrapper.get('.feature-dialog--visualization .el-dialog__headerbtn').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/layers#heatmap-3d')
+    expect(viewerInstances[0]?.destroy).toHaveBeenCalledOnce()
 
     wrapper.unmount()
   })

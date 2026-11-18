@@ -1,12 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { ElButton } from 'element-plus'
 
 import type { VisualizationSceneId } from '@/data/layers'
-import {
-  createVisualizationScene,
-  isosurfaceBreaks,
-  isosurfaceColors,
-} from '@/demos/visualizationScene'
+import { createVisualizationScene, type VisualizationScene } from '@/demos/visualizationScene'
 import { useDemoGlobe } from '@/demos/useDemoGlobe'
 
 const props = defineProps<{
@@ -14,22 +11,34 @@ const props = defineProps<{
 }>()
 
 const container = ref<HTMLDivElement | null>(null)
-const isIsosurface = computed(() => props.sceneId === 'isosurface')
-const legendGradient = `linear-gradient(90deg, ${isosurfaceColors.join(', ')})`
-const legendMaximum = isosurfaceBreaks[isosurfaceBreaks.length - 2] ?? 9
 
-const { resize, sceneState, statusMessage } = useDemoGlobe({
-  actionErrorLabel: 'GIS 客户端示例操作失败',
+const { resize, scene, sceneState, statusMessage } = useDemoGlobe({
+  actionErrorLabel: '数据可视化示例操作失败',
   container,
   creditTestId: 'visualization-credit-container',
-  errorLabel: 'Cesium GIS 客户端示例初始化失败',
-  errorStatus: 'GIS 客户端场景加载失败，请关闭后重试。',
-  initialStatus: '正在准备 Cesium GIS 客户端场景…',
+  errorLabel: 'Cesium 数据可视化示例初始化失败',
+  errorStatus: '数据可视化场景加载失败，请关闭后重试。',
+  initialStatus: '正在准备 Cesium 数据可视化场景…',
   loadScene: ({ viewer, setStatus, signal }) =>
     createVisualizationScene(viewer, props.sceneId, setStatus, { signal }),
   sceneId: props.sceneId,
   scenePrefix: 'visualization-demo-globe',
 })
+
+const visualizationScene = computed(() => scene.value as VisualizationScene | undefined)
+const animationState = computed(() => visualizationScene.value?.animationState?.value)
+const canToggleAnimation = computed(() =>
+  Boolean(visualizationScene.value?.toggleAnimation && animationState.value),
+)
+const animationLabel = computed(() => (animationState.value === 'paused' ? '继续播放' : '暂停动画'))
+const legend = computed(() => visualizationScene.value?.legend)
+const legendGradient = computed(() =>
+  legend.value ? `linear-gradient(90deg, ${legend.value.colors.join(', ')})` : undefined,
+)
+
+function toggleAnimation() {
+  visualizationScene.value?.toggleAnimation?.()
+}
 
 defineExpose({ resize })
 </script>
@@ -40,6 +49,7 @@ defineExpose({ resize })
     data-testid="visualization-demo-globe"
     :data-scene-id="sceneId"
     :data-cesium-state="sceneState"
+    :data-animation-state="animationState"
   >
     <div ref="container" class="visualization-demo-globe__canvas"></div>
     <div
@@ -47,7 +57,7 @@ defineExpose({ resize })
       class="visualization-demo-globe__notice"
       aria-live="polite"
     >
-      正在加载 GIS 客户端场景…
+      正在加载数据可视化场景…
     </div>
     <div v-else-if="sceneState === 'error'" class="visualization-demo-globe__notice" role="alert">
       {{ statusMessage }}
@@ -55,22 +65,32 @@ defineExpose({ resize })
 
     <div v-if="sceneState === 'ready'" class="visualization-demo-globe__toolbar">
       <p class="visualization-demo-globe__status" aria-live="polite">{{ statusMessage }}</p>
+      <ElButton
+        v-if="canToggleAnimation"
+        size="small"
+        plain
+        :aria-pressed="animationState === 'playing'"
+        @click="toggleAnimation"
+      >
+        {{ animationLabel }}
+      </ElButton>
     </div>
 
     <div
-      v-if="sceneState === 'ready' && isIsosurface"
+      v-if="sceneState === 'ready' && legend"
       class="visualization-demo-globe__legend"
-      data-testid="isosurface-legend"
-      aria-label="风速等值面图例"
+      data-testid="visualization-legend"
+      :data-legend-title="legend.title"
+      :aria-label="`${legend.title}图例`"
     >
-      <span class="visualization-demo-globe__legend-title">风速等值面（m/s）</span>
-      <span class="visualization-demo-globe__legend-min">0</span>
+      <span class="visualization-demo-globe__legend-title">{{ legend.title }}</span>
+      <span class="visualization-demo-globe__legend-min">{{ legend.minimumLabel }}</span>
       <span
         class="visualization-demo-globe__legend-gradient"
         :style="{ background: legendGradient }"
         aria-hidden="true"
       ></span>
-      <span class="visualization-demo-globe__legend-max">{{ legendMaximum }}+</span>
+      <span class="visualization-demo-globe__legend-max">{{ legend.maximumLabel }}</span>
     </div>
   </div>
 </template>
@@ -109,6 +129,10 @@ defineExpose({ resize })
   top: 16px;
   left: 16px;
   z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
   width: min(460px, calc(100% - 32px));
   padding: 12px 14px;
   color: #e8eef6;
@@ -120,6 +144,7 @@ defineExpose({ resize })
 }
 
 .visualization-demo-globe__status {
+  flex: 1 1 260px;
   margin: 0;
   font-size: 13px;
   line-height: 1.55;

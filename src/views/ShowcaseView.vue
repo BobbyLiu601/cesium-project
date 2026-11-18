@@ -9,7 +9,6 @@ import {
   effectsMenuGroup,
   formatMenuGroupTitle,
   getFeatureById,
-  gisClientSection,
   layerSections,
   layersMenuGroup,
   spatialMenuGroup,
@@ -54,7 +53,7 @@ const showcaseGroups = [
     level: 2,
     menuGroup: visualizationMenuGroup,
     sectionId: undefined,
-    sections: [gisClientSection],
+    sections: visualizationMenuGroup.sections,
   },
 ] as const
 
@@ -70,6 +69,7 @@ const gridTestIds: Record<FeatureSection['id'], string> = {
   'particle-effects': 'particle-effects-grid',
   'physics-engine': 'physics-engine-grid',
   'gis-client': 'gis-client-grid',
+  'data-visualization': 'data-visualization-grid',
 }
 
 async function openFeature(feature: FeatureItem) {

@@ -77,7 +77,7 @@ async function expectCanvasToContainRedFacets(page: Page, canvas: Locator) {
   expect(redPixels).toBeGreaterThan(250)
 }
 
-async function expectCanvasToContainShapeColors(page: Page, canvas: Locator) {
+async function expectCanvasToContainShapeColors(page: Page, canvas: Locator, minimumPixels = 100) {
   const clip = await canvas.boundingBox()
   expect(clip).not.toBeNull()
   const screenshot = await capturePageClip(page, clip!)
@@ -108,7 +108,7 @@ async function expectCanvasToContainShapeColors(page: Page, canvas: Locator) {
     return count
   }, screenshot.toString('base64'))
 
-  expect(shapePixels).toBeGreaterThan(100)
+  expect(shapePixels).toBeGreaterThan(minimumPixels)
 }
 
 async function expectSubmenuArrowsPointDown(menu: Locator) {
@@ -176,6 +176,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(page.getByRole('heading', { level: 2, name: '3.4、物理引擎' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '4、可视化' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: '4.1、GIS客户端' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: '4.2、数据可视化' })).toBeVisible()
   await expect(page.getByRole('menuitem', { name: '1.1、影像' })).toHaveAttribute(
     'aria-current',
     'location',
@@ -230,7 +231,7 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     page.getByRole('button', { name: '打开2.2.2、视频投射(直播流)' }).locator('img'),
   ).toHaveAttribute('src', /2-2-2-video-projection-livestream/)
   await expect(page.getByRole('button', { name: '打开雷达图' })).toHaveCount(0)
-  await expect(page.getByTestId('feature-card')).toHaveCount(56)
+  await expect(page.getByTestId('feature-card')).toHaveCount(60)
   await expect(page.getByRole('button', { name: '打开3.1.1、天空盒' })).toContainText(
     '3.1.1、天空盒',
   )
@@ -338,6 +339,26 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
   await expect(
     page.getByRole('button', { name: '打开4.1.3、等值面' }).locator('img'),
   ).toHaveAttribute('src', /4-1-3-isosurface/)
+  await expect(page.getByRole('button', { name: '打开4.2.1、海流' })).toContainText('4.2.1、海流')
+  await expect(
+    page.getByRole('button', { name: '打开4.2.1、海流' }).locator('img'),
+  ).toHaveAttribute('src', /4-2-1-ocean-current/)
+  await expect(page.getByRole('button', { name: '打开4.2.2、3d热力图' })).toContainText(
+    '4.2.2、3d热力图',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开4.2.2、3d热力图' }).locator('img'),
+  ).toHaveAttribute('src', /4-2-2-3d-heatmap/)
+  await expect(page.getByRole('button', { name: '打开4.2.3、风场' })).toContainText('4.2.3、风场')
+  await expect(
+    page.getByRole('button', { name: '打开4.2.3、风场' }).locator('img'),
+  ).toHaveAttribute('src', /4-2-3-wind-field/)
+  await expect(page.getByRole('button', { name: '打开4.2.4、蜂窝热力图' })).toContainText(
+    '4.2.4、蜂窝热力图',
+  )
+  await expect(
+    page.getByRole('button', { name: '打开4.2.4、蜂窝热力图' }).locator('img'),
+  ).toHaveAttribute('src', /4-2-4-honeycomb-heatmap/)
   expect(
     await page
       .getByTestId('feature-card')
@@ -399,6 +420,10 @@ test('根路径进入图层目录并显示后台管理壳', async ({ page }) => 
     'overlay-analysis',
     'thiessen-polygon',
     'isosurface',
+    'ocean-current',
+    'heatmap-3d',
+    'wind-field',
+    'honeycomb-heatmap',
   ])
   await expect(page.getByText('展示能力', { exact: true })).toHaveCount(0)
   await expect(page.getByText('从统一入口浏览当前已准备的展示能力。', { exact: true })).toHaveCount(
@@ -987,7 +1012,7 @@ test('内容区滚动联动区块选中态与互斥展开菜单', async ({ page 
     element.scrollTop = element.scrollHeight
   })
 
-  await expect(page.getByRole('menuitem', { name: '4.1、GIS客户端' })).toHaveAttribute(
+  await expect(page.getByRole('menuitem', { name: '4.2、数据可视化' })).toHaveAttribute(
     'aria-current',
     'location',
   )
@@ -1922,7 +1947,7 @@ test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应
     await expectCanvasToContainShapeColors(page, globe.locator('canvas'))
 
     if (scene.id === 'isosurface') {
-      const legend = globe.getByTestId('isosurface-legend')
+      const legend = globe.getByTestId('visualization-legend')
       await expect(legend).toBeVisible()
       await expect(legend).toContainText('风速等值面（m/s）')
     }
@@ -1930,6 +1955,81 @@ test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应
     await dialog.getByRole('button', { name: '关闭此对话框' }).click()
     await expect(dialog).toBeHidden()
     await expect(page).toHaveURL(new RegExp(`/layers#${scene.id}$`))
+    await expect(page.getByRole('button', { name: `打开${scene.title}` })).toBeFocused()
+  }
+})
+
+test('四个数据可视化深链可打开、暂停动态场景并在关闭后返回对应卡片', async ({ page }) => {
+  test.setTimeout(240_000)
+  const scenes = [
+    {
+      animated: true,
+      featureId: 'ocean-current',
+      id: 'ocean-current',
+      route: '/visualization/data-visualization/4-2-1-ocean-current',
+      status: /96 条确定性流线.*东亚至西太平洋/,
+      title: '4.2.1、海流',
+    },
+    {
+      animated: false,
+      featureId: 'heatmap-3d',
+      id: '3d-heatmap',
+      legend: '三维热力强度',
+      route: '/visualization/data-visualization/4-2-2-3d-heatmap',
+      status: /384 个固定热力网格柱体/,
+      title: '4.2.2、3d热力图',
+    },
+    {
+      animated: true,
+      featureId: 'wind-field',
+      id: 'wind-field',
+      route: '/visualization/data-visualization/4-2-3-wind-field',
+      status: /112 条确定性流线.*中国及周边区域/,
+      title: '4.2.3、风场',
+    },
+    {
+      animated: false,
+      featureId: 'honeycomb-heatmap',
+      id: 'honeycomb-heatmap',
+      legend: '蜂窝热力强度',
+      route: '/visualization/data-visualization/4-2-4-honeycomb-heatmap',
+      status: /150 个固定六边形蜂窝单元/,
+      title: '4.2.4、蜂窝热力图',
+    },
+  ] as const
+
+  for (const scene of scenes) {
+    await page.goto(scene.route)
+    const dialog = page.getByRole('dialog', { name: scene.title })
+    const globe = dialog.getByTestId('visualization-demo-globe')
+
+    await expect(dialog).toBeVisible()
+    await expectCesiumReady(globe)
+    await expect(globe).toHaveAttribute('data-scene-id', scene.id)
+    await expect(globe.getByText(scene.status)).toBeVisible()
+    await expect(globe.locator('canvas')).toBeVisible()
+    await expectCanvasToContainShapeColors(page, globe.locator('canvas'), scene.animated ? 40 : 100)
+
+    if (scene.animated) {
+      await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+      await expectCanvasToAnimate(page, globe.locator('canvas'))
+      await globe.getByRole('button', { name: '暂停动画' }).click()
+      await expect(globe).toHaveAttribute('data-animation-state', 'paused')
+      await expectCanvasToRemainStatic(page, globe.locator('canvas'))
+      await globe.getByRole('button', { name: '继续播放' }).click()
+      await expect(globe).toHaveAttribute('data-animation-state', 'playing')
+      await expectCanvasToAnimate(page, globe.locator('canvas'))
+    } else {
+      await expect(globe).not.toHaveAttribute('data-animation-state', /.*/)
+      await expect(globe.getByRole('button', { name: '暂停动画' })).toHaveCount(0)
+      const legend = globe.getByTestId('visualization-legend')
+      await expect(legend).toBeVisible()
+      await expect(legend).toContainText(scene.legend)
+    }
+
+    await dialog.getByRole('button', { name: '关闭此对话框' }).click()
+    await expect(dialog).toBeHidden()
+    await expect(page).toHaveURL(new RegExp(`/layers#${scene.featureId}$`))
     await expect(page.getByRole('button', { name: `打开${scene.title}` })).toBeFocused()
   }
 })
