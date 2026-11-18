@@ -9,6 +9,7 @@ import { chromium } from '@playwright/test'
 const DEFAULT_BASE_PATH = '/cesium-project/'
 const DEFAULT_DIST_DIR = 'dist'
 const PAGE_TIMEOUT_MS = 15_000
+const SCENE_TIMEOUT_MS = 30_000
 const CONTENT_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -184,14 +185,29 @@ async function waitForText(page, text) {
   await page.getByText(text, { exact: true }).waitFor({ timeout: PAGE_TIMEOUT_MS })
 }
 
+async function waitForVisualizationScene(page, sceneId) {
+  await page
+    .locator(
+      `[data-testid="visualization-demo-globe"][data-scene-id="${sceneId}"][data-cesium-state="ready"]`,
+    )
+    .waitFor({ timeout: SCENE_TIMEOUT_MS })
+}
+
 async function validateBrowserBehavior(origin, basePath) {
   const failures = []
   const localRequests = []
   const cesiumRequests = []
+  const navigations = []
+  let allowVisualizationChunk = false
   const browser = await chromium.launch()
   const page = await browser.newPage()
 
   page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.resourceType() === 'document') {
+      navigations.push(request.url())
+      allowVisualizationChunk ||= new URL(request.url()).searchParams.has('__scene_refresh')
+    }
+
     const requestUrl = new URL(request.url())
     if (requestUrl.origin !== origin) {
       return
@@ -249,6 +265,48 @@ async function validateBrowserBehavior(origin, basePath) {
         `Cesium 没有从 ${basePath}cesium/ 加载静态资源。`,
       )
     }
+
+    let visualizationChunkFailures = 0
+    await page.route(/\/assets\/VisualizationDemoGlobe-[^/]+\.js(?:\?.*)?$/, async (route) => {
+      if (!allowVisualizationChunk) {
+        visualizationChunkFailures += 1
+        await route.abort('failed')
+        return
+      }
+
+      await route.continue()
+    })
+
+    await page.goto(`${origin}${basePath}layers`, { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: '打开4.1.1、叠加分析' }).click()
+    await waitForVisualizationScene(page, 'overlay-analysis')
+
+    if (visualizationChunkFailures === 0) {
+      addFailure(
+        failures,
+        'visualization-retry-not-triggered',
+        '4.1 可视化懒加载失败没有触发恢复。',
+      )
+    }
+    if (!navigations.some((url) => url.includes('__scene_refresh='))) {
+      addFailure(
+        failures,
+        'visualization-cache-bypass-missing',
+        `可视化懒加载恢复没有使用缓存绕过地址：${navigations.join(', ')}`,
+      )
+    }
+    if (new URL(page.url()).searchParams.has('__scene_refresh')) {
+      addFailure(
+        failures,
+        'visualization-refresh-marker-leaked',
+        '可视化恢复成功后仍保留内部刷新参数。',
+      )
+    }
+
+    await page.goto(`${origin}${basePath}visualization/data-visualization/4-2-1-ocean-current`, {
+      waitUntil: 'domcontentloaded',
+    })
+    await waitForVisualizationScene(page, 'ocean-current')
 
     const fallbackPath = `${basePath}missing/page`
     const fallbackResponse = await page.goto(`${origin}${fallbackPath}?from=pages-check`, {

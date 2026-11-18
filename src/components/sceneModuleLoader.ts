@@ -6,6 +6,7 @@ type SceneModule = { default: Component }
 
 const RETRY_WINDOW_MS = 30_000
 const RETRY_STORAGE_PREFIX = 'cesium-project:scene-module-retry:'
+const FRESH_RELOAD_PARAM = '__scene_refresh'
 
 export const sceneModuleLoaders: Record<FeatureKind, () => Promise<SceneModule>> = {
   amap: () => import('@/components/CesiumGlobe.vue'),
@@ -21,8 +22,18 @@ export const sceneModuleLoaders: Record<FeatureKind, () => Promise<SceneModule>>
   visualization: () => import('@/demos/VisualizationDemoGlobe.vue'),
 }
 
-function getRetryStorageKey(kind: FeatureKind, featureId: string) {
-  return `${RETRY_STORAGE_PREFIX}${kind}:${featureId}`
+function getRetryStorageKey(kind: FeatureKind) {
+  return `${RETRY_STORAGE_PREFIX}${kind}`
+}
+
+export function createFreshReloadUrl(href: string, now = Date.now()) {
+  const url = new URL(href)
+  url.searchParams.set(FRESH_RELOAD_PARAM, String(now))
+  return url.toString()
+}
+
+export function reloadPageFresh() {
+  window.location.replace(createFreshReloadUrl(window.location.href))
 }
 
 export function isSceneModuleFetchError(error: unknown) {
@@ -35,28 +46,38 @@ export function isSceneModuleFetchError(error: unknown) {
   )
 }
 
-export function clearSceneModuleRetry(feature: { id: string; kind: FeatureKind }) {
+export function clearSceneModuleRetry(feature: { kind: FeatureKind }) {
   try {
-    window.sessionStorage.removeItem(getRetryStorageKey(feature.kind, feature.id))
+    window.sessionStorage.removeItem(getRetryStorageKey(feature.kind))
   } catch {
     // Storage can be unavailable in privacy modes; the scene itself can still load.
+  }
+
+  try {
+    const url = new URL(window.location.href)
+    if (url.searchParams.has(FRESH_RELOAD_PARAM)) {
+      url.searchParams.delete(FRESH_RELOAD_PARAM)
+      window.history.replaceState(window.history.state, '', url)
+    }
+  } catch {
+    // A clean shareable URL is optional; scene loading must not depend on it.
   }
 }
 
 export function reloadSceneModuleAfterFetchFailure(
-  feature: { id: string; kind: FeatureKind },
+  feature: { kind: FeatureKind },
   error: unknown,
   {
     now = Date.now(),
     online = navigator.onLine,
-    reload = () => window.location.reload(),
+    reload = reloadPageFresh,
   }: { now?: number; online?: boolean; reload?: () => void } = {},
 ) {
   if (!isSceneModuleFetchError(error) || !online) {
     return false
   }
 
-  const key = getRetryStorageKey(feature.kind, feature.id)
+  const key = getRetryStorageKey(feature.kind)
 
   try {
     const storedAttempt = window.sessionStorage.getItem(key)

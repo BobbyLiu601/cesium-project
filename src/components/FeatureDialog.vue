@@ -14,6 +14,7 @@ import { FullScreen, ScaleToOriginal } from '@element-plus/icons-vue'
 
 import {
   clearSceneModuleRetry,
+  reloadPageFresh,
   reloadSceneModuleAfterFetchFailure,
   sceneModuleLoaders,
 } from '@/components/sceneModuleLoader'
@@ -101,7 +102,7 @@ async function toggleFullscreen() {
 
 function reloadScene() {
   clearSceneModuleRetry(props.feature)
-  window.location.reload()
+  reloadPageFresh()
 }
 
 function handleBeforeClose(done: () => void) {

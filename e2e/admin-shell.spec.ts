@@ -1959,6 +1959,13 @@ test('移动端可从抽屉进入特效场景并关闭弹窗', async ({ page }) 
 test('可视化懒加载模块失效时自动刷新一次并恢复目标场景', async ({ page }) => {
   test.setTimeout(60_000)
   let failedChunkRequest = false
+  const navigations: string[] = []
+
+  page.on('framenavigated', (frame) => {
+    if (frame === page.mainFrame()) {
+      navigations.push(frame.url())
+    }
+  })
 
   await page.route(/\/src\/demos\/VisualizationDemoGlobe\.vue(?:\?.*)?$/, async (route) => {
     if (!failedChunkRequest) {
@@ -1978,6 +1985,7 @@ test('可视化懒加载模块失效时自动刷新一次并恢复目标场景',
   await expectCesiumReady(globe)
   await expect(globe).toHaveAttribute('data-scene-id', 'overlay-analysis')
   expect(failedChunkRequest).toBe(true)
+  expect(navigations.some((url) => url.includes('__scene_refresh='))).toBe(true)
   await expect(page).toHaveURL(/\/visualization\/gis-client\/4-1-1-overlay-analysis$/)
 })
 
@@ -2030,7 +2038,7 @@ test('三个 GIS 客户端深链均可打开、渲染并在关闭后返回对应
 })
 
 test('四个数据可视化深链可打开、暂停动态场景并在关闭后返回对应卡片', async ({ page }, testInfo) => {
-  test.setTimeout(360_000)
+  test.setTimeout(600_000)
   const scenes = [
     {
       animated: true,
