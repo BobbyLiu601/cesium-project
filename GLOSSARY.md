@@ -69,8 +69,14 @@ _Avoid_: Vben 风格、参考站复刻、Cesium Examples 集成
 _Avoid_: 预览站点、生产服务器
 
 **Pages 部署**：
-将通过 `pnpm verify` 的 Pages 专用构建产物更新到 GitHub Pages 站点的动作。
+将通过 `pnpm verify` 的 Pages 专用构建产物更新到 GitHub Pages 站点，并由线上 `version.json`
+确认实际发布提交的动作；“workflow 已触发”或站点返回 200 不等于部署完成。
 _Avoid_: 发布构建、上传产物
+
+**线上版本清单（Pages version manifest）**：
+Pages 产物根目录的 `version.json`，记录构建提交 SHA 与构建时间；Issue 完成流程用它确认域名下实际
+运行的是本次发布提交。
+_Avoid_: 构建日志、Actions 运行记录
 
 **Release Build（发布构建）**：
 手动触发、面向通用静态托管的验证与 `dist` 产物上传流程；它不等于 Pages 部署。
@@ -114,6 +120,6 @@ _Avoid_: 提交时删除、静默覆盖
 
 **完成清理（Issue Completion Cleanup）**：
 用户明确回复“issue完成”后，删除该持久分支下所有已合并且未被工作树占用的 task 分支，再把完成分支
-fast-forward 到本地和远端 `main`、更新本地主检出，并由 `main` 推送触发 GitHub Pages 部署；当前执行
-turn 的活动分支记录为 deferred，工作树释放后再清理。
+fast-forward 到本地和远端 `main`、更新本地主检出，等待对应提交的 Pages workflow 成功，并校验线上
+`version.json` 的提交 SHA；当前执行 turn 的活动分支记录为 deferred，工作树释放后再清理。
 _Avoid_: 自动清理、交付前删除

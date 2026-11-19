@@ -64,6 +64,7 @@ jobs:
 
       - name: Verify Pages artifact
         env:
+          GITHUB_SHA: ${{ github.sha }}
           VITE_TIANDITU_TOKEN: ${{ secrets.TIANDITU_TOKEN }}
         run: pnpm verify:pages
 

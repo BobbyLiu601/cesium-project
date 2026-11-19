@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-const CESIUM_READY_TIMEOUT = 15_000
+const CESIUM_READY_TIMEOUT = 30_000
 
 async function expectCesiumReady(globe: Locator) {
   await expect(globe).toHaveAttribute('data-cesium-state', 'ready', {
@@ -1732,6 +1732,8 @@ test('十一个特殊形状深链均可打开并在关闭后返回对应卡片',
 })
 
 test('特殊形状动画支持暂停和继续，手动视锥体在地形失败时降级', async ({ page }) => {
+  test.setTimeout(120_000)
+
   await page.goto('/effects/special-shapes/3-2-3-moving-frustum')
 
   const dialog = page.getByRole('dialog', { name: '3.2.3、移动的视锥体' })

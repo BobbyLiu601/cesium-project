@@ -28,4 +28,9 @@ describe('pages workflow', () => {
     expect(checkStep).toContain('::warning::VITE_TIANDITU_TOKEN is missing or blank')
     expect(checkStep).toContain('exit 0')
   })
+
+  it('把本次 workflow 提交显式传给 Pages 版本清单构建', () => {
+    expect(workflow).toContain('GITHUB_SHA: ${{ github.sha }}')
+    expect(workflow).toContain('run: pnpm verify:pages')
+  })
 })

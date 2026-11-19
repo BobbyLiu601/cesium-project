@@ -85,9 +85,9 @@ docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:1.7.7
 - 每次有文件改动的执行必须在交付前提交到当前任务分支，覆盖代码、文档和配置。提交应围绕一个完整目的；任务过程中可以保留临时状态，但交付时不得遗留应提交的未提交改动。
 - 任务交付时默认只推送持久分支并设置其 upstream，交付分支名和提交哈希。`main` 保持不变，不自动创建 PR，也不自动合并。
 - 未合并的 task 分支不得推送；`pre-push` 守卫会拒绝并提示先执行 finalize。已推送的持久分支不因每次交付自动 rebase；只有用户要求同步或明确授权合并时，才按需 rebase 到最新 `origin/main`，解决冲突后重新运行 `pnpm verify`。更新已推送分支最多使用 `git push --force-with-lease origin <分支>`，不得强制推送 `main`，不得使用 `git reset --hard`。
-- 只有用户明确回复“issue完成”后，才执行 `node scripts/complete-issue.mjs --base <清理基线> --merge <完成分支> --authorize-main-push`。该命令先清理已合并且已释放的 task 分支，再把完成分支 fast-forward 到远端 `main`，最后更新本地 `main` 并把主检出切换到 `main`。当前执行 turn 的活动 task 分支不能在同一 turn 内删除，必须记录 SHA 并报告为 deferred。
+- 只有用户明确回复“issue完成”后，才执行 `node scripts/complete-issue.mjs --authorize-main-push`。命令默认从当前持久分支或当前 task 分支自动解析完成分支；显式 `--base` / `--merge` 只用于历史清理或解析不唯一的情况。它先收敛并清理已合并且已释放的 task 分支，再把完成分支 fast-forward 到远端 `main`，最后更新本地 `main` 并把主检出切换到 `main`。当前执行 turn 的活动 task 分支不能在同一 turn 内删除，必须记录 SHA 并报告为 deferred。
 - “issue完成”也是用户对合并 `main` 的明确授权，但 `complete-issue` 仍要求显式传入 `--authorize-main-push`。命令要求完成分支已包含最新 `origin/main`、本地 `main` 没有分叉、相关主检出不脏；任一前置条件失败时不得推送，也不能把 Issue 改为 `done`。
-- `main` 推送会触发 `.github/workflows/pages.yml`，由 workflow 完成 GitHub Pages 构建和部署。命令成功并触发部署后，执行 agent 才把 Issue 状态改为 `done`；Pages 的实际部署状态以 GitHub Actions 记录为准。
+- `main` 推送会触发 `.github/workflows/pages.yml`。完成命令必须按目标提交 SHA 等待 workflow 成功，再读取线上 `version.json` 并确认其中的 `commit` 与本次提交一致；只有两者都通过才返回成功。仅“已触发部署”或 HTTP 200 不构成完成证据。
 
 ### 本地 Git 守卫
 
@@ -111,10 +111,10 @@ node scripts/finalize-task-branch.mjs --fallback agent/deepseek-pro/alcy-51-d9d0
 node scripts/finalize-task-branch.mjs --fallback <fallback> --target agent/<agent>/<issue-key>
 ```
 
-用户回复“issue完成”后，先用 dry-run 核对清理、main 更新和本地主检出计划：
+用户回复“issue完成”后，先用 dry-run 核对自动解析、收敛、清理、main 更新和发布校验计划：
 
 ```bash
-node scripts/complete-issue.mjs --base agent/<agent>/<issue-key> --merge agent/<agent>/<issue-key> --dry-run
+node scripts/complete-issue.mjs --dry-run
 ```
 
 确认后执行：
@@ -130,9 +130,9 @@ deferred 保留，工作树释放后再运行不带 `--keep-current` 的清理�
 ### 显式合并授权
 
 - 只有用户在具体 Issue 或评论中明确要求合并或回复“issue完成”时，才可更新 `main`；任务完成、测试通过或 Issue 进入评审都不构成合并授权。
-- 合并前确认 task 分支已收敛到完成分支，并在完成分支合入最新 `origin/main` 后重新运行 `pnpm verify`。`complete-issue` 只接受可直接 fast-forward 的 `main`；分叉时必须先人工同步和验证，不能自动覆盖。
+- 合并前确认 task 分支已收敛到完成分支，并在完成分支合入最新 `origin/main` 后重新运行 `pnpm verify`。`complete-issue` 只接受可直接 fast-forward 的 `main`；分叉时必须先人工同步和验证，不能自动覆盖。完成流程先收敛 task 分支到持久分支，再执行清理与推送。
 - `complete-issue` 在推送阶段设置带原因的 `ALLOW_MAIN_GIT_UPDATE=1`，通过本地守卫后推送；不得改用 `--no-verify`。若远端保护规则拒绝推送，停止并报告，不绕过保护。
-- 合并成功后保留本地持久任务分支。当前活动 task 分支作为 deferred 记录，工作树释放后再删除。
+- 合并成功后保留本地持久任务分支。当前活动 task 分支作为 deferred 记录，工作树释放后再删除。完成命令还必须等待 Pages workflow 成功并校验线上 `version.json`；任一步失败时 Issue 标记为 blocked，不能标记为 done。
 
 ### 远端 main 保护（人工配置项）
 

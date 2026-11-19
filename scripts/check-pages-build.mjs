@@ -10,6 +10,7 @@ const DEFAULT_BASE_PATH = '/cesium-project/'
 const DEFAULT_DIST_DIR = 'dist'
 const PAGE_TIMEOUT_MS = 15_000
 const SCENE_TIMEOUT_MS = 30_000
+const COMMIT_PATTERN = /^[0-9a-f]{40}$/i
 const CONTENT_TYPES = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
@@ -84,6 +85,7 @@ function validateStaticArtifact(distDir, basePath) {
   const failures = []
   const indexPath = join(distDir, 'index.html')
   const fallbackPath = join(distDir, '404.html')
+  const versionPath = join(distDir, 'version.json')
 
   if (!existsSync(indexPath)) {
     addFailure(failures, 'index-missing', '构建产物中缺少 index.html。')
@@ -112,6 +114,34 @@ function validateStaticArtifact(distDir, basePath) {
 
   if (!existsSync(join(distDir, 'cesium', 'Workers'))) {
     addFailure(failures, 'cesium-static-missing', '构建产物中缺少 Cesium 静态资源目录 cesium/。')
+  }
+
+  if (!existsSync(versionPath)) {
+    addFailure(failures, 'version-manifest-missing', '构建产物中缺少 version.json。')
+  } else {
+    try {
+      const manifest = JSON.parse(readFileSync(versionPath, 'utf8'))
+      if (!COMMIT_PATTERN.test(manifest?.commit ?? '')) {
+        addFailure(
+          failures,
+          'version-commit-invalid',
+          'version.json 的 commit 必须是完整的 40 位 Git SHA。',
+        )
+      }
+      if (!Number.isFinite(Date.parse(manifest?.builtAt ?? ''))) {
+        addFailure(
+          failures,
+          'version-built-at-invalid',
+          'version.json 的 builtAt 必须是有效的 ISO 时间。',
+        )
+      }
+    } catch (error) {
+      addFailure(
+        failures,
+        'version-manifest-invalid',
+        `无法解析 version.json：${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
   }
 
   return failures

@@ -21,6 +21,17 @@ function createFixture({ fallbackContent, indexContent } = {}) {
   writeFileSync(join(directory, '404.html'), fallbackContent ?? indexHtml)
   writeFileSync(join(directory, 'assets/index.js'), 'console.log("app")\n')
   writeFileSync(join(directory, 'cesium/Workers/test.js'), 'console.log("cesium")\n')
+  writeFileSync(
+    join(directory, 'version.json'),
+    `${JSON.stringify(
+      {
+        commit: '0123456789abcdef0123456789abcdef01234567',
+        builtAt: '2026-11-19T00:00:00.000Z',
+      },
+      null,
+      2,
+    )}\n`,
+  )
 
   return directory
 }
@@ -84,5 +95,31 @@ describe('check-pages-build', () => {
 
     expect(result.status).toBe(1)
     expect(result.output).toContain('[cesium-static-missing]')
+  })
+
+  it('拒绝缺少版本清单的产物', () => {
+    const directory = createFixture()
+    rmSync(join(directory, 'version.json'))
+
+    const result = runChecker(directory)
+
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('[version-manifest-missing]')
+  })
+
+  it('拒绝提交 SHA 无效的版本清单', () => {
+    const directory = createFixture()
+    writeFileSync(
+      join(directory, 'version.json'),
+      `${JSON.stringify({
+        commit: 'not-a-sha',
+        builtAt: '2026-11-19T00:00:00.000Z',
+      })}\n`,
+    )
+
+    const result = runChecker(directory)
+
+    expect(result.status).toBe(1)
+    expect(result.output).toContain('[version-commit-invalid]')
   })
 })

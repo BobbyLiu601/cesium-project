@@ -3,6 +3,14 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { join, resolve } from 'node:path'
+
+import {
+  deploymentTiming,
+  resolveGitHubContext,
+  resolveGitHubToken,
+  waitForPagesWorkflow,
+  waitForPublishedCommit,
+} from './lib/pages-deployment.mjs'
 import {
   MAIN_BRANCH,
   branchExists,
@@ -10,6 +18,7 @@ import {
   gitStatus,
   isAncestor,
   parseTaskBranch,
+  resolvePersistentBranch,
   revParse,
 } from './lib/task-branches.mjs'
 import {
@@ -24,23 +33,25 @@ const PAGES_WORKFLOW = '.github/workflows/pages.yml'
 const MAIN_UPDATE_REASON = '用户明确回复“issue完成”，授权合并到远端 main 并更新 GitHub Pages'
 
 function printHelp() {
-  console.log(`用法：node scripts/complete-issue.mjs [--base <持久分支>]... [--merge <待合并分支>]
+  console.log(`用法：node scripts/complete-issue.mjs [--base <持久分支>]... [--merge <完成分支>]
        [--remote origin] [--dry-run] [--authorize-main-push]
 
 仅在用户明确回复“issue完成”后执行：
-  1. 删除 --base 下已合并且已释放的 task 分支；
-  2. 把 --merge 分支 fast-forward 到本地和远端 main；
-  3. 把主检出切换到最新 main，并触发 GitHub Pages workflow。
+  1. 自动解析当前 Issue 的持久分支，并收敛当前 task 分支；
+  2. 删除该持久分支下已合并且已释放的 task 分支；
+  3. 把完成分支 fast-forward 到本地和远端 main；
+  4. 等待对应提交的 GitHub Pages workflow 成功；
+  5. 读取线上 version.json，确认实际发布提交与目标一致。
 
 参数：
-  --base <分支>         可重复；默认使用 --merge 分支
-  --merge <分支>        默认使用唯一的 --base，或当前持久分支
-  --remote <名称>      默认 origin
-  --dry-run             只检查和打印计划，不删除分支、不更新 ref、不推送
+  --base <分支>          可重复；默认使用完成分支
+  --merge <分支>         默认从当前持久分支或当前 task 分支自动解析
+  --remote <名称>        默认 origin
+  --dry-run             只检查和打印计划，不删除分支、不更新 ref、不推送、不访问网络
   --authorize-main-push 确认本命令由“issue完成”评论明确授权，可更新远端 main
 
-命令成功后，执行 agent 还需要把 Issue 状态改为 done。
-`)
+仅当 workflow 成功且线上 version.json 的 commit 与目标 SHA 一致时，命令才返回成功。
+随后可把 Issue 标为 done；任一步失败都应标为 blocked 并报告可操作结果。`)
 }
 
 class UsageError extends Error {}
@@ -101,25 +112,103 @@ function assertPersistentBranch(repoRoot, branch, label) {
 }
 
 function resolveBranches(repoRoot, options) {
+  const current = currentBranch(repoRoot)
+  let currentTask = ''
   let merge = options.merge
+
   if (!merge) {
-    if (options.bases.length === 1) {
-      merge = options.bases[0]
-    } else if (options.bases.length === 0) {
-      merge = currentBranch(repoRoot)
+    if (!current) {
+      throw new UsageError('当前 HEAD 不在命名分支上，请用 --merge 指定完成分支')
+    }
+
+    const taskMeta = parseTaskBranch(current)
+    if (taskMeta) {
+      currentTask = current
+      const resolution = resolvePersistentBranch({
+        cwd: repoRoot,
+        fallbackBranch: current,
+        fallbackTip: revParse(repoRoot, current),
+      })
+      merge = resolution.target
+      console.log(
+        `[issue-complete] 已从 task 分支 ${current} 解析持久分支 ${merge}（${resolution.source}）`,
+      )
+    } else {
+      merge = current
+    }
+  } else if (current && parseTaskBranch(current)) {
+    currentTask = current
+    const taskMeta = parseTaskBranch(current)
+    if (taskMeta.baseBranch !== merge) {
+      throw new UsageError(
+        `当前 task 分支 ${current} 属于 ${taskMeta.baseBranch}，不能完成 ${merge}`,
+      )
     }
   }
+
   if (!merge) {
-    throw new UsageError('无法确定待合并分支，请用 --merge 指定')
+    throw new UsageError('无法确定完成分支，请用 --merge 指定')
   }
 
-  const bases = options.bases.length > 0 ? options.bases : [merge]
   assertPersistentBranch(repoRoot, merge, '--merge')
+  const bases = options.bases.length > 0 ? options.bases : [merge]
   for (const base of bases) {
     assertPersistentBranch(repoRoot, base, '--base')
   }
 
-  return { bases: [...new Set(bases)], merge }
+  return { bases: [...new Set(bases)], currentTask, merge }
+}
+
+function runFinalize(repoRoot, taskBranch, targetBranch, dryRun) {
+  const args = [
+    join(import.meta.dirname, 'finalize-task-branch.mjs'),
+    '--fallback',
+    taskBranch,
+    '--target',
+    targetBranch,
+  ]
+  if (dryRun) {
+    args.push('--dry-run')
+  }
+
+  const result = spawnSync(process.execPath, args, {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+  if (result.stdout.trim()) {
+    console.log(result.stdout.trim())
+  }
+  if (result.stderr.trim()) {
+    console.error(result.stderr.trim())
+  }
+  if (result.status !== 0) {
+    throw new Error(`收敛 task 分支 ${taskBranch} 到 ${targetBranch} 失败`)
+  }
+}
+
+function convergeCurrentTask(repoRoot, branches, options) {
+  if (!branches.currentTask) {
+    return revParse(repoRoot, branches.merge)
+  }
+
+  const taskTip = revParse(repoRoot, branches.currentTask)
+  const targetTip = revParse(repoRoot, branches.merge)
+  if (!isAncestor(repoRoot, taskTip, targetTip)) {
+    assertWorktreeSafe({ path: repoRoot }, '当前工作树 ')
+    if (options.dryRun) {
+      console.log(
+        `[issue-complete] dry-run：将把 ${branches.currentTask}（${taskTip}）合并到 ${branches.merge}`,
+      )
+      return taskTip
+    }
+    runFinalize(repoRoot, branches.currentTask, branches.merge, false)
+    return revParse(repoRoot, branches.merge)
+  }
+
+  if (options.dryRun) {
+    console.log(`[issue-complete] dry-run：${branches.currentTask} 已包含在 ${branches.merge}`)
+  }
+  return targetTip
 }
 
 function runCleanup(repoRoot, base, dryRun) {
@@ -161,11 +250,13 @@ function refExists(repoRoot, ref) {
 }
 
 function preflight(repoRoot, options, branches) {
-  mustGit(repoRoot, ['remote', 'get-url', options.remote])
+  const remoteUrl = mustGit(repoRoot, ['remote', 'get-url', options.remote])
 
   if (!existsSync(join(repoRoot, PAGES_WORKFLOW))) {
     throw new Error(`缺少 GitHub Pages workflow：${PAGES_WORKFLOW}`)
   }
+
+  assertWorktreeSafe({ path: repoRoot }, '当前工作树 ')
 
   if (!options.dryRun) {
     console.log(`[issue-complete] 正在获取 ${options.remote}/${MAIN_BRANCH}...`)
@@ -178,7 +269,7 @@ function preflight(repoRoot, options, branches) {
   }
 
   const remoteMainTip = revParse(repoRoot, remoteMain)
-  const mergeTip = revParse(repoRoot, branches.merge)
+  const mergeTip = branches.mergeTip || revParse(repoRoot, branches.merge)
   if (!isAncestor(repoRoot, remoteMainTip, mergeTip)) {
     throw new Error(
       `${branches.merge} 尚未包含最新 ${options.remote}/${MAIN_BRANCH}；请先同步 main 到该分支并重新验证`,
@@ -217,7 +308,19 @@ function preflight(repoRoot, options, branches) {
     )
   }
 
-  return { remoteMainTip, mergeTip, localMainTip, mainWorktree, primary }
+  const deployment = resolveGitHubContext({
+    remoteUrl,
+    environment: process.env,
+  })
+
+  return {
+    deployment,
+    localMainTip,
+    mainWorktree,
+    mergeTip,
+    primary,
+    remoteMainTip,
+  }
 }
 
 function updateLocalMain(repoRoot, remoteMainTip, mergeTip) {
@@ -266,6 +369,16 @@ function pushMain(repoRoot, remote, mergeTip) {
   }
 }
 
+function verifyRemoteMain(repoRoot, remote, mergeTip) {
+  const output = mustGit(repoRoot, ['ls-remote', '--heads', remote, `refs/heads/${MAIN_BRANCH}`])
+  const remoteTip = output.split(/\s+/)[0] ?? ''
+  if (remoteTip !== mergeTip) {
+    throw new Error(
+      `远端 ${MAIN_BRANCH} 校验失败：期望 ${mergeTip}，实际 ${remoteTip || 'missing'}`,
+    )
+  }
+}
+
 function switchPrimaryToMain(repoRoot) {
   const mainWorktree = mainCheckout(repoRoot)
   if (mainWorktree) {
@@ -281,22 +394,12 @@ function switchPrimaryToMain(repoRoot) {
   return primary.path
 }
 
-function remoteUrl(repoRoot, remote) {
-  return mustGit(repoRoot, ['remote', 'get-url', remote])
-}
-
-function pagesUrl(url) {
-  const match = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/i.exec(url)
-  if (!match) {
-    return ''
-  }
-  return `https://${match[1].toLowerCase()}.github.io/${match[2]}/`
-}
-
-function complete(options) {
+async function complete(options) {
   const repoRoot = mustGit(process.cwd(), ['rev-parse', '--show-toplevel'])
   const branches = resolveBranches(repoRoot, options)
-  const state = preflight(repoRoot, options, branches)
+  const mergeTip = convergeCurrentTask(repoRoot, branches, options)
+  const state = preflight(repoRoot, options, { ...branches, mergeTip })
+  const timing = deploymentTiming()
 
   for (const base of branches.bases) {
     runCleanup(repoRoot, base, options.dryRun)
@@ -307,11 +410,20 @@ function complete(options) {
       `[issue-complete] dry-run：将把 ${branches.merge}（${state.mergeTip}）推送到 ${options.remote}/${MAIN_BRANCH}`,
     )
     console.log('[issue-complete] dry-run：将更新本地 main 并把主检出切换到 main')
-    console.log(`[issue-complete] dry-run：推送后将触发 ${PAGES_WORKFLOW}`)
+    console.log(
+      `[issue-complete] dry-run：将等待 ${PAGES_WORKFLOW} 成功，并校验 ${state.deployment.siteUrl}version.json`,
+    )
     return
   }
 
-  pushMain(repoRoot, options.remote, state.mergeTip)
+  const alreadyAtTarget = state.remoteMainTip === state.mergeTip
+  if (alreadyAtTarget) {
+    console.log(`[issue-complete] 远端 ${MAIN_BRANCH} 已指向 ${state.mergeTip}，无需重复推送`)
+  } else {
+    pushMain(repoRoot, options.remote, state.mergeTip)
+  }
+  verifyRemoteMain(repoRoot, options.remote, state.mergeTip)
+
   const localMainPath = updateLocalMain(repoRoot, state.remoteMainTip, state.mergeTip)
   if (localMainPath) {
     console.log(`[issue-complete] 本地 main 已在 ${localMainPath} 更新到 ${state.mergeTip}`)
@@ -320,25 +432,44 @@ function complete(options) {
     console.log(`[issue-complete] 主检出 ${mainPath} 已切换到最新 main（${state.mergeTip}）`)
   }
 
-  const url = pagesUrl(remoteUrl(repoRoot, options.remote))
+  const token = resolveGitHubToken(repoRoot)
+  const workflowRun = await waitForPagesWorkflow({
+    context: state.deployment,
+    targetSha: state.mergeTip,
+    token,
+    pollIntervalMs: timing.pollIntervalMs,
+    timeoutMs: timing.workflowTimeoutMs,
+  })
   console.log(
-    `[issue-complete] 已触发 GitHub Pages workflow（${PAGES_WORKFLOW}）；部署状态以 GitHub Actions 为准。${url ? `站点：${url}` : ''}`,
+    `[issue-complete] Pages workflow 成功：${
+      workflowRun.html_url ||
+      `https://github.com/${state.deployment.owner}/${state.deployment.repo}/actions/runs/${workflowRun.id}`
+    }`,
   )
-  console.log('[issue-complete] Git 操作完成；确认成功后把 Issue 状态改为 done。')
+
+  const manifest = await waitForPublishedCommit({
+    context: state.deployment,
+    targetSha: state.mergeTip,
+    pollIntervalMs: timing.pollIntervalMs,
+    timeoutMs: timing.siteTimeoutMs,
+  })
+  console.log(
+    `[issue-complete] 发布完成：提交 ${manifest.commit}，站点 ${state.deployment.siteUrl}`,
+  )
 }
 
-function main() {
+async function main() {
   try {
     const options = parseArgs(process.argv.slice(2))
     if (options.help) {
       printHelp()
       return
     }
-    complete(options)
+    await complete(options)
   } catch (error) {
     console.error(`[issue-complete] 失败：${error.message}`)
     process.exitCode = error instanceof UsageError ? 2 : 1
   }
 }
 
-main()
+await main()

@@ -84,7 +84,7 @@ GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.git
 | `pnpm check:pages`      | 检查 Pages 产物基路径、子路由回退和 Cesium 静态资源         |
 | `pnpm finalize:branch`  | 把 task 分支合并回持久任务分支并保留，等待 Issue 完成后清理 |
 | `pnpm cleanup:branches` | 用户确认 Issue 完成后删除已合并的 task 分支                 |
-| `pnpm complete:issue`   | 完成清理、更新远端和本地 main，并触发 Pages 部署            |
+| `pnpm complete:issue`   | 清理、更新 main，并等待 Pages workflow 与线上版本校验通过   |
 | `pnpm verify`           | 运行 lint、格式、类型、测试、密钥扫描、生产构建与包体门禁   |
 | `pnpm verify:pages`     | 构建 Pages 产物并执行 Pages 专用检查                        |
 
@@ -117,7 +117,7 @@ GitHub Pages 部署使用独立流程，目标地址为 `https://bobbyliu601.git
 - 测试优先覆盖用户可观察行为，应用装配与路由使用应用级 seam 验证。
 - `pnpm install` 会安装 pre-commit 密钥扫描；完整扫描、包体门禁和模板校验都接入 `pnpm verify`。
 - `worktree` 的 task 分支在提交后持续合并到持久分支并保留；未合并的 task 分支不允许推送。
-- 用户明确回复“issue完成”后，用 `pnpm complete:issue` 清理历史 task 分支、合并 `main` 并更新 Pages 和本地代码。
+- 用户明确回复“issue完成”后，用 `pnpm complete:issue` 清理历史 task 分支、合并 `main`，并等待 Pages workflow 与线上版本校验通过。
 - CI 额外使用固定版本的 actionlint 检查 GitHub Actions workflow；Windows 本地不要求安装 Go。
 - 完整编码、验证与提交约定见 `docs/CODING_STANDARDS.md`。
 
@@ -129,9 +129,19 @@ GitHub Pages 使用项目页地址 `https://bobbyliu601.github.io/cesium-project
 
 `.github/workflows/pages.yml` 在默认分支更新后执行完整验证、Pages 专用构建和浏览器检查，再通过 GitHub 官方 Pages Actions 发布。`pnpm verify:pages` 可复现构建与检查；没有天地图 token 时，本地和 Pages 部署都会降级渲染。
 
-用户回复“issue完成”后，`pnpm complete:issue --base <历史持久分支> --merge <完成分支> --authorize-main-push`
-会清理已释放的 task 分支、推送完成分支到远端 `main`、更新本地主检出，并由该 push 自动触发 Pages
-workflow。部署状态以 GitHub Actions 记录为准。
+用户回复“issue完成”后，在完成分支直接运行：
+
+```bash
+pnpm complete:issue --authorize-main-push
+```
+
+命令会从当前持久分支或当前 task 分支自动解析 Issue 的完成分支，先收敛 task 分支，再清理已释放的
+task 分支、推送完成分支到远端 `main` 并更新本地主检出。随后命令按提交 SHA 等待 Pages workflow
+成功，再读取带缓存穿透参数的线上 `version.json`，确认站点实际发布的是本次提交。只有 workflow
+成功、线上提交匹配时命令才返回成功；失败时输出 Actions 链接或线上校验原因。
+
+历史清理或无法唯一解析分支时，可显式传入 `--base` 和 `--merge`。重复执行是幂等的：远端 `main`
+已经指向目标提交时不会重复推送，但仍会重新校验部署结果。
 
 ### 其他静态托管
 
